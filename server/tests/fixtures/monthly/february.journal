@@ -1,0 +1,54 @@
+; February 2024 transactions
+
+; Continuing patterns from January
+2024-02-02 * Whole Foods
+    Expenses:Food:Groceries       $132.80
+    Assets:Checking              $-132.80
+
+2024-02-09 * Whole Foods
+    Expenses:Food:Groceries       $105.45
+    Assets:Checking              $-105.45
+
+2024-02-16 * Whole Foods
+    Expenses:Food:Groceries       $118.90
+    Assets:Checking              $-118.90
+
+2024-02-03 * Shell Gas Station
+    Expenses:Transport:Gas        $68.25
+    Assets:Checking              $-68.25
+
+2024-02-11 * Shell Gas Station
+    Expenses:Transport:Gas        $71.50
+    Assets:Checking              $-71.50
+
+2024-02-18 * Shell Gas Station
+    Expenses:Transport:Gas        $64.00
+    Assets:Checking              $-64.00
+
+2024-02-25 * Shell Gas Station
+    Expenses:Transport:Gas        $69.75
+    Assets:Checking              $-69.75
+
+2024-02-05 * Uber
+    Expenses:Transport:Transit    $15.75
+    Assets:Checking              $-15.75
+
+2024-02-12 * Uber
+    Expenses:Transport:Transit    $19.25
+    Assets:Checking              $-19.25
+
+2024-02-19 * Uber
+    Expenses:Transport:Transit    $23.50
+    Assets:Checking              $-23.50
+
+2024-02-15 * PG&E
+    Expenses:Utilities:Electric   $92.60
+    Assets:Checking              $-92.60
+
+2024-02-20 * Safeway
+    Expenses:Food:Groceries       $38.90
+    Assets:Checking              $-38.90
+
+2024-02-28 * ACME Corp
+    Assets:Checking              $5000.00
+    Income:Salary               $-5000.00

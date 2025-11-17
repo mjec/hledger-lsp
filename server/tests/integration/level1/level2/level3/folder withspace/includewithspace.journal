@@ -1,0 +1,5 @@
+include ../../../../test space/test.journal
+include /home/patrick/Insync/patrick.timoney@gmail.com/Google Drive/Joint Finances (2025)/Ledgers/declarations.journal
+2024-01-01 test
+    asset:euros                                  100
+    asset:assets:cash:HSBC

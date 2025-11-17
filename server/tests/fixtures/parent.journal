@@ -1,0 +1,8 @@
+; Parent journal in fixtures directory
+
+account Assets:Bank
+account Expenses:Utilities
+
+2024-01-01 * Parent Transaction
+    Expenses:Utilities    $100
+    Assets:Bank          $-100

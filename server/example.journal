@@ -1,0 +1,58 @@
+; Example hledger journal file for testing
+
+include include.journal
+
+; Account declarations
+account assets:bank:checking
+account assets:bank:savings
+account expenses:food:groceries
+account expenses:transportation
+account income:salary
+account liabilities:creditcard
+account assets:euros
+account assets:dollars
+
+tag trip
+tag category
+
+commodity $1000.00
+commodity £1000.00
+payee Grocery
+
+; Opening balances
+2024-01-01 * Opening Balance
+    assets:bank:checking                       $1000.00
+    assets:bank:savings                        $5000.00
+    equity:opening balances                   $-6000.00
+
+; Regular transactions
+2024-01-05 * Grocery | Store
+    expenses:food:groceries                      $75.50
+    assets:bank:checking
+
+
+2024-01-10 ! Pending Salary
+    assets:bank:checking                       $3000.00
+    income:salary
+
+2024-01-15 * Gas Station
+    expenses:transportation                      $45.00
+    liabilities:creditcard
+
+2024-01-20 * Transfer to Savings
+    assets:bank:savings                         $500.00
+    assets:bank:checking
+
+; Transaction with tags
+2024-01-25 * Restaurant  ;trip:vacation, category:dining
+    expenses:food:groceries                     $120.00
+    liabilities:creditcard
+
+; Transaction with assertion
+2024-01-31 * Paycheck
+    assets:bank:checking                       $3000.00 = $7000.00
+    income:salary
+
+2025-01-01 Currency Exchange
+    assets:euros                                £100.00 @ $2.00
+    assets:dollars                             $-200.00

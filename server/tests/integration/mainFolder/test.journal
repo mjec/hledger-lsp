@@ -1,0 +1,17 @@
+include includeFolder/include1.journal
+include include3.journal
+include ../parentInclude.journal
+account income:salary
+
+2025-11-10 Test Transaction
+    income:salary                                £10
+    assets:cash
+
+2025-11-11 Test2 Transaction
+    equity:opening balance                       £10
+    assets:cash                                 £-10
+
+2025-11-11 Test2
+    income:salary                               £100
+    assets:cash
+

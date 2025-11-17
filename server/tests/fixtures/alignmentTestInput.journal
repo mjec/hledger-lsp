@@ -1,0 +1,140 @@
+; Test document for column alignment across entire document
+; This includes various edge cases to test the alignment logic
+
+; Commodity declarations with explicit formats
+commodity $1,000.00
+commodity €1,000.00
+commodity 1,000.00 BTC
+commodity 1,000.00 GBP
+commodity USD 1,000.00
+
+account expenses:food:groceries
+account assets:checking
+account expenses:transportation:fuel
+account assets:bank:checking
+account income:salary
+account expenses:housing:rent
+account assets:crypto:bitcoin
+account expenses:travel:accommodation
+account liabilities:creditcard
+account expenses:food:coffee
+account expenses:books
+account assets:investment:retirement:401k:employer:match
+account income:benefits:retirement
+account assets:realestate:home
+account assets:savings
+account income:interest
+account expenses:shopping
+account expenses:utilities:electric
+account expenses:utilities:water
+account assets:cash
+account expenses:fees:exchange
+account assets:cash:euros
+account assets:crypto:wallet
+account income:dividends
+account assets:brokerage
+account expenses:shopping:clothing
+account expenses:shopping:shoes
+account assets:checking =
+account expenses:restaurant
+account expenses:business:supplies
+
+; Simple transactions with different account name lengths
+2024-01-01 * Grocery shopping
+    expenses:food:groceries  $45.67
+    assets:checking
+
+2024-01-02 * Gas
+    expenses:transportation:fuel  $89.12
+    assets:bank:checking
+
+; Transactions with balance assertions
+2024-01-03 * Salary deposit
+    assets:checking  $2500.00 = $3500.00
+    income:salary
+
+2024-01-04 * Rent payment
+    expenses:housing:rent  $1200.00
+    assets:checking = $2300.00
+
+; Different commodities
+2024-01-05 * Bitcoin purchase
+    assets:crypto:bitcoin  0.05 BTC
+    assets:checking  -$3250.00
+
+2024-01-06 * European vacation expense
+    expenses:travel:accommodation  €450.00
+    liabilities:creditcard
+
+; Mix of commodity positions (before and after)
+2024-01-07 * Coffee
+    expenses:food:coffee  USD 5.50
+    assets:checking
+
+2024-01-08 * Book purchase
+    expenses:books  25.99 GBP
+    assets:checking
+
+; Very long account name
+2024-01-09 * Investment contribution
+    assets:investment:retirement:401k:employer:match  $500.00
+    income:benefits:retirement
+
+; Very large amount
+2024-01-10 * House down payment
+    assets:realestate:home  $125000.00
+    assets:savings
+
+; Small decimal amounts
+2024-01-11 * Interest earned
+    assets:checking  $0.15 = $2300.15
+    income:interest
+
+; Negative amounts
+2024-01-12 * Refund
+    expenses:shopping  -$45.99
+    assets:checking  $45.99
+
+; Transaction without amount (inferred)
+2024-01-13 * Bill payment
+    expenses:utilities:electric  $87.50
+    expenses:utilities:water  $34.20
+    assets:checking
+
+; Multiple commodities in one transaction
+2024-01-14 * Currency exchange
+    assets:cash:euros  €800.00
+    assets:checking  $-1000.00
+    expenses:fees:exchange  $5.00
+
+; Balance assertion with different commodity
+2024-01-15 * Crypto transfer
+    assets:crypto:bitcoin  0.001 BTC = 0.051 BTC
+    assets:crypto:wallet
+
+; Very precise amounts
+2024-01-16 * Stock dividend
+    assets:brokerage  $127.4567
+    income:dividends
+
+; Edge case: extremely long account with large amount and assertion
+2024-01-17 * Edge case transaction
+    assets:investment:taxadvantaged:rothira:contributions:annual  $6500.00 = $19500.00
+    assets:checking
+
+; Comments on postings
+2024-01-18 * Shopping with notes
+    expenses:shopping:clothing  $125.50  ; winter coat
+    expenses:shopping:shoes  $89.99  ; running shoes
+    assets:checking
+
+; Mixed: some with amounts, some without
+2024-01-19 * Split payment
+    expenses:restaurant  $45.00
+    assets:checking  $22.50
+    assets:cash
+
+; Posting with tags
+2024-01-20 * Business expense
+    expenses:business:supplies  $234.56  ; project:acme category:office
+    assets:checking = $2000.00

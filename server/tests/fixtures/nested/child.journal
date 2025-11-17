@@ -1,0 +1,10 @@
+; Child journal in nested directory
+
+; Include parent from parent directory
+include ../parent.journal
+
+account Assets:Cash
+
+2024-01-02 * Child Transaction
+    Expenses:Utilities    $50
+    Assets:Cash          $-50

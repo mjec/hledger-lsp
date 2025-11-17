@@ -1,0 +1,8 @@
+; Test file for absolute path includes
+
+account Assets:Bank
+account Expenses:Test
+
+2024-01-10 * Absolute Path Test
+    Expenses:Test    $75
+    Assets:Bank     $-75

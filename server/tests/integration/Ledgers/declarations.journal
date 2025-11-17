@@ -1,0 +1,147 @@
+
+account income:rent
+account income:salary
+account income:grandma
+account income:interest
+
+account assets
+account assets:cash
+account assets:cash:revolut
+account assets:cash:natwest
+account assets:cash:HSBC
+account assets:cash:HSBCSavings
+account assets:cash:MONZO
+account assets:cash:inter account
+account assets:cash:other savings
+
+account liabilities
+account liabilities:credit card
+account liabilities:credit card:amex-rosanna
+account liabilities:credit card:amex-patrick
+account liabilities:monthly transfers
+
+; EXPENSES
+account expenses
+
+account expenses:work expenses
+
+; BILLS
+account expenses:bills
+account expenses:bills:rent
+account expenses:bills:electricity & gas
+account expenses:bills:internet
+account expenses:bills:water
+account expenses:bills:council tax
+account expenses:bills:phone
+account expenses:bills:cleaning
+account expenses:bills:gardening
+account expenses:bills:contents insurance
+account expenses:bills:garden waste
+account expenses:bills:tv license
+account expenses:bills:income tax
+
+; DISCRETIONARY
+account expenses:discretionary
+; SUBSCRIPTIONS
+account expenses:discretionary:subs
+account expenses:discretionary:subs:netflix
+account expenses:discretionary:subs:office
+account expenses:discretionary:subs:prime
+account expenses:discretionary:subs:adobe
+account expenses:discretionary:subs:prime video
+account expenses:discretionary:subs:disney
+account expenses:discretionary:subs:now
+account expenses:discretionary:subs:appletv
+account expenses:discretionary:subs:nyt
+account expenses:discretionary:subs:dropout
+account expenses:discretionary:subs:spotify
+account expenses:discretionary:subs:audible
+account expenses:discretionary:subs:youtube
+account expenses:discretionary:subs:national trust
+account expenses:discretionary:subs:tate
+account expenses:discretionary:subs:gym
+account expenses:discretionary:subs:monocle
+
+; SHOPPING
+account expenses:discretionary:shopping
+account expenses:discretionary:shopping:home
+account expenses:discretionary:shopping:makeup and skincare
+account expenses:discretionary:shopping:clothes
+account expenses:discretionary:shopping:computer
+; EATING OUT
+account expenses:discretionary:eating out
+account expenses:discretionary:eating out:dinner
+account expenses:discretionary:eating out:breakfast
+account expenses:discretionary:eating out:coffee
+account expenses:discretionary:eating out:lunch
+account expenses:discretionary:eating out:snacks
+account expenses:discretionary:eating out:drinks
+
+; GIFTS
+account expenses:discretionary:gifts
+; HOLDIAY
+account expenses:discretionary:holiday
+; MISC
+account expenses:discretionary:misc
+; HAIRCUT
+account expenses:discretionary:haircut
+
+; ENTERTAINMENT
+account expenses:discretionary:entertainment
+account expenses:discretionary:entertainment:ai
+account expenses:discretionary:entertainment:steam
+account expenses:discretionary:entertainment:tv
+account expenses:discretionary:entertainment:books
+account expenses:discretionary:entertainment:stationary
+account expenses:discretionary:entertainment:apps
+account expenses:discretionary:entertainment:events
+account expenses:discretionary:entertainment:yoga
+account expenses:discretionary:entertainment:cinema
+
+; CHARITY
+account expenses:discretionary:charity
+
+;CAR
+account expenses:car
+account expenses:car:mot
+account expenses:car:road tax
+account expenses:car:repairs
+account expenses:car:insurance
+
+; FREDDIE
+account expenses:freddie
+account expenses:freddie:insurance
+account expenses:freddie:vet
+account expenses:freddie:dog food
+
+; FOOD
+account expenses:food
+account expenses:food:groceries
+account expenses:food:oddbox
+
+; TRAVEL
+account expenses:travel
+account expenses:travel:TFL
+account expenses:travel:petrol & tolls
+account expenses:travel:parking
+account expenses:travel:uber
+
+; Medical
+account expenses:medical:therapy
+account expenses:medical:dentist
+account expenses:medical:prescription
+
+; FLYING
+account expenses:flying
+account expenses:flying:monthly
+account expenses:flying:other
+account expenses:flying-contribs:
+
+; INTEREST
+account expenses:interest
+account expenses:Fraud
+
+account equity:opening balances
+
+account expenses:flat:ground rent
+account expenses:flat:service charge

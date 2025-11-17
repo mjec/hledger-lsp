@@ -1,0 +1,9 @@
+include ../../../parentInclude.journal
+
+2025-11-13 test
+    asset:cash2                                  £10
+    equity:opening balance                      £-10
+
+2025-11-13 test2
+    assets:cash:HSBC                            £100
+    equity:opening balance
