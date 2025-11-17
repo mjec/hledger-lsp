@@ -158,7 +158,8 @@ items or all items (declared + undeclared)
 npm install -g hledger-lsp
 ```
 
-This provides the `hledger-lsp` command globally. After installation, the language server can be used with any LSP-compatible editor.
+This provides the `hledger-lsp` command globally. After installation, the
+language server can be used with any LSP-compatible editor.
 
 ## Editor Configuration
 
@@ -224,7 +225,9 @@ return {
 
 ### VS Code
 
-The VS Code extension is published separately. Install it from the VS Code marketplace or see the `vscode-client/` directory in the repository for development instructions.
+The VS Code extension is published separately. Install it from the VS Code
+marketplace or see the `vscode-client/` directory in the repository for
+development instructions.
 
 ### General Settings
 
@@ -343,7 +346,6 @@ node server/out/server.js --stdio
 
 ### Project Structure
 
-```
 hledger_lsp/
 ├── server/
 │   ├── src/
@@ -355,7 +357,6 @@ hledger_lsp/
 │   ├── out/                # Compiled JavaScript output
 │   └── package.json
 └── vscode-client/          # VS Code extension
-```
 
 ### Development Commands
 
