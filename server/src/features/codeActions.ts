@@ -61,6 +61,12 @@ export class CodeActionProvider {
       }
     }
 
+    // Check for split posting refactoring actions
+    const postingInfo = this.getPostingAtPosition(document, range.start);
+    if (postingInfo) {
+      actions.push(...this.createSplitPostingActions(document, postingInfo));
+    }
+
     // Note: Rename refactoring is now handled via the LSP rename provider
     // (vim.lsp.buf.rename() or F2), not through code actions
 
@@ -536,6 +542,184 @@ export class CodeActionProvider {
         [document.uri]: edits
       }
     };
+  }
+
+  /**
+   * Get posting information at a given position
+   */
+  private getPostingAtPosition(
+    document: TextDocument,
+    position: Position
+  ): { line: number; account: string; amount: { quantity: number; commodity: string } } | null {
+    const lines = document.getText().split('\n');
+    if (position.line >= lines.length) {
+      return null;
+    }
+
+    const line = lines[position.line];
+    if (!line || !line.match(/^\s+\S/)) {
+      // Not an indented line (not a posting)
+      return null;
+    }
+
+    // Parse the posting line to extract account and amount
+    // Format: "    account name    amount"
+    const match = line.match(/^\s+([^;\s]+(?:\s+[^;\s]+)*?)(?:\s{2,})([-+]?)([^;\s]*?)([$£€¥₹]|[A-Z]{3,4})?\s*([-+]?\d+(?:[.,]\d+)?)\s*([$£€¥₹]|[A-Z]{3,4})?/);
+
+    if (!match) {
+      return null;
+    }
+
+    const account = match[1].trim();
+    const signBefore = match[2];
+    const commodityBefore = match[4];
+    const quantityStr = match[5];
+    const commodityAfter = match[6];
+
+    // Determine commodity and quantity
+    const commodity = commodityBefore || commodityAfter;
+    if (!commodity) {
+      return null; // No commodity found
+    }
+
+    const quantity = parseFloat(quantityStr.replace(',', '.'));
+    if (isNaN(quantity)) {
+      return null;
+    }
+
+    // Apply sign
+    const signedQuantity = signBefore === '-' ? -quantity : quantity;
+
+    return {
+      line: position.line,
+      account,
+      amount: {
+        quantity: signedQuantity,
+        commodity
+      }
+    };
+  }
+
+  /**
+   * Create code actions for splitting a posting
+   */
+  private createSplitPostingActions(
+    document: TextDocument,
+    postingInfo: { line: number; account: string; amount: { quantity: number; commodity: string } }
+  ): CodeAction[] {
+    const actions: CodeAction[] = [];
+
+    // Add split actions for 2, 3, and 4 parts
+    for (const parts of [2, 3, 4]) {
+      actions.push(this.createSplitPostingAction(document, postingInfo, parts));
+    }
+
+    return actions;
+  }
+
+  /**
+   * Create a single split posting action
+   */
+  private createSplitPostingAction(
+    document: TextDocument,
+    postingInfo: { line: number; account: string; amount: { quantity: number; commodity: string } },
+    parts: number
+  ): CodeAction {
+    const splitAmounts = this.splitAmountEqually(postingInfo.amount, parts);
+    const lines = document.getText().split('\n');
+    const originalLine = lines[postingInfo.line];
+
+    // Get the indentation from the original line
+    const indentMatch = originalLine.match(/^(\s+)/);
+    const indent = indentMatch ? indentMatch[1] : '    ';
+
+    // Generate new posting lines
+    const newPostings: string[] = [];
+    for (let i = 0; i < parts; i++) {
+      const suffix = i + 1;
+      const newAccount = `${postingInfo.account}:${suffix}`;
+      const amount = splitAmounts[i];
+
+      // Format the amount
+      const formattedAmount = this.formatAmount(amount);
+      const newPosting = `${indent}${newAccount}${' '.repeat(Math.max(2, 40 - newAccount.length))}${formattedAmount}`;
+      newPostings.push(newPosting);
+    }
+
+    const newText = newPostings.join('\n');
+
+    const edit: WorkspaceEdit = {
+      changes: {
+        [document.uri]: [
+          TextEdit.replace(
+            Range.create(postingInfo.line, 0, postingInfo.line, originalLine.length),
+            newText
+          )
+        ]
+      }
+    };
+
+    const action: CodeAction = {
+      title: `Split posting into ${parts} equal parts`,
+      kind: CodeActionKind.Refactor,
+      edit
+    };
+
+    return action;
+  }
+
+  /**
+   * Split an amount into N equal parts
+   */
+  private splitAmountEqually(
+    amount: { quantity: number; commodity: string },
+    parts: number
+  ): Array<{ quantity: number; commodity: string }> {
+    // Calculate base amount by dividing and rounding to 2 decimal places
+    const baseAmount = Math.round((amount.quantity / parts) * 100) / 100;
+
+    const result: Array<{ quantity: number; commodity: string }> = [];
+    let runningTotal = 0;
+
+    for (let i = 0; i < parts; i++) {
+      if (i === parts - 1) {
+        // Last part: use the difference to ensure exact sum
+        const quantity = Math.round((amount.quantity - runningTotal) * 100) / 100;
+        result.push({
+          quantity,
+          commodity: amount.commodity
+        });
+      } else {
+        // Use base amount for all but last part
+        result.push({
+          quantity: baseAmount,
+          commodity: amount.commodity
+        });
+        runningTotal += baseAmount;
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Format an amount for display
+   */
+  private formatAmount(amount: { quantity: number; commodity: string }): string {
+    const absQuantity = Math.abs(amount.quantity);
+    const sign = amount.quantity < 0 ? '-' : '';
+
+    // Format with 2 decimal places
+    const formatted = absQuantity.toFixed(2);
+
+    // Common commodity symbols that go before the number
+    const symbolsBeforeNumber = ['$', '£', '€', '¥', '₹'];
+
+    if (symbolsBeforeNumber.includes(amount.commodity)) {
+      return `${sign}${amount.commodity}${formatted}`;
+    } else {
+      return `${sign}${formatted} ${amount.commodity}`;
+    }
   }
 }
 

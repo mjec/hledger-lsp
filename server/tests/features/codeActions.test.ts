@@ -113,12 +113,20 @@ describe('CodeActionProvider', () => {
         parsed
       );
 
-      expect(actions.length).toBe(1);
-      expect(actions[0].title).toBe("Add declaration for commodity 'USD'");
-      expect(actions[0].kind).toBe(CodeActionKind.QuickFix);
+      // Should have 1 quick fix + 3 split actions (2, 3, 4 parts)
+      expect(actions.length).toBe(4);
 
-      const changes = actions[0].edit!.changes![doc.uri];
+      // First action should be the quick fix
+      const quickFix = actions.find(a => a.kind === CodeActionKind.QuickFix);
+      expect(quickFix).toBeDefined();
+      expect(quickFix!.title).toBe("Add declaration for commodity 'USD'");
+
+      const changes = quickFix!.edit!.changes![doc.uri];
       expect(changes[0].newText).toBe('commodity USD\n');
+
+      // Should also have split actions
+      const splitActions = actions.filter(a => a.kind === CodeActionKind.Refactor);
+      expect(splitActions.length).toBe(3);
     });
 
     test('should provide quick fix for undeclared tag', () => {
