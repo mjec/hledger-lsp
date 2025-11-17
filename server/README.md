@@ -151,226 +151,80 @@ items or all items (declared + undeclared)
 ### Prerequisites
 
 - Node.js >= 16.0.0
-- npm or yarn
 
-### Install from npm (recommended)
-
-Global install:
+### Install from npm
 
 ```bash
 npm install -g hledger-lsp
 ```
 
-This provides an `hledger-lsp` CLI on your `$PATH`:
+This provides the `hledger-lsp` command globally. After installation, the language server can be used with any LSP-compatible editor.
 
-```bash
-hledger-lsp --stdio
-```
+## Editor Configuration
 
-You can also install it per project:
+### Neovim
 
-```bash
-npm install --save-dev hledger-lsp
-```
-
-### From source (development)
-
-```bash
-# Clone the repository
-git clone <repository-url>
-cd hledger_lsp
-
-# Install dependencies
-npm install
-
-# Build the project
-npm run build
-
-# Run the server directly
-node server/out/server.js --stdio
-```
-
-## Usage
-
-### Neovim configuration examples
-
-#### Global npm install
-
-```lua
-local lspconfig = require("lspconfig")
-
-lspconfig.hledger_lsp.setup({
-  cmd = { "hledger-lsp", "--stdio" },
-  filetypes = { "hledger", "journal" },
-})
-```
-
-#### Local (per-project) install
-
-```lua
-local lspconfig = require("lspconfig")
-local util = lspconfig.util
-
-lspconfig.hledger_lsp.setup({
-  cmd = { util.path.join(vim.loop.cwd(), "node_modules", ".bin", "hledger-lsp"), "--stdio" },
-  filetypes = { "hledger", "journal" },
-})
-```
-
-### Neovim Configuration
-
-#### Minimal Configuration (Recommended for Most Users)
-
-This minimal configuration uses all default settings. Add this to your Neovim
-configuration (e.g., in `~/.config/nvim/lua/plugins/hledger.lua` if using
-lazy.nvim):
+Add this to your lazy.nvim configuration (e.g., `~/.config/nvim/lua/plugins/hledger.lua`):
 
 ```lua
 return {
   {
     "neovim/nvim-lspconfig",
-    opts = function(_, opts)
-      opts.servers = opts.servers or {}
-      opts.servers.hledger = {}
-
-      opts.setup = opts.setup or {}
-      opts.setup.hledger = function()
-        vim.lsp.config("hledger", {
-          cmd = { "node", vim.fn.expand("~/Development/hledger_lsp/out/server.js"), "--stdio" },
-          filetypes = { "hledger" },
-          root_markers = { ".hledger.journal", "main.journal", ".git" },
-          settings = {},
-        })
-        vim.lsp.enable("hledger")
-        return true
-      end
-    end,
+    opts = {
+      servers = {
+        hledger_lsp = {
+          cmd = { "hledger-lsp", "--stdio" },
+          filetypes = { "hledger", "journal" },
+        },
+      },
+    },
   },
 }
 ```
 
-**Note:** Update the path in
-`vim.fn.expand("~/Development/hledger_lsp/out/server.js")` to match where you
-cloned this repository.
-
-#### Full Configuration (For Customization)
-
-If you want to customize specific settings, here's the complete configuration
-with all options explicitly set to their defaults. Modify only the settings you
-want to change:
+And add this to your `init.lua` for file type detection:
 
 ```lua
-return {
-  {
-    "neovim/nvim-lspconfig",
-    opts = function(_, opts)
-      opts.servers = opts.servers or {}
-      opts.servers.hledger = {}
-
-      opts.setup = opts.setup or {}
-      opts.setup.hledger = function()
-        vim.lsp.config("hledger", {
-          cmd = { "node", vim.fn.expand("~/Development/hledger_lsp/out/server.js"), "--stdio" },
-          filetypes = { "hledger" },
-          root_markers = { ".hledger.journal", "main.journal", ".git" },
-          settings = {
-            hledgerLanguageServer = {
-              -- Maximum number of diagnostic problems to report
-              maxNumberOfProblems = 1000,
-
-              -- Path to hledger executable (reserved for future CLI integration)
-              hledgerPath = "hledger",
-
-              -- Validation settings (all default to true)
-              -- Set any to false to disable that validation
-              validation = {
-                balance = true,                -- Verify transactions balance to zero
-                missingAmounts = true,         -- Ensure at most one posting omits amount
-                undeclaredAccounts = true,     -- Warn about undeclared accounts
-                undeclaredPayees = false,       -- Warn about undeclared payees
-                undeclaredCommodities = true,  -- Warn about undeclared commodities
-                undeclaredTags = true,         -- Warn about undeclared tags
-                dateOrdering = true,           -- Detect out-of-order transactions
-                balanceAssertions = true,      -- Verify balance assertions
-                emptyTransactions = true,      -- Require at least 2 postings
-                invalidDates = true,           -- Check for invalid dates (Feb 30, etc.)
-                futureDates = true,            -- Warn about future-dated transactions
-                emptyDescriptions = true,      -- Warn about transactions with no description
-                includeFiles = true,           -- Detect missing include files
-                circularIncludes = true,       -- Detect circular include dependencies
-              },
-
-              -- Severity levels for undeclared items (error | warning | information | hint)
-              severity = {
-                undeclaredAccounts = "warning",
-                undeclaredPayees = "warning",
-                undeclaredCommodities = "warning",
-                undeclaredTags = "information",
-              },
-
-              -- Include directive settings
-              include = {
-                followIncludes = true,  -- Parse and merge included journal files
-                maxDepth = 10,          -- Maximum include depth
-              },
-
-              -- Completion settings (all default to true - only show declared items)
-              -- Set to false to include undeclared items in completions
-              completion = {
-                onlyDeclaredAccounts = true,
-                onlyDeclaredPayees = true,
-                onlyDeclaredCommodities = true,
-                onlyDeclaredTags = true,
-              },
-
-              -- Formatting settings
-              formatting = {
-                indentation = 4,                    -- Number of spaces for posting indentation
-                maxAccountWidth = 42,               -- Maximum width for account names
-                maxCommodityWidth = 4,              -- Maximum width for commodity symbols
-                maxAmountWidth = 12,                -- Maximum width for amount numbers
-                minSpacing = 2,                     -- Minimum spaces between account and amount
-                decimalAlignColumn = 52,            -- Target column for decimal alignment
-                assertionDecimalAlignColumn = 70,   -- Target column for assertion decimal alignment
-              },
-
-              -- Inlay hints settings
-              inlayHints = {
-                showInferredAmounts = true,      -- Show calculated amounts for postings without amounts
-                showRunningBalances = false,     -- Show running balances after each posting
-                showCostConversions = true,      -- Show total cost for @ and @@ notations
-              }
-            }
-          },
-        })
-        vim.lsp.enable("hledger")
-        return true
-      end
-    end,
-  },
-}
-```
-
-**Note:** Update the path in
-`vim.fn.expand("~/Development/hledger_lsp/out/server.js")` to match where you
-cloned this repository.
-
-#### File Type Detection
-
-You may also want to set up file type detection for hledger files:
-
-```lua
--- In your init.lua or ftdetect configuration
 vim.filetype.add({
   extension = {
-    journal = 'hledger',
-    hledger = 'hledger',
+    journal = "hledger",
+    hledger = "hledger",
   },
-  pattern = {
-    ['.*%.journal'] = 'hledger',
-  }
 })
 ```
+
+**Optional:** Customize settings by adding a `settings` block:
+
+```lua
+return {
+  {
+    "neovim/nvim-lspconfig",
+    opts = {
+      servers = {
+        hledger_lsp = {
+          cmd = { "hledger-lsp", "--stdio" },
+          filetypes = { "hledger", "journal" },
+          settings = {
+            hledgerLanguageServer = {
+              validation = {
+                undeclaredPayees = true,  -- Enable payee validation
+              },
+              inlayHints = {
+                showRunningBalances = true,  -- Show running balances
+              },
+              -- See settings documentation below for all options
+            },
+          },
+        },
+      },
+    },
+  },
+}
+```
+
+### VS Code
+
+The VS Code extension is published separately. Install it from the VS Code marketplace or see the `vscode-client/` directory in the repository for development instructions.
 
 ### General Settings
 
@@ -468,31 +322,50 @@ target commodity for postings with @ or @@ notation
 
 ## Development
 
+### Building from Source
+
+If you want to contribute or modify the language server:
+
+```bash
+# Clone the repository
+git clone https://github.com/ptimoney/hledger-lsp.git
+cd hledger-lsp
+
+# Install dependencies (from repository root)
+npm install
+
+# Build the server
+npm run build:server
+
+# Run the server directly
+node server/out/server.js --stdio
+```
+
 ### Project Structure
 
 ```
 hledger_lsp/
-├── src/
-│   ├── server.ts           # Main LSP server implementation
-│   ├── types.ts            # Type definitions for hledger structures
-│   ├── parser/             # Journal file parser
-│   │   └── index.ts
-│   ├── features/           # LSP feature implementations
-│   └── utils/              # Utility functions
-│       └── index.ts
-├── out/                    # Compiled JavaScript output
-├── package.json
-├── tsconfig.json
-└── README.md
+├── server/
+│   ├── src/
+│   │   ├── server.ts       # Main LSP server implementation
+│   │   ├── types.ts        # Type definitions for hledger structures
+│   │   ├── parser/         # Journal file parser
+│   │   ├── features/       # LSP feature implementations
+│   │   └── utils/          # Utility functions
+│   ├── out/                # Compiled JavaScript output
+│   └── package.json
+└── vscode-client/          # VS Code extension
 ```
 
-### Building
+### Development Commands
+
+From the `server/` directory:
 
 ```bash
 # Build once
 npm run build
 
-# Watch mode for development
+# Watch mode (rebuild on changes)
 npm run watch
 ```
 
