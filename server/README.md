@@ -321,7 +321,7 @@ Configure which inline hints to display:
 - `inlayHints.showInferredAmounts` (boolean, default: true): Show calculated
 amounts for postings that omit explicit amounts
 - `inlayHints.showRunningBalances` (boolean, default: false): Display running
-balance after each posting (can be noisy for large files)
+balance after each posting (disabled by default as it can be noisy for large files)
 - `inlayHints.showCostConversions` (boolean, default: true): Show total cost in
 target commodity for postings with @ or @@ notation
 

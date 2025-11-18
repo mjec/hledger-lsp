@@ -99,7 +99,7 @@ export const defaultSettings: HledgerSettings = {
   },
   inlayHints: {
     showInferredAmounts: true,
-    showRunningBalances: true,
+    showRunningBalances: false,
     showCostConversions: true,
   }
 };
