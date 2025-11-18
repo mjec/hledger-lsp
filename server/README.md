@@ -316,13 +316,13 @@ position for aligning decimal points in balance assertions
 
 ### Inlay Hints Settings
 
-Configure which inline hints to display:
+Configure which inline hints to display (all disabled by default):
 
-- `inlayHints.showInferredAmounts` (boolean, default: true): Show calculated
+- `inlayHints.showInferredAmounts` (boolean, default: false): Show calculated
 amounts for postings that omit explicit amounts
 - `inlayHints.showRunningBalances` (boolean, default: false): Display running
-balance after each posting (disabled by default as it can be noisy for large files)
-- `inlayHints.showCostConversions` (boolean, default: true): Show total cost in
+balance after each posting
+- `inlayHints.showCostConversions` (boolean, default: false): Show total cost in
 target commodity for postings with @ or @@ notation
 
 ## Development

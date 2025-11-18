@@ -152,9 +152,10 @@ describe('InlayHintsProvider', () => {
       });
 
       expect(hints).toHaveLength(2);
-      expect(hints[0].label).toContain('balance: $50.00');
+      // Running balance shows cumulative balance per account
+      expect(hints[0].label).toContain('$50.00');  // expenses:food balance after this transaction
       expect(hints[0].kind).toBe(InlayHintKind.Type);
-      expect(hints[1].label).toContain('balance: $-50.00');
+      expect(hints[1].label).toContain('$-50.00'); // assets:checking balance after this transaction
     });
 
     test('should show balance before comment', () => {
@@ -195,6 +196,44 @@ describe('InlayHintsProvider', () => {
       });
 
       expect(hints).toHaveLength(0);
+    });
+
+    test('should accumulate balances across multiple transactions', () => {
+      const content = `2024-01-15 * Initial deposit
+    assets:checking               $1000
+    equity:opening
+
+2024-01-16 * Grocery Store
+    expenses:food                 $50
+    assets:checking               $-50
+
+2024-01-17 * Gas Station
+    expenses:gas                  $40
+    assets:checking               $-40`;
+
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsed = parser.parse(doc);
+      const range = Range.create(0, 0, 12, 0);
+
+      const hints = provider.provideInlayHints(doc, range, parsed, {
+        showInferredAmounts: false,
+        showRunningBalances: true,
+        showCostConversions: false
+      });
+
+      // Should have 5 hints (equity:opening has no amount, so no hint for it)
+      expect(hints).toHaveLength(5);
+
+      // First transaction: checking = $1000
+      expect(hints[0].label).toContain('$1000.00');
+
+      // Second transaction: food = $50, checking = $950 (1000 - 50)
+      expect(hints[1].label).toContain('$50.00');  // expenses:food first occurrence
+      expect(hints[2].label).toContain('$950.00'); // assets:checking cumulative (running balance!)
+
+      // Third transaction: gas = $40, checking = $910 (950 - 40)
+      expect(hints[3].label).toContain('$40.00');  // expenses:gas first occurrence
+      expect(hints[4].label).toContain('$910.00'); // assets:checking cumulative (running balance!)
     });
   });
 
@@ -367,14 +406,8 @@ describe('InlayHintsProvider', () => {
 
       const hints = provider.provideInlayHints(doc, range, parsed);
 
-      // Default: showInferredAmounts: true, showRunningBalances: false, showCostConversions: true
-      const inferredHint = hints.find(h => labelToString(h.label).includes('-1000'));
-      const costHint = hints.find(h => labelToString(h.label).includes('='));
-      const balanceHint = hints.find(h => labelToString(h.label).includes('balance:'));
-
-      expect(inferredHint).toBeDefined();
-      expect(costHint).toBeDefined();
-      expect(balanceHint).toBeUndefined();
+      // Default: all hints disabled by default
+      expect(hints).toHaveLength(0);
     });
   });
 

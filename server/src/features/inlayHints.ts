@@ -21,9 +21,9 @@ export interface InlayHintsSettings {
 }
 
 const DEFAULT_SETTINGS: Required<InlayHintsSettings> = {
-  showInferredAmounts: true,
-  showRunningBalances: false,  // Can be noisy, off by default
-  showCostConversions: true
+  showInferredAmounts: false,
+  showRunningBalances: false,
+  showCostConversions: false
 };
 
 export class InlayHintsProvider {
@@ -73,6 +73,12 @@ export class InlayHintsProvider {
     const config = { ...DEFAULT_SETTINGS, ...settings };
     const hints: InlayHint[] = [];
 
+    // If showing running balances, we need to process all transactions to accumulate balances
+    // Otherwise, only process transactions within the requested range
+    const runningBalances = config.showRunningBalances
+      ? this.calculateRunningBalances(parsed)
+      : new Map<number, Map<number, Map<string, number>>>();
+
     // Only process transactions within the requested range
     for (const transaction of parsed.transactions) {
       const txLine = transaction.line ?? 0;
@@ -89,7 +95,7 @@ export class InlayHintsProvider {
 
       // Running balance hints
       if (config.showRunningBalances) {
-        hints.push(...this.getRunningBalanceHints(document, transaction, parsed));
+        hints.push(...this.getRunningBalanceHintsWithState(document, transaction, parsed, runningBalances));
       }
 
       // Cost conversion hints
@@ -178,24 +184,77 @@ export class InlayHintsProvider {
   }
 
   /**
-   * Get hints for running balances after each posting
+   * Calculate running balances for all transactions
+   * Returns a map of transaction->posting index->account->commodity->balance
    */
-  private getRunningBalanceHints(
+  private calculateRunningBalances(parsed: ParsedDocument): Map<number, Map<number, Map<string, number>>> {
+    const result = new Map<number, Map<number, Map<string, number>>>();
+
+    // Track global account balances across all transactions
+    const accountBalances = new Map<string, Map<string, number>>();
+
+    for (let txIndex = 0; txIndex < parsed.transactions.length; txIndex++) {
+      const transaction = parsed.transactions[txIndex];
+      const postingBalances = new Map<number, Map<string, number>>();
+
+      for (let postingIndex = 0; postingIndex < transaction.postings.length; postingIndex++) {
+        const posting = transaction.postings[postingIndex];
+
+        if (posting.amount) {
+          const account = posting.account;
+          const commodity = posting.amount.commodity || '';
+
+          // Get or create account balance map
+          if (!accountBalances.has(account)) {
+            accountBalances.set(account, new Map<string, number>());
+          }
+          const commodityBalances = accountBalances.get(account)!;
+
+          // Update balance
+          const currentBalance = commodityBalances.get(commodity) || 0;
+          const newBalance = currentBalance + posting.amount.quantity;
+          commodityBalances.set(commodity, newBalance);
+
+          // Store this posting's resulting balance
+          postingBalances.set(postingIndex, new Map([[commodity, newBalance]]));
+        }
+      }
+
+      result.set(txIndex, postingBalances);
+    }
+
+    return result;
+  }
+
+  /**
+   * Get hints for running balances after each posting (with pre-calculated state)
+   */
+  private getRunningBalanceHintsWithState(
     document: TextDocument,
     transaction: Transaction,
-    parsed: ParsedDocument
+    parsed: ParsedDocument,
+    runningBalances: Map<number, Map<number, Map<string, number>>>
   ): InlayHint[] {
     const hints: InlayHint[] = [];
 
-    // Track running balances across all transactions
-    // This would need to process ALL transactions up to this point
-    // For now, we'll just show transaction-local balance changes
+    // Find transaction index
+    const txIndex = parsed.transactions.indexOf(transaction);
+    if (txIndex === -1) {
+      return hints;
+    }
+
+    const postingBalances = runningBalances.get(txIndex);
+    if (!postingBalances) {
+      return hints;
+    }
 
     const txLine = transaction.line ?? 0;
-    let postingIndex = 0;
 
-    for (const posting of transaction.postings) {
-      if (posting.amount) {
+    for (let postingIndex = 0; postingIndex < transaction.postings.length; postingIndex++) {
+      const posting = transaction.postings[postingIndex];
+      const balanceMap = postingBalances.get(postingIndex);
+
+      if (posting.amount && balanceMap) {
         const lineNum = txLine + 1 + postingIndex;
         const line = document.getText({
           start: { line: lineNum, character: 0 },
@@ -209,17 +268,20 @@ export class InlayHintsProvider {
           endPos = commentPos;
         }
 
-        const formattedAmount = this.formatAmount(posting.amount.quantity, posting.amount.commodity || '', parsed);
-        const balanceHint = `balance: ${formattedAmount}`;
+        // Format all commodity balances for this posting
+        const balanceHints: string[] = [];
+        for (const [commodity, balance] of balanceMap.entries()) {
+          const formattedBalance = this.formatAmount(balance, commodity, parsed);
+          balanceHints.push(formattedBalance);
+        }
 
         hints.push({
           position: Position.create(lineNum, endPos),
-          label: ` (${balanceHint})`,
+          label: ` [${balanceHints.join(', ')}]`,
           kind: InlayHintKind.Type,
           paddingLeft: true
         });
       }
-      postingIndex++;
     }
 
     return hints;

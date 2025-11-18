@@ -98,9 +98,9 @@ export const defaultSettings: HledgerSettings = {
     assertionDecimalAlignColumn: 70,
   },
   inlayHints: {
-    showInferredAmounts: true,
+    showInferredAmounts: false,
     showRunningBalances: false,
-    showCostConversions: true,
+    showCostConversions: false,
   }
 };
 

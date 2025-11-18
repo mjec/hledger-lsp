@@ -375,6 +375,7 @@ export class FormattingProvider {
     let maxCommodityAfterLen = 0;
     let maxAssertionCommodityBeforeLen = 0;
     let maxAssertionCommodityAfterLen = 0;
+    let maxDigitsBeforeDecimal = 0; // Track max width before decimal point
 
     for (const layout of layouts) {
       maxAccountLen = Math.max(maxAccountLen, layout.account.length);
@@ -382,6 +383,10 @@ export class FormattingProvider {
       if (layout.parsedAmount) {
         maxCommodityBeforeLen = Math.max(maxCommodityBeforeLen, layout.parsedAmount.commodityBefore.length);
         maxCommodityAfterLen = Math.max(maxCommodityAfterLen, layout.parsedAmount.commodityAfter.length);
+
+        // Calculate width before decimal (including minus sign)
+        const digitsBeforeDecimal = layout.parsedAmount.decimalPosition;
+        maxDigitsBeforeDecimal = Math.max(maxDigitsBeforeDecimal, digitsBeforeDecimal);
       }
 
       if (layout.parsedAssertion) {
@@ -416,13 +421,14 @@ export class FormattingProvider {
       let decimalTargetCol = options.decimalAlignColumn;
 
       // Calculate where amount needs to start to align decimal at target
-      const amountStartCol = decimalTargetCol - layout.parsedAmount.decimalPosition;
+      // Use the max digits before decimal to ensure currency symbols align
+      const amountStartCol = decimalTargetCol - maxDigitsBeforeDecimal;
 
-      // Calculate where commodity-before needs to start (right-aligned before amount)
-      const commodityBeforeStartCol = amountStartCol - (layout.parsedAmount.commodityBefore.length > 0 ? layout.parsedAmount.commodityBefore.length : 0);
+      // Calculate where commodity-before column needs to start
+      const commodityBeforeColStart = amountStartCol - maxCommodityBeforeLen;
 
       // Calculate spacing needed after account
-      let spacingAfterAccount = commodityBeforeStartCol - accountEnd;
+      let spacingAfterAccount = commodityBeforeColStart - accountEnd;
 
       // Ensure minimum spacing
       if (spacingAfterAccount < options.minSpacing) {
@@ -433,16 +439,27 @@ export class FormattingProvider {
       result += ' '.repeat(spacingAfterAccount);
 
       // Add commodity-before (right-aligned in its column)
-      if (layout.parsedAmount.commodityBefore) {
-        result += layout.parsedAmount.commodityBefore;
+      if (maxCommodityBeforeLen > 0) {
+        const commodityBefore = layout.parsedAmount.commodityBefore;
+        const padding = maxCommodityBeforeLen - commodityBefore.length;
+        result += ' '.repeat(padding) + commodityBefore;
+      }
+
+      // Add spacing between currency and number to right-align the number before decimal
+      const digitsBeforeDecimal = layout.parsedAmount.decimalPosition;
+      const numberPadding = maxDigitsBeforeDecimal - digitsBeforeDecimal;
+      if (numberPadding > 0) {
+        result += ' '.repeat(numberPadding);
       }
 
       // Add amount
       result += layout.parsedAmount.amountNumber;
 
       // Add commodity-after (left-aligned in its column)
-      if (layout.parsedAmount.commodityAfter) {
-        result += ' ' + layout.parsedAmount.commodityAfter;
+      if (maxCommodityAfterLen > 0) {
+        result += ' ';
+        const commodityAfter = layout.parsedAmount.commodityAfter;
+        result += commodityAfter.padEnd(maxCommodityAfterLen, ' ');
       }
 
       // Add cost notation if present
