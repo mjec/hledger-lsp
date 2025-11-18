@@ -105,7 +105,7 @@ describe('Split Posting Code Actions', () => {
       expect(edits.length).toBe(1);
 
       const newText = edits[0].newText;
-      expect(newText).toContain('expenses:groceries:1');
+      expect(newText).toContain('expenses:groceries');
       expect(newText).toContain('expenses:groceries:2');
       expect(newText).toContain('$50.00');
     });
@@ -131,7 +131,7 @@ describe('Split Posting Code Actions', () => {
       const edits = splitAction!.edit!.changes![document.uri];
       const newText = edits[0].newText;
 
-      expect(newText).toContain('expenses:groceries:1');
+      expect(newText).toContain('expenses:groceries');
       expect(newText).toContain('expenses:groceries:2');
       expect(newText).toContain('expenses:groceries:3');
 

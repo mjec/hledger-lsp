@@ -219,11 +219,11 @@ export class CodeActionProvider {
       for (let i = lines.length - 1; i >= 0; i--) {
         const line = lines[i].trim();
         if (line.startsWith('account ') ||
-            line.startsWith('commodity ') ||
-            line.startsWith('payee ') ||
-            line.startsWith('tag ') ||
-            line.startsWith('include ') ||
-            line.startsWith('alias ')) {
+          line.startsWith('commodity ') ||
+          line.startsWith('payee ') ||
+          line.startsWith('tag ') ||
+          line.startsWith('include ') ||
+          line.startsWith('alias ')) {
           return Position.create(i + 1, 0);
         }
       }
@@ -635,7 +635,12 @@ export class CodeActionProvider {
 
     // Generate new posting lines
     const newPostings: string[] = [];
-    for (let i = 0; i < parts; i++) {
+
+    // Leave the first account unchanged
+    const formattedFirstAmount = this.formatAmount(splitAmounts[0])
+    const firstPosting = `${indent}${postingInfo.account}${' '.repeat(Math.max(2, 40 - postingInfo.account.length))}${formattedFirstAmount}`;
+    newPostings.push(firstPosting);
+    for (let i = 1; i < parts; i++) {
       const suffix = i + 1;
       const newAccount = `${postingInfo.account}:${suffix}`;
       const amount = splitAmounts[i];

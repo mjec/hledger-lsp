@@ -74,4 +74,3 @@ See individual package READMEs for more details:
 
 - [server/README.md](server/README.md) - Language server documentation
 - [vscode-client/README.md](vscode-client/README.md) - VS Code extension documentation
-
