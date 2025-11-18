@@ -38,6 +38,7 @@ export interface ValidationSettings {
     emptyDescriptions?: boolean;
     includeFiles?: boolean;
     circularIncludes?: boolean;
+    markAllUndeclaredInstances?: boolean;
   };
   severity?: {
     undeclaredAccounts?: 'error' | 'warning' | 'information' | 'hint';
@@ -265,12 +266,18 @@ export class Validator {
       }
     };
 
+    // Check if we should mark all instances or just the first one
+    const markAllInstances = settings?.validation?.markAllUndeclaredInstances ?? defaultSettings.validation?.markAllUndeclaredInstances ?? true;
+
     // Check undeclared accounts (if enabled)
     if (checkAccounts) {
       const undeclaredAccounts = parsedDoc.accounts.filter(a => !a.declared);
       for (const account of undeclaredAccounts) {
-        const range = this.findFirstOccurrence(document, account.name);
-        if (range) {
+        const ranges = markAllInstances
+          ? this.findAllOccurrences(document, account.name)
+          : (() => { const r = this.findFirstOccurrence(document, account.name); return r ? [r] : []; })();
+
+        for (const range of ranges) {
           diagnostics.push({
             severity: getSeverity(settings?.severity?.undeclaredAccounts),
             range,
@@ -287,8 +294,11 @@ export class Validator {
     if (checkPayees) {
       const undeclaredPayees = parsedDoc.payees.filter(p => !p.declared);
       for (const payee of undeclaredPayees) {
-        const range = this.findFirstOccurrence(document, payee.name);
-        if (range) {
+        const ranges = markAllInstances
+          ? this.findAllOccurrences(document, payee.name)
+          : (() => { const r = this.findFirstOccurrence(document, payee.name); return r ? [r] : []; })();
+
+        for (const range of ranges) {
           diagnostics.push({
             severity: getSeverity(settings?.severity?.undeclaredPayees),
             range,
@@ -305,8 +315,11 @@ export class Validator {
     if (checkCommodities) {
       const undeclaredCommodities = parsedDoc.commodities.filter(c => !c.declared);
       for (const commodity of undeclaredCommodities) {
-        const range = this.findFirstOccurrence(document, commodity.name);
-        if (range) {
+        const ranges = markAllInstances
+          ? this.findAllOccurrences(document, commodity.name)
+          : (() => { const r = this.findFirstOccurrence(document, commodity.name); return r ? [r] : []; })();
+
+        for (const range of ranges) {
           diagnostics.push({
             severity: getSeverity(settings?.severity?.undeclaredCommodities),
             range,
@@ -323,8 +336,11 @@ export class Validator {
     if (checkTags) {
       const undeclaredTags = parsedDoc.tags.filter(t => !t.declared);
       for (const tag of undeclaredTags) {
-        const range = this.findFirstOccurrence(document, tag.name + ':');
-        if (range) {
+        const ranges = markAllInstances
+          ? this.findAllOccurrences(document, tag.name + ':')
+          : (() => { const r = this.findFirstOccurrence(document, tag.name + ':'); return r ? [r] : []; })();
+
+        for (const range of ranges) {
           diagnostics.push({
             severity: getSeverity(settings?.severity?.undeclaredTags || 'information'),
             range,
@@ -384,6 +400,32 @@ export class Validator {
     }
 
     return null;
+  }
+
+  /**
+   * Find all occurrences of a string in the document
+   */
+  private findAllOccurrences(document: TextDocument, searchStr: string): Array<{ start: { line: number; character: number }; end: { line: number; character: number } }> {
+    const text = document.getText();
+    const lines = text.split('\n');
+    const ranges: Array<{ start: { line: number; character: number }; end: { line: number; character: number } }> = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      let startIndex = 0;
+      let index: number;
+
+      // Find all occurrences in this line
+      while ((index = line.indexOf(searchStr, startIndex)) !== -1) {
+        ranges.push({
+          start: { line: i, character: index },
+          end: { line: i, character: index + searchStr.length }
+        });
+        startIndex = index + 1; // Move past this occurrence to find next
+      }
+    }
+
+    return ranges;
   }
 
   /**

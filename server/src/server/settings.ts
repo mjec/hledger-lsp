@@ -18,6 +18,7 @@ export interface HledgerSettings {
     emptyDescriptions?: boolean;
     includeFiles?: boolean;
     circularIncludes?: boolean;
+    markAllUndeclaredInstances?: boolean;
   };
   severity?: {
     undeclaredAccounts?: 'error' | 'warning' | 'information' | 'hint';
@@ -69,6 +70,7 @@ export const defaultSettings: HledgerSettings = {
     emptyDescriptions: true,
     includeFiles: true,
     circularIncludes: true,
+    markAllUndeclaredInstances: true,
   },
   severity: {
     undeclaredAccounts: 'warning',

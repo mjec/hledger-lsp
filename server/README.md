@@ -258,6 +258,8 @@ balances
 - `validation.emptyDescriptions`: Warn about transactions with no description
 - `validation.includeFiles`: Detect missing include files
 - `validation.circularIncludes`: Detect circular include dependencies
+- `validation.markAllUndeclaredInstances`: Mark all instances of undeclared
+resources with diagnostics, not just the first occurrence
 
 ### Severity Settings
 
