@@ -1,6 +1,6 @@
 {
   "name": "hledger-lsp-workspace",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "private": true,
   "workspaces": [
     "server",
@@ -11,8 +11,9 @@
     "build": "npm run -w server build && npm run -w vscode-client build",
     "build:server": "npm run -w server build",
     "build:client": "npm run -w vscode-client build",
-    "test": "npm run -w server test && npm run -w vscode-client test",
-    "lint": "npm run -w server lint"
+    "lint": "npm run -w server lint",
+    "test": "NODE_OPTIONS='--no-warnings' jest",
+    "test:watch": "NODE_OPTIONS='--no-warnings' jest --watch"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

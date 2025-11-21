@@ -1,0 +1,4 @@
+2009-01-01 Purchase
+    assets:stock1                                 10    AAPL @ $150
+    assets:stock2                                  5    GOOG @ $100.50
+    assets:cash                               $-2002.50

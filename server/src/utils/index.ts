@@ -36,7 +36,7 @@ export function isComment(line: string): boolean {
  */
 export function isDirective(line: string): boolean {
   const trimmed = line.trim();
-  const directives = ['account', 'commodity', 'payee', 'tag', 'include', 'alias', 'end'];
+  const directives = ['account', 'commodity', 'payee', 'tag', 'include', 'alias', 'end','comment','decimal-mark','~','=','P'];
   return directives.some(d => {
     if (d === 'end') {
       // 'end' can be standalone or followed by a space

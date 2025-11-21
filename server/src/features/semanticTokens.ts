@@ -455,10 +455,12 @@ export class SemanticTokensProvider {
 
     // Tokenize cost operator and cost amount if present
     if (costOperator && costPart) {
-      const operatorStart = startOffset + amountPart.indexOf(costOperator, basePart.length);
+      const operatorIndex = amountPart.indexOf(costOperator, basePart.length);
+      const operatorStart = startOffset + operatorIndex;
       builder.push(lineIndex, operatorStart, costOperator.length, TokenType.operator, 0);
 
-      const costStart = startOffset + amountPart.indexOf(costPart, operatorStart + costOperator.length);
+      const costIndex = amountPart.indexOf(costPart, operatorIndex + costOperator.length);
+      const costStart = startOffset + costIndex;
       this.tokenizeSingleAmount(costPart, lineIndex, costStart, builder);
     }
 

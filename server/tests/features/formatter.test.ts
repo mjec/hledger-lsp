@@ -253,7 +253,7 @@ payee   Grocery Store
       const formatted = edits[0].newText;
 
       // The commodity format should be respected
-      expect(formatted).toContain('$1500.00');
+      expect(formatted).toContain('$1,500.00');
     });
 
     it('should align whole numbers as if decimal at end', () => {
@@ -384,7 +384,7 @@ payee   Grocery Store
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
 
-      expect(lines[1]).toContain('50.5 EUR');
+      expect(lines[1]).toContain('50.5  EUR');
       expect(lines[2]).toContain('100.25 USD');
 
       // Decimals should still align
@@ -554,7 +554,7 @@ payee Grocery Store;main grocery store
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
 
-      expect(lines[1]).toContain('10 SHARES @ 125.5 USD');
+      expect(lines[1]).toContain('10 SHARES @ 125.50 USD');
     });
 
     it('should format negative amounts with cost', () => {
@@ -585,8 +585,8 @@ payee Grocery Store;main grocery store
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
 
-      expect(lines[1]).toContain('10 AAPL @ $150');
-      expect(lines[2]).toContain('5 GOOG @ $100.5');
+      expect(lines[1]).toContain('10    AAPL @ $150');
+      expect(lines[2]).toContain('5    GOOG @ $100.50');
       expect(lines[3]).toContain('$-2002.5');
     });
 
@@ -602,7 +602,7 @@ payee Grocery Store;main grocery store
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
 
-      expect(lines[1]).toContain('100 SHARES @ $12.345');
+      expect(lines[1]).toContain('100    SHARES @ $12.345');
     });
   });
 
@@ -782,6 +782,91 @@ payee Grocery Store;main grocery store
 
       expect(line1DecimalPos).toBe(line2DecimalPos);
       expect(line2DecimalPos).toBe(line3DecimalPos);
+    });
+
+    it('should align cost amounts within transaction', () => {
+      const content = `2024-01-01 Stock purchases
+  assets:stock     10 AAPL @ $150.50
+  assets:stock     5 MSFT @ $300.00
+  assets:checking    $-2002.50
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      expect(edits).toHaveLength(1);
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      // @ symbols should align
+      const line1AtPos = lines[1].indexOf(' @ ');
+      const line2AtPos = lines[2].indexOf(' @ ');
+      expect(line1AtPos).toBe(line2AtPos);
+
+      // Cost currency symbols should align
+      const line1CostDollar = lines[1].lastIndexOf('$');
+      const line2CostDollar = lines[2].lastIndexOf('$');
+      expect(line1CostDollar).toBe(line2CostDollar);
+
+      // Cost decimals should align
+      const line1CostDecimal = lines[1].lastIndexOf('.50');
+      const line2CostDecimal = lines[2].lastIndexOf('.00');
+      expect(line1CostDecimal).toBe(line2CostDecimal);
+    });
+
+    it('should align assertion amounts within transaction', () => {
+      const content = `2024-01-01 Assertions
+  assets:checking    $100.00 = $1500.00
+  assets:savings     $50.00 = $2000.00
+  income:salary    $-150.00
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      expect(edits).toHaveLength(1);
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      // = symbols should align
+      const line1EqualsPos = lines[1].indexOf(' = ');
+      const line2EqualsPos = lines[2].indexOf(' = ');
+      expect(line1EqualsPos).toBe(line2EqualsPos);
+
+      // Assertion currency symbols should align
+      const line1AssertionDollar = lines[1].lastIndexOf('$');
+      const line2AssertionDollar = lines[2].lastIndexOf('$');
+      expect(line1AssertionDollar).toBe(line2AssertionDollar);
+
+      // Assertion decimals should align
+      const line1AssertionDecimal = lines[1].lastIndexOf('.00');
+      const line2AssertionDecimal = lines[2].lastIndexOf('.00');
+      expect(line1AssertionDecimal).toBe(line2AssertionDecimal);
+    });
+
+    it('should align costs and assertions together', () => {
+      const content = `2024-01-01 Complex transaction
+  assets:stock     10 AAPL @ $100.00 = $1000.00
+  assets:stock     5 MSFT @ $200.00 = $1000.00
+  assets:checking    $-1500.00
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      expect(edits).toHaveLength(1);
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      // Both @ symbols should align
+      const line1AtPos = lines[1].indexOf(' @ ');
+      const line2AtPos = lines[2].indexOf(' @ ');
+      expect(line1AtPos).toBe(line2AtPos);
+
+      // Both = symbols should align
+      const line1EqualsPos = lines[1].indexOf(' = ');
+      const line2EqualsPos = lines[2].indexOf(' = ');
+      expect(line1EqualsPos).toBe(line2EqualsPos);
     });
   });
 });

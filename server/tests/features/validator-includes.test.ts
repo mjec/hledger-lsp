@@ -196,7 +196,6 @@ include ~/.hledger-validator-test.journal
     const integrationTestPath = path.join(__dirname, '..', 'integration', 'level1', 'level2', 'level3', 'test.journal');
 
     if (!fs.existsSync(integrationTestPath)) {
-      console.log('Integration test file does not exist, skipping');
       return;
     }
 

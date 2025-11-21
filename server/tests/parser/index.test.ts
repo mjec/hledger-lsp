@@ -1249,11 +1249,11 @@ include common.journal
         expect(result).not.toBeNull();
         expect(result?.postings).toHaveLength(3);
         expect(result?.postings[0].account).toBe('expenses:food');
-        expect(result?.postings[0].amount).toEqual({ quantity: 30, commodity: '$' });
+        expect(result?.postings[0].amount).toEqual(expect.objectContaining({ quantity: 30, commodity: '$' }));
         expect(result?.postings[1].account).toBe('expenses:transport');
-        expect(result?.postings[1].amount).toEqual({ quantity: 20, commodity: '$' });
+        expect(result?.postings[1].amount).toEqual(expect.objectContaining({ quantity: 20, commodity: '$' }));
         expect(result?.postings[2].account).toBe('assets:checking');
-        expect(result?.postings[2].amount).toEqual({ quantity: -50, commodity: '$' });
+        expect(result?.postings[2].amount).toEqual(expect.objectContaining({ quantity: -50, commodity: '$' }));
       });
 
       test('should parse transaction with posting comments', () => {
@@ -1278,7 +1278,7 @@ include common.journal
         const result = ast.parseTransaction(lines, 0);
 
         expect(result).not.toBeNull();
-        expect(result?.postings[0].assertion).toEqual({ quantity: 500, commodity: '$' });
+        expect(result?.postings[0].assertion).toEqual(expect.objectContaining({ quantity: 500, commodity: '$' }));
       });
     });
 
@@ -1423,14 +1423,14 @@ include common.journal
         expect(result?.postings).toHaveLength(2);
 
         // First posting should have inferred cost
-        expect(result?.postings[0].amount).toEqual({ quantity: 100, commodity: '€' });
+        expect(result?.postings[0].amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
         expect(result?.postings[0].cost).toEqual({
           type: 'total',
-          amount: { quantity: 135, commodity: '$' }
+          amount: expect.objectContaining({ quantity: 135, commodity: '$' })
         });
 
         // Second posting should not have cost
-        expect(result?.postings[1].amount).toEqual({ quantity: -135, commodity: '$' });
+        expect(result?.postings[1].amount).toEqual(expect.objectContaining({ quantity: -135, commodity: '$' }));
         expect(result?.postings[1].cost).toBeUndefined();
       });
 
@@ -1445,10 +1445,10 @@ include common.journal
         expect(result).not.toBeNull();
 
         // First posting (dollars) should have inferred cost in euros
-        expect(result?.postings[0].amount).toEqual({ quantity: -135, commodity: '$' });
+        expect(result?.postings[0].amount).toEqual(expect.objectContaining({ quantity: -135, commodity: '$' }));
         expect(result?.postings[0].cost).toEqual({
           type: 'total',
-          amount: { quantity: -100, commodity: '€' }
+          amount: expect.objectContaining({ quantity: -100, commodity: '€' })
         });
       });
 
@@ -1466,7 +1466,7 @@ include common.journal
         // First posting should have inferred cost (sum of all dollar postings, negated)
         expect(result?.postings[0].cost).toEqual({
           type: 'total',
-          amount: { quantity: 135, commodity: '$' }  // -(-100 + -35) = 135
+          amount: expect.objectContaining({ quantity: 135, commodity: '$' })  // -(-100 + -35) = 135
         });
       });
 
@@ -1496,7 +1496,7 @@ include common.journal
         // Should keep explicit cost, not infer a different one
         expect(result?.postings[0].cost).toEqual({
           type: 'unit',
-          amount: { quantity: 1.35, commodity: '$' }
+          amount: expect.objectContaining({ quantity: 1.35, commodity: '$' })
         });
 
         // Should not add cost to second posting
@@ -1542,7 +1542,7 @@ include common.journal
         expect(result).not.toBeNull();
         expect(result?.postings[0].cost).toEqual({
           type: 'total',
-          amount: { quantity: 1505.50, commodity: '$' }
+          amount: expect.objectContaining({ quantity: 1505.50, commodity: '$' })
         });
       });
 
@@ -1557,7 +1557,7 @@ include common.journal
         expect(result).not.toBeNull();
         expect(result?.postings[0].cost).toEqual({
           type: 'total',
-          amount: { quantity: -135, commodity: '$' }
+          amount: expect.objectContaining({ quantity: -135, commodity: '$' })
         });
       });
     });
@@ -1605,7 +1605,7 @@ include common.journal
 
         expect(result).not.toBeNull();
         expect(result?.account).toBe('expenses:food');
-        expect(result?.amount).toEqual({ quantity: 50, commodity: '$' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 50, commodity: '$' }));
       });
 
       test('should parse posting with symbol-suffixed amount', () => {
@@ -1614,7 +1614,7 @@ include common.journal
 
         expect(result).not.toBeNull();
         expect(result?.account).toBe('expenses:rent');
-        expect(result?.amount).toEqual({ quantity: 1000, commodity: 'USD' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 1000, commodity: 'USD' }));
       });
 
       test('should parse negative amounts', () => {
@@ -1622,7 +1622,7 @@ include common.journal
         const result = ast.parsePosting(line);
 
         expect(result).not.toBeNull();
-        expect(result?.amount).toEqual({ quantity: -2500, commodity: 'EUR' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: -2500, commodity: 'EUR' }));
       });
 
       test('should parse amounts with comma separators', () => {
@@ -1630,7 +1630,7 @@ include common.journal
         const result = ast.parsePosting(line);
 
         expect(result).not.toBeNull();
-        expect(result?.amount).toEqual({ quantity: 1000, commodity: 'USD' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 1000, commodity: 'USD' }));
       });
 
       test('should parse posting with symbol-prefixed with space amount', () => {
@@ -1638,7 +1638,7 @@ include common.journal
         const result = ast.parsePosting(line);
 
         expect(result).not.toBeNull();
-        expect(result?.amount).toEqual({ quantity: 1000, commodity: 'USD' })
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 1000, commodity: 'USD' }))
       })
 
       test('should parse posting with symbol-suffixed without space amount', () => {
@@ -1646,7 +1646,7 @@ include common.journal
         const result = ast.parsePosting(line);
 
         expect(result).not.toBeNull();
-        expect(result?.amount).toEqual({ quantity: 1000, commodity: 'USD' })
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 1000, commodity: 'USD' }))
       })
 
       test('should parse negative amounts with leading commodity', () => {
@@ -1654,7 +1654,7 @@ include common.journal
         const result = ast.parsePosting(line);
 
         expect(result).not.toBeNull();
-        expect(result?.amount).toEqual({ quantity: -2500, commodity: '$' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: -2500, commodity: '$' }));
       });
 
       test('should parse negative amounts with leading commodity after - sign', () => {
@@ -1662,7 +1662,7 @@ include common.journal
         const result = ast.parsePosting(line);
 
         expect(result).not.toBeNull();
-        expect(result?.amount).toEqual({ quantity: -2500, commodity: '$' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: -2500, commodity: '$' }));
       });
 
       test('should parse negative amounts with leading commodity with space', () => {
@@ -1670,7 +1670,7 @@ include common.journal
         const result = ast.parsePosting(line);
 
         expect(result).not.toBeNull();
-        expect(result?.amount).toEqual({ quantity: -2500, commodity: 'USD' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: -2500, commodity: 'USD' }));
       });
 
       test('should parse amounts with various currency symbols', () => {
@@ -1682,7 +1682,7 @@ include common.journal
 
         testCases.forEach(({ line, expected }) => {
           const result = ast.parsePosting(line);
-          expect(result?.amount).toEqual(expected);
+          expect(result?.amount).toEqual(expect.objectContaining(expected));
         });
       });
 
@@ -1691,7 +1691,7 @@ include common.journal
         const result = ast.parsePosting(line);
 
         expect(result).not.toBeNull();
-        expect(result?.amount).toEqual({ quantity: 100, commodity: '' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '' }));
       });
     });
 
@@ -1702,7 +1702,7 @@ include common.journal
 
         expect(result).not.toBeNull();
         expect(result?.account).toBe('expenses:food');
-        expect(result?.amount).toEqual({ quantity: 20, commodity: '$' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 20, commodity: '$' }));
         expect(result?.comment).toBe('groceries');
       });
 
@@ -1743,7 +1743,7 @@ include common.journal
 
         expect(result).not.toBeNull();
         expect(result?.account).toBe('liabilities:credit card');
-        expect(result?.assertion).toEqual({ quantity: -500, commodity: '$' });
+        expect(result?.assertion).toEqual(expect.objectContaining({ quantity: -500, commodity: '$' }));
         expect(result?.amount).toBeUndefined();
       });
 
@@ -1753,8 +1753,8 @@ include common.journal
 
         expect(result).not.toBeNull();
         expect(result?.account).toBe('assets:checking');
-        expect(result?.amount).toEqual({ quantity: 50.25, commodity: '$' });
-        expect(result?.assertion).toEqual({ quantity: 150.25, commodity: '$' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 50.25, commodity: '$' }));
+        expect(result?.assertion).toEqual(expect.objectContaining({ quantity: 150.25, commodity: '$' }));
       });
 
       test('should parse posting with amount, assertion, and comment', () => {
@@ -1763,8 +1763,8 @@ include common.journal
 
         expect(result).not.toBeNull();
         expect(result?.account).toBe('assets:checking');
-        expect(result?.amount).toEqual({ quantity: 50.25, commodity: '$' });
-        expect(result?.assertion).toEqual({ quantity: 150.25, commodity: '$' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 50.25, commodity: '$' }));
+        expect(result?.assertion).toEqual(expect.objectContaining({ quantity: 150.25, commodity: '$' }));
         expect(result?.comment).toBe('balance check');
       });
 
@@ -1773,8 +1773,8 @@ include common.journal
         const result = ast.parsePosting(line);
 
         expect(result).not.toBeNull();
-        expect(result?.amount).toEqual({ quantity: 100, commodity: 'USD' });
-        expect(result?.assertion).toEqual({ quantity: 1000, commodity: 'USD' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: 'USD' }));
+        expect(result?.assertion).toEqual(expect.objectContaining({ quantity: 1000, commodity: 'USD' }));
       });
     });
 
@@ -1785,10 +1785,10 @@ include common.journal
 
         expect(result).not.toBeNull();
         expect(result?.account).toBe('assets:euros');
-        expect(result?.amount).toEqual({ quantity: 100, commodity: '€' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
         expect(result?.cost).toEqual({
           type: 'unit',
-          amount: { quantity: 1.35, commodity: '$' }
+          amount: expect.objectContaining({ quantity: 1.35, commodity: '$' })
         });
       });
 
@@ -1798,10 +1798,10 @@ include common.journal
 
         expect(result).not.toBeNull();
         expect(result?.account).toBe('assets:euros');
-        expect(result?.amount).toEqual({ quantity: 100, commodity: '€' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
         expect(result?.cost).toEqual({
           type: 'total',
-          amount: { quantity: 135, commodity: '$' }
+          amount: expect.objectContaining({ quantity: 135, commodity: '$' })
         });
       });
 
@@ -1811,12 +1811,12 @@ include common.journal
 
         expect(result).not.toBeNull();
         expect(result?.account).toBe('assets:euros');
-        expect(result?.amount).toEqual({ quantity: 100, commodity: '€' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
         expect(result?.cost).toEqual({
           type: 'unit',
-          amount: { quantity: 1.35, commodity: '$' }
+          amount: expect.objectContaining({ quantity: 1.35, commodity: '$' })
         });
-        expect(result?.assertion).toEqual({ quantity: 100, commodity: '€' });
+        expect(result?.assertion).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
       });
 
       test('should parse posting with total cost and balance assertion', () => {
@@ -1825,12 +1825,12 @@ include common.journal
 
         expect(result).not.toBeNull();
         expect(result?.account).toBe('assets:euros');
-        expect(result?.amount).toEqual({ quantity: 100, commodity: '€' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
         expect(result?.cost).toEqual({
           type: 'total',
-          amount: { quantity: 135, commodity: '$' }
+          amount: expect.objectContaining({ quantity: 135, commodity: '$' })
         });
-        expect(result?.assertion).toEqual({ quantity: 100, commodity: '€' });
+        expect(result?.assertion).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
       });
 
       test('should parse posting with cost and comment', () => {
@@ -1839,10 +1839,10 @@ include common.journal
 
         expect(result).not.toBeNull();
         expect(result?.account).toBe('assets:euros');
-        expect(result?.amount).toEqual({ quantity: 100, commodity: '€' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
         expect(result?.cost).toEqual({
           type: 'unit',
-          amount: { quantity: 1.35, commodity: '$' }
+          amount: expect.objectContaining({ quantity: 1.35, commodity: '$' })
         });
         expect(result?.comment).toBe('purchase euros');
       });
@@ -1853,12 +1853,12 @@ include common.journal
 
         expect(result).not.toBeNull();
         expect(result?.account).toBe('assets:euros');
-        expect(result?.amount).toEqual({ quantity: 100, commodity: '€' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
         expect(result?.cost).toEqual({
           type: 'unit',
-          amount: { quantity: 1.35, commodity: '$' }
+          amount: expect.objectContaining({ quantity: 1.35, commodity: '$' })
         });
-        expect(result?.assertion).toEqual({ quantity: 100, commodity: '€' });
+        expect(result?.assertion).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
         expect(result?.comment).toBe('balance check');
       });
 
@@ -1867,22 +1867,22 @@ include common.journal
           {
             line: '    assets:stock    10 AAPL @ $150.50',
             expected: {
-              amount: { quantity: 10, commodity: 'AAPL' },
-              cost: { type: 'unit' as const, amount: { quantity: 150.5, commodity: '$' } }
+              amount: expect.objectContaining({ quantity: 10, commodity: 'AAPL' }),
+              cost: { type: 'unit' as const, amount: expect.objectContaining({ quantity: 150.5, commodity: '$' }) }
             }
           },
           {
             line: '    assets:stock    10 AAPL @@ $1505',
             expected: {
-              amount: { quantity: 10, commodity: 'AAPL' },
-              cost: { type: 'total' as const, amount: { quantity: 1505, commodity: '$' } }
+              amount: expect.objectContaining({ quantity: 10, commodity: 'AAPL' }),
+              cost: { type: 'total' as const, amount: expect.objectContaining({ quantity: 1505, commodity: '$' }) }
             }
           },
           {
             line: '    assets:bitcoin    0.5 BTC @ 50000 USD',
             expected: {
-              amount: { quantity: 0.5, commodity: 'BTC' },
-              cost: { type: 'unit' as const, amount: { quantity: 50000, commodity: 'USD' } }
+              amount: expect.objectContaining({ quantity: 0.5, commodity: 'BTC' }),
+              cost: { type: 'unit' as const, amount: expect.objectContaining({ quantity: 50000, commodity: 'USD' }) }
             }
           }
         ];
@@ -1899,10 +1899,10 @@ include common.journal
         const result = ast.parsePosting(line);
 
         expect(result).not.toBeNull();
-        expect(result?.amount).toEqual({ quantity: -100, commodity: '€' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: -100, commodity: '€' }));
         expect(result?.cost).toEqual({
           type: 'unit',
-          amount: { quantity: 1.35, commodity: '$' }
+          amount: expect.objectContaining({ quantity: 1.35, commodity: '$' })
         });
       });
 
@@ -1911,10 +1911,10 @@ include common.journal
         const result = ast.parsePosting(line);
 
         expect(result).not.toBeNull();
-        expect(result?.amount).toEqual({ quantity: 100, commodity: 'USD' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: 'USD' }));
         expect(result?.cost).toEqual({
           type: 'unit',
-          amount: { quantity: -1.5, commodity: 'EUR' }
+          amount: expect.objectContaining({ quantity: -1.5, commodity: 'EUR' })
         });
       });
 
@@ -1923,10 +1923,10 @@ include common.journal
         const result = ast.parsePosting(line);
 
         expect(result).not.toBeNull();
-        expect(result?.amount).toEqual({ quantity: 100, commodity: 'SHARES' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: 'SHARES' }));
         expect(result?.cost).toEqual({
           type: 'unit',
-          amount: { quantity: 12.345, commodity: '$' }
+          amount: expect.objectContaining({ quantity: 12.345, commodity: '$' })
         });
       });
 
@@ -1936,7 +1936,7 @@ include common.journal
 
         expect(result).not.toBeNull();
         expect(result?.account).toBe('assets:email@example.com');
-        expect(result?.amount).toEqual({ quantity: 100, commodity: '$' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '$' }));
         expect(result?.cost).toBeUndefined();
       });
     });
@@ -1956,7 +1956,7 @@ include common.journal
 
         expect(result).not.toBeNull();
         expect(result?.account).toBe('expenses:food');
-        expect(result?.amount).toEqual({ quantity: 25, commodity: '$' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 25, commodity: '$' }));
       });
 
       test('should handle decimal-only amounts', () => {
@@ -1964,7 +1964,7 @@ include common.journal
         const result = ast.parsePosting(line);
 
         expect(result).not.toBeNull();
-        expect(result?.amount).toEqual({ quantity: 0.5, commodity: 'USD' });
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 0.5, commodity: 'USD' }));
       });
     });
   });
@@ -1979,11 +1979,11 @@ include common.journal
         postings: [
           {
             account: 'expenses:food',
-            amount: { quantity: 50, commodity: 'USD' }
+            amount: expect.objectContaining({ quantity: 50, commodity: 'USD' })
           },
           {
             account: 'assets:checking',
-            amount: { quantity: -50, commodity: 'USD' }
+            amount: expect.objectContaining({ quantity: -50, commodity: 'USD' })
           }
         ]
       };

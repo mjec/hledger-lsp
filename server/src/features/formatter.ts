@@ -4,9 +4,10 @@
 
 import { TextEdit, Range, Position, FormattingOptions as LSPFormattingOptions } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { Amount, ParsedDocument, Posting, Commodity } from '../types';
+import { Amount, ParsedDocument, Posting, Commodity, Format, Transaction } from '../types';
 import { parsePosting, parseTransactionHeader } from '../parser/ast';
 import { isTransactionHeader, isPosting, isComment, isDirective } from '../utils/index';
+import { format } from 'path';
 
 export interface FormattingOptions {
   /** Number of spaces for posting indentation (default: 4) */
@@ -25,6 +26,23 @@ export interface FormattingOptions {
   assertionDecimalAlignColumn?: number;
 }
 
+interface amountLayout {
+  commodityBefore: string;
+  isNegative: boolean;
+  amountIntegerString: string;
+  amountDecimalString: string;
+  demicalMark: string;
+  commodityAfter: string;
+  spaceBetweenCommodityAndAmount: boolean;
+}
+
+interface postingLayout {
+  amountLayout?: amountLayout;
+  costLayout?: amountLayout;
+  assertionLayout?: amountLayout;
+}
+
+
 const DEFAULT_OPTIONS: Required<FormattingOptions> = {
   indentation: 4,
   maxAccountWidth: 42,
@@ -35,37 +53,6 @@ const DEFAULT_OPTIONS: Required<FormattingOptions> = {
   assertionDecimalAlignColumn: 70
 };
 
-interface ParsedAmount {
-  commodityBefore: string;
-  amountNumber: string;
-  commodityAfter: string;
-  decimalPosition: number; // Position of decimal within amountNumber, or length if no decimal
-}
-
-interface ParsedAssertion {
-  commodityBefore: string;
-  amountNumber: string;
-  commodityAfter: string;
-  decimalPosition: number;
-}
-
-interface ParsedCost {
-  type: 'unit' | 'total';  // @ or @@
-  commodityBefore: string;
-  amountNumber: string;
-  commodityAfter: string;
-  decimalPosition: number;
-}
-
-interface PostingLayout {
-  posting: Posting;
-  indent: string;
-  account: string;
-  parsedAmount: ParsedAmount | null;
-  parsedCost: ParsedCost | null;
-  parsedAssertion: ParsedAssertion | null;
-  comment: string;
-}
 
 export class FormattingProvider {
   /**
@@ -98,7 +85,7 @@ export class FormattingProvider {
         const transaction = parsed.transactions.find(t => t.line === i);
 
         // Collect and format all postings in this transaction
-        const postingLayouts: PostingLayout[] = [];
+        const transactionLines: string[] = [];
         i++;
 
         while (i < lines.length) {
@@ -110,31 +97,12 @@ export class FormattingProvider {
             break;
           }
 
-          if (isComment(postingTrimmed)) {
-            // Preserve comments between postings as-is
-            formattedLines.push(postingTrimmed);
-          } else if (isPosting(postingLine)) {  // Check with original line, not trimmed
-            // Use the parsed transaction's postings if available (includes inferred costs)
-            if (transaction && postingLayouts.length < transaction.postings.length) {
-              const posting = transaction.postings[postingLayouts.length];
-              const layout = this.parsePostingLayout(posting, parsed, options);
-              postingLayouts.push(layout);
-            } else {
-              // Fallback to parsing from text if transaction not found
-              const posting = parsePosting(postingLine);
-              if (posting) {
-                const layout = this.parsePostingLayout(posting, parsed, options);
-                postingLayouts.push(layout);
-              }
-            }
-          }
-
+          transactionLines.push(postingLine);
           i++;
         }
 
         // Format all postings in the transaction together for alignment
-        const formattedPostings = this.formatTransactionPostings(postingLayouts, options);
-        formattedLines.push(...formattedPostings);
+        formattedLines.push(...this.formatTransactionLines(transactionLines, transaction, parsed, options));
 
         // Don't increment i here as we've already moved past the transaction
         continue;
@@ -162,6 +130,279 @@ export class FormattingProvider {
       newText: formattedText
     }];
   }
+
+  private formatTransactionLines(
+    lines: string[],
+    transaction: Transaction | undefined, parsed: ParsedDocument,
+    options: Required<FormattingOptions>
+  ): string[] {
+    let formattedLines: string[] = [];
+
+    if (!transaction) {
+      // No transaction info, just trim lines
+      formattedLines = lines.map(line => line.trimEnd());
+      return formattedLines;
+    }
+
+    let indentColumnWidth = 0;
+    let accountColumnWidth = 0;
+    let commodityBeforeColumnWidth = 0;
+    let spaceBetweenCommodityBeforeAndAmount = 0;
+    let negativeSignColumnWidth = 0;
+    let amountIntegerColumnWidth = 0;
+    let amountDecimalMarkColumnWidth = 0;
+    let amountDecimalColumnWidth = 0;
+    let spaceBetweenAmountAndCommodityAfterColumnWidth = 0;
+    let commodityAfterColumnWidth = 0;
+    let costColumnWidth = 0;
+    let costCommodityBeforeColumnWidth = 0;
+    let spaceBetweenCostCommodityBeforeAndAmount = 0;
+    let costNegativeSignColumnWidth = 0;
+    let costAmountIntegerColumnWidth = 0;
+    let costAmountDecimalMarkColumnWidth = 0;
+    let costAmountDecimalColumnWidth = 0;
+    let spaceBetweenCostAmountAndCommodityAfterColumnWidth = 0;
+    let costCommodityAfterColumnWidth = 0;
+    let assertionColumnWidth = 0;
+    let assertionCommodityBeforeColumnWidth = 0;
+    let spaceBetweenAssertionCommodityBeforeAndAmount = 0;
+    let assertionNegativeSignColumnWidth = 0;
+    let assertionAmountIntegerColumnWidth = 0;
+    let assertionAmountDecimalMarkColumnWidth = 0;
+    let assertionAmountDecimalColumnWidth = 0;
+    let spaceBetweenAssertionAmountAndCommodityAfterColumnWidth = 0;
+    let assertionCommodityAfterColumnWidth = 0;
+
+    // First pass: determine column widths and cache layouts
+    const postingLayouts: postingLayout[] = [];
+    for (let posting of transaction.postings) {
+      let postingLayout: postingLayout = {};
+      indentColumnWidth = Math.max(indentColumnWidth, options.indentation);
+      accountColumnWidth = Math.max(accountColumnWidth, posting.account.length);
+
+      if (posting.amount) {
+        const layout = this.layoutAmount(posting.amount, parsed, options);
+        postingLayout.amountLayout = layout;
+        commodityBeforeColumnWidth = Math.max(commodityBeforeColumnWidth, layout.commodityBefore.length);
+        negativeSignColumnWidth = Math.max(negativeSignColumnWidth, layout.isNegative ? 1 : 0);
+        spaceBetweenCommodityBeforeAndAmount = Math.max(spaceBetweenCommodityBeforeAndAmount, (layout.spaceBetweenCommodityAndAmount && layout.commodityBefore.length) ? 1 : 0);
+        amountIntegerColumnWidth = Math.max(amountIntegerColumnWidth, layout.amountIntegerString.length);
+        amountDecimalMarkColumnWidth = Math.max(amountDecimalMarkColumnWidth, layout.amountDecimalString ? 1 : 0);
+        amountDecimalColumnWidth = Math.max(amountDecimalColumnWidth, layout.amountDecimalString.length);
+        spaceBetweenAmountAndCommodityAfterColumnWidth = Math.max(spaceBetweenAmountAndCommodityAfterColumnWidth, (layout.spaceBetweenCommodityAndAmount && layout.commodityAfter.length) ? 1 : 0);
+        commodityAfterColumnWidth = Math.max(commodityAfterColumnWidth, layout.commodityAfter.length);
+      }
+
+      if (posting.cost) {
+        const layout = this.layoutAmount(posting.cost.amount, parsed, options);
+        postingLayout.costLayout = layout;
+        costColumnWidth = Math.max(costColumnWidth, posting.cost.type === 'unit' ? 3 : 4);
+        costCommodityBeforeColumnWidth = Math.max(costCommodityBeforeColumnWidth, layout.commodityBefore.length);
+        costNegativeSignColumnWidth = Math.max(costNegativeSignColumnWidth, layout.isNegative ? 1 : 0);
+        spaceBetweenCostCommodityBeforeAndAmount = Math.max(spaceBetweenCostCommodityBeforeAndAmount, (layout.spaceBetweenCommodityAndAmount && layout.commodityBefore.length) ? 1 : 0);
+        costAmountIntegerColumnWidth = Math.max(costAmountIntegerColumnWidth, layout.amountIntegerString.length);
+        costAmountDecimalMarkColumnWidth = Math.max(costAmountDecimalMarkColumnWidth, layout.amountDecimalString ? 1 : 0);
+        costAmountDecimalColumnWidth = Math.max(costAmountDecimalColumnWidth, layout.amountDecimalString.length);
+        spaceBetweenCostAmountAndCommodityAfterColumnWidth = Math.max(spaceBetweenCostAmountAndCommodityAfterColumnWidth, (layout.spaceBetweenCommodityAndAmount && layout.commodityAfter.length) ? 1 : 0);
+        costCommodityAfterColumnWidth = Math.max(costCommodityAfterColumnWidth, layout.commodityAfter.length);
+      }
+
+      if (posting.assertion) {
+        const layout = this.layoutAmount(posting.assertion, parsed, options);
+        postingLayout.assertionLayout = layout;
+        assertionColumnWidth = Math.max(assertionColumnWidth, 3); // for the assertion operator with spaces
+        assertionCommodityBeforeColumnWidth = Math.max(assertionCommodityBeforeColumnWidth, layout.commodityBefore.length);
+        assertionNegativeSignColumnWidth = Math.max(assertionNegativeSignColumnWidth, layout.isNegative ? 1 : 0);
+        spaceBetweenAssertionCommodityBeforeAndAmount = Math.max(spaceBetweenAssertionCommodityBeforeAndAmount, layout.isNegative ? 1 : 0);
+        assertionAmountIntegerColumnWidth = Math.max(assertionAmountIntegerColumnWidth, layout.amountIntegerString.length);
+        assertionAmountDecimalMarkColumnWidth = Math.max(assertionAmountDecimalMarkColumnWidth, layout.amountDecimalString ? 1 : 0);
+        assertionAmountDecimalColumnWidth = Math.max(assertionAmountDecimalColumnWidth, layout.amountDecimalString.length);
+        spaceBetweenAssertionAmountAndCommodityAfterColumnWidth = Math.max(spaceBetweenAssertionAmountAndCommodityAfterColumnWidth, (layout.spaceBetweenCommodityAndAmount && layout.commodityAfter.length) ? 1 : 0);
+        assertionCommodityAfterColumnWidth = Math.max(assertionCommodityAfterColumnWidth, layout.commodityAfter.length);
+      }
+      postingLayouts.push(postingLayout);
+    }
+
+    // Second pass: format each posting line
+    const formattedPostingLines: string[] = [];
+    for (let idx = 0; idx < transaction.postings.length; idx++) {
+      const posting = transaction.postings[idx];
+      const postingLayout = postingLayouts[idx];
+      let line = ' '.repeat(options.indentation);
+      line += posting.account.padEnd(accountColumnWidth, ' ');
+      line += ' '.repeat(options.minSpacing);
+
+
+      if (posting.amount) {
+        const lengthAtPaddingLocation = line.length;
+        const layout = postingLayout.amountLayout!;
+        line += layout.commodityBefore.padStart(commodityBeforeColumnWidth, ' ');
+        line += ' '.repeat(spaceBetweenCommodityBeforeAndAmount);
+        line += layout.isNegative ? '-'.padStart(negativeSignColumnWidth, ' ') : ' '.repeat(negativeSignColumnWidth);
+        line += layout.amountIntegerString.padStart(amountIntegerColumnWidth, ' ');
+        const lengthAtDecimalLocation = line.length;
+        const targetDecimalColumn = options.decimalAlignColumn;
+        const linePrePadding = line.substring(0, lengthAtPaddingLocation);
+        const linePostPadding = line.substring(lengthAtPaddingLocation);
+        const currentDecimalColumn = lengthAtDecimalLocation;
+        const neededPadding = targetDecimalColumn - currentDecimalColumn;
+        line = linePrePadding + ' '.repeat(Math.max(0, neededPadding)) + linePostPadding;
+        if (layout.demicalMark) {
+          line += layout.demicalMark.padEnd(amountDecimalMarkColumnWidth, ' ');
+          line += layout.amountDecimalString.padEnd(amountDecimalColumnWidth, ' ');
+        } else {
+          line += ' '.repeat(amountDecimalMarkColumnWidth + amountDecimalColumnWidth);
+        }
+        line += ' '.repeat(spaceBetweenAmountAndCommodityAfterColumnWidth);
+        line += layout.commodityAfter.padEnd(commodityAfterColumnWidth, ' ');
+      } else {
+        const lengthAtPaddingLocation = line.length;
+        const neededPadding = options.decimalAlignColumn - lengthAtPaddingLocation;
+        line += ' '.repeat(Math.max(0, neededPadding));
+        line += ' '.repeat(
+          amountDecimalMarkColumnWidth +
+          amountDecimalColumnWidth +  
+          spaceBetweenAmountAndCommodityAfterColumnWidth +
+          commodityAfterColumnWidth
+        ); // space for missing amount
+      }
+
+      if (posting.cost) {
+        const layout = postingLayout.costLayout!;
+        line += posting.cost.type === 'unit' ? ' @'.padEnd(costColumnWidth, ' ') : ' @@'.padEnd(costColumnWidth, ' ');
+        line += layout.commodityBefore.padStart(costCommodityBeforeColumnWidth, ' ');
+        line += ' '.repeat(spaceBetweenCostCommodityBeforeAndAmount);
+        line += layout.isNegative ? '-'.padStart(costNegativeSignColumnWidth, ' ') : ' '.repeat(costNegativeSignColumnWidth);
+        line += layout.amountIntegerString.padStart(costAmountIntegerColumnWidth, ' ');
+        if (layout.demicalMark) {
+          line += layout.demicalMark.padEnd(costAmountDecimalMarkColumnWidth, ' ');
+          line += layout.amountDecimalString.padEnd(costAmountDecimalColumnWidth, ' ');
+        } else {
+          line += ' '.repeat(costAmountDecimalColumnWidth + costAmountDecimalMarkColumnWidth); 
+        }
+        line += ' '.repeat(spaceBetweenCostAmountAndCommodityAfterColumnWidth);
+        line += layout.commodityAfter.padEnd(costCommodityAfterColumnWidth, ' ');
+      } else {
+        line += ' '.repeat( costColumnWidth +
+          costCommodityBeforeColumnWidth +
+          spaceBetweenCostCommodityBeforeAndAmount +
+          costNegativeSignColumnWidth +
+          costAmountIntegerColumnWidth +
+          costAmountDecimalMarkColumnWidth +
+          costAmountDecimalColumnWidth +
+          spaceBetweenCostAmountAndCommodityAfterColumnWidth +
+          costCommodityAfterColumnWidth
+        ); // space for missing cost
+      }
+
+      if (posting.assertion) {
+        const layout = postingLayout.assertionLayout!;
+        line += ' ='.padEnd(assertionColumnWidth, ' ');
+        line += layout.commodityBefore.padStart(assertionCommodityBeforeColumnWidth, ' ');
+        line += ' '.repeat(spaceBetweenAssertionCommodityBeforeAndAmount);
+        line += layout.isNegative ? '-'.padStart(assertionNegativeSignColumnWidth, ' ') : ' '.repeat(assertionNegativeSignColumnWidth);
+        line += layout.amountIntegerString.padStart(assertionAmountIntegerColumnWidth, ' ');
+        if (layout.demicalMark) {
+          line += layout.demicalMark.padEnd(assertionAmountDecimalMarkColumnWidth, ' ');
+          line += layout.amountDecimalString.padEnd(assertionAmountDecimalColumnWidth, ' ');
+        } else {
+          line += ' '.repeat(assertionAmountDecimalColumnWidth + assertionAmountDecimalMarkColumnWidth);
+        }
+        line += ' '.repeat(spaceBetweenAssertionAmountAndCommodityAfterColumnWidth);
+        line += layout.commodityAfter.padEnd(assertionCommodityAfterColumnWidth, ' ');
+      } else {
+        line += ' '.repeat(2 + // space for spaces around assertion indicator
+          assertionColumnWidth +
+          assertionCommodityBeforeColumnWidth +
+          spaceBetweenAssertionCommodityBeforeAndAmount +
+          assertionNegativeSignColumnWidth +
+          assertionAmountIntegerColumnWidth +
+          assertionAmountDecimalColumnWidth +
+          assertionAmountDecimalMarkColumnWidth +
+          spaceBetweenAssertionAmountAndCommodityAfterColumnWidth +
+          assertionCommodityAfterColumnWidth
+        ); // space for missing assertion
+      }
+
+      if (posting.comment) {
+        line = line.trimEnd();
+        line += ';' + posting.comment.trim();
+      }
+
+      formattedPostingLines.push(line);
+    }
+
+    // Third pass: Reintegrate with comments from original lines
+    let postingIndex = 0;
+    for (let line of lines) {
+      const trimmed = line.trim();
+      if (isComment(trimmed) || trimmed === '') {
+        formattedLines.push(line.trimEnd());
+      } else {
+        formattedLines.push(formattedPostingLines[postingIndex].trimEnd());
+        postingIndex++;
+      }
+    }
+
+    return formattedLines;
+
+  }
+
+
+  private layoutAmount(amount: Amount, parsed: ParsedDocument, options: Required<FormattingOptions>): amountLayout {
+    const commodity = this.findCommodity(amount.commodity, parsed);
+    let format: Format = {};
+    if (commodity && commodity.format) {
+      format = commodity.format;
+      if (amount.format?.precision && commodity.format.precision && amount.format?.precision > commodity.format.precision) {
+        format.precision = amount.format.precision;
+      }
+    } else if (amount.format) {
+      format = amount.format;
+    } else {
+      format = {};
+    }
+
+    return {
+      commodityBefore: format.symbolOnLeft ? format.symbol || '' : '',
+      isNegative: amount.quantity < 0,
+      amountIntegerString: this.formatIntegerAmount(amount, format),
+      amountDecimalString: this.formatDecimalAmount(amount, format),
+      demicalMark: format.precision && format.precision > 0 ? (format.decimalMark || '.') : '',
+      spaceBetweenCommodityAndAmount: format.spaceBetween || false,
+      commodityAfter: !format.symbolOnLeft ? format.symbol || '' : ''
+    };
+  }
+
+  private formatIntegerAmount(amount: Amount, format: Format): string {
+    const integerPart = Math.floor(Math.abs(amount.quantity)).toString();
+
+    // Format integer part with grouping if specified
+    let integerString = '';
+    if (format.thousandsSeparator) {
+      const regex = /\B(?=(\d{3})+(?!\d))/g;
+      integerString = integerPart.replace(regex, format.thousandsSeparator);
+    } else {
+      integerString = integerPart;
+    }
+
+    return integerString;
+  }
+
+  private formatDecimalAmount(amount: Amount, format: Format): string {
+    const decimalPart = Math.abs(amount.quantity) % 1;
+
+    // Format decimal part based on precision
+    let decimalString = '';
+    if (format.precision) {
+      decimalString = decimalPart.toFixed(format.precision).substring(2); // Skip "0."
+    } else if (decimalPart > 0) {
+      decimalString = decimalPart.toString().substring(2); // Skip "0."
+    }
+
+    return decimalString
+  }
+
 
   /**
    * Format a range of lines
@@ -254,270 +495,6 @@ export class FormattingProvider {
     }
 
     return result;
-  }
-
-  /**
-   * Parse a posting into its layout components
-   */
-  private parsePostingLayout(
-    posting: Posting,
-    parsed: ParsedDocument,
-    options: Required<FormattingOptions>
-  ): PostingLayout {
-    const indent = ' '.repeat(options.indentation);
-    const account = posting.account;
-
-    const parsedAmount = posting.amount
-      ? this.parseAmount(posting.amount, parsed)
-      : null;
-
-    const parsedCost = posting.cost
-      ? this.parseCost(posting.cost, parsed)
-      : null;
-
-    const parsedAssertion = posting.assertion
-      ? this.parseAmount(posting.assertion, parsed)
-      : null;
-
-    const comment = posting.comment || '';
-
-    return {
-      posting,
-      indent,
-      account,
-      parsedAmount,
-      parsedCost,
-      parsedAssertion,
-      comment
-    };
-  }
-
-  /**
-   * Parse an amount into its components for column alignment
-   */
-  private parseAmount(amount: Amount, parsed: ParsedDocument): ParsedAmount {
-    const commodity = this.findCommodity(amount.commodity, parsed);
-    const absQuantity = Math.abs(amount.quantity);
-    const isNegative = amount.quantity < 0;
-
-    // Determine precision
-    const actualPrecision = this.getDecimalPlaces(amount.quantity);
-    const usePrecision = commodity?.format?.precision !== null && commodity?.format?.precision !== undefined
-      ? Math.max(actualPrecision, commodity.format.precision)
-      : actualPrecision;
-
-    // Format the number
-    const formattedNumber = absQuantity.toFixed(usePrecision);
-    const decimalPos = formattedNumber.indexOf('.');
-    const decimalPosition = decimalPos >= 0 ? decimalPos : formattedNumber.length;
-
-    // Build amount string with negative sign
-    const amountNumber = (isNegative ? '-' : '') + formattedNumber;
-
-    // Determine commodity placement
-    const commoditySymbol = commodity?.format?.symbol || amount.commodity || '';
-    let commodityBefore = '';
-    let commodityAfter = '';
-
-    if (commodity?.format) {
-      if (commodity.format.symbolOnLeft) {
-        commodityBefore = commoditySymbol;
-      } else {
-        commodityAfter = commoditySymbol;
-      }
-    } else if (commoditySymbol) {
-      // Default heuristic: currencies go on left
-      const leftSymbols = ['$', '€', '£', '¥'];
-      if (leftSymbols.includes(commoditySymbol)) {
-        commodityBefore = commoditySymbol;
-      } else {
-        commodityAfter = commoditySymbol;
-      }
-    }
-
-    return {
-      commodityBefore,
-      amountNumber,
-      commodityAfter,
-      decimalPosition: isNegative ? decimalPosition + 1 : decimalPosition // Adjust for minus sign
-    };
-  }
-
-  /**
-   * Parse a cost into its components for formatting
-   */
-  private parseCost(cost: { type: 'unit' | 'total'; amount: Amount }, parsed: ParsedDocument): ParsedCost {
-    const parsedAmount = this.parseAmount(cost.amount, parsed);
-
-    return {
-      type: cost.type,
-      commodityBefore: parsedAmount.commodityBefore,
-      amountNumber: parsedAmount.amountNumber,
-      commodityAfter: parsedAmount.commodityAfter,
-      decimalPosition: parsedAmount.decimalPosition
-    };
-  }
-
-  /**
-   * Format all postings in a transaction with column alignment
-   */
-  private formatTransactionPostings(
-    layouts: PostingLayout[],
-    options: Required<FormattingOptions>
-  ): string[] {
-    if (layouts.length === 0) {
-      return [];
-    }
-
-    // Calculate column widths for this transaction
-    let maxAccountLen = 0;
-    let maxCommodityBeforeLen = 0;
-    let maxCommodityAfterLen = 0;
-    let maxAssertionCommodityBeforeLen = 0;
-    let maxAssertionCommodityAfterLen = 0;
-    let maxDigitsBeforeDecimal = 0; // Track max width before decimal point
-
-    for (const layout of layouts) {
-      maxAccountLen = Math.max(maxAccountLen, layout.account.length);
-
-      if (layout.parsedAmount) {
-        maxCommodityBeforeLen = Math.max(maxCommodityBeforeLen, layout.parsedAmount.commodityBefore.length);
-        maxCommodityAfterLen = Math.max(maxCommodityAfterLen, layout.parsedAmount.commodityAfter.length);
-
-        // Calculate width before decimal (including minus sign)
-        const digitsBeforeDecimal = layout.parsedAmount.decimalPosition;
-        maxDigitsBeforeDecimal = Math.max(maxDigitsBeforeDecimal, digitsBeforeDecimal);
-      }
-
-      if (layout.parsedAssertion) {
-        maxAssertionCommodityBeforeLen = Math.max(maxAssertionCommodityBeforeLen, layout.parsedAssertion.commodityBefore.length);
-        maxAssertionCommodityAfterLen = Math.max(maxAssertionCommodityAfterLen, layout.parsedAssertion.commodityAfter.length);
-      }
-    }
-
-    // Apply maximum constraints
-    maxAccountLen = Math.min(maxAccountLen, options.maxAccountWidth);
-    maxCommodityBeforeLen = Math.min(maxCommodityBeforeLen, options.maxCommodityWidth);
-    maxCommodityAfterLen = Math.min(maxCommodityAfterLen, options.maxCommodityWidth);
-    maxAssertionCommodityBeforeLen = Math.min(maxAssertionCommodityBeforeLen, options.maxCommodityWidth);
-    maxAssertionCommodityAfterLen = Math.min(maxAssertionCommodityAfterLen, options.maxCommodityWidth);
-
-    // Format each posting
-    return layouts.map(layout => {
-      let result = layout.indent + layout.account;
-
-      // If no amount, just return account with comment if any
-      if (!layout.parsedAmount) {
-        if (layout.comment) {
-          result += '  ;' + layout.comment;
-        }
-        return result;
-      }
-
-      // Calculate spacing to reach decimal align column
-      const accountEnd = layout.indent.length + layout.account.length;
-
-      // Target position for the decimal point
-      let decimalTargetCol = options.decimalAlignColumn;
-
-      // Calculate where amount needs to start to align decimal at target
-      // Use the max digits before decimal to ensure currency symbols align
-      const amountStartCol = decimalTargetCol - maxDigitsBeforeDecimal;
-
-      // Calculate where commodity-before column needs to start
-      const commodityBeforeColStart = amountStartCol - maxCommodityBeforeLen;
-
-      // Calculate spacing needed after account
-      let spacingAfterAccount = commodityBeforeColStart - accountEnd;
-
-      // Ensure minimum spacing
-      if (spacingAfterAccount < options.minSpacing) {
-        spacingAfterAccount = options.minSpacing;
-      }
-
-      // Add spacing
-      result += ' '.repeat(spacingAfterAccount);
-
-      // Add commodity-before (right-aligned in its column)
-      if (maxCommodityBeforeLen > 0) {
-        const commodityBefore = layout.parsedAmount.commodityBefore;
-        const padding = maxCommodityBeforeLen - commodityBefore.length;
-        result += ' '.repeat(padding) + commodityBefore;
-      }
-
-      // Add spacing between currency and number to right-align the number before decimal
-      const digitsBeforeDecimal = layout.parsedAmount.decimalPosition;
-      const numberPadding = maxDigitsBeforeDecimal - digitsBeforeDecimal;
-      if (numberPadding > 0) {
-        result += ' '.repeat(numberPadding);
-      }
-
-      // Add amount
-      result += layout.parsedAmount.amountNumber;
-
-      // Add commodity-after (left-aligned in its column)
-      if (maxCommodityAfterLen > 0) {
-        result += ' ';
-        const commodityAfter = layout.parsedAmount.commodityAfter;
-        result += commodityAfter.padEnd(maxCommodityAfterLen, ' ');
-      }
-
-      // Add cost notation if present
-      if (layout.parsedCost) {
-        // Add @ or @@ operator
-        result += layout.parsedCost.type === 'unit' ? ' @ ' : ' @@ ';
-
-        // Add cost commodity-before
-        if (layout.parsedCost.commodityBefore) {
-          result += layout.parsedCost.commodityBefore;
-        }
-
-        // Add cost amount
-        result += layout.parsedCost.amountNumber;
-
-        // Add cost commodity-after
-        if (layout.parsedCost.commodityAfter) {
-          result += ' ' + layout.parsedCost.commodityAfter;
-        }
-      }
-
-      // Add balance assertion if present
-      if (layout.parsedAssertion) {
-        result += ' = ';
-
-        // Add assertion commodity-before
-        if (layout.parsedAssertion.commodityBefore) {
-          result += layout.parsedAssertion.commodityBefore;
-        }
-
-        // Add assertion amount
-        result += layout.parsedAssertion.amountNumber;
-
-        // Add assertion commodity-after
-        if (layout.parsedAssertion.commodityAfter) {
-          result += ' ' + layout.parsedAssertion.commodityAfter;
-        }
-      }
-
-      // Add comment if present
-      if (layout.comment) {
-        result += '  ;' + layout.comment;
-      }
-
-      return result;
-    });
-  }
-
-  /**
-   * Get the number of decimal places in a number
-   */
-  private getDecimalPlaces(value: number): number {
-    const str = value.toString();
-    const decimalIndex = str.indexOf('.');
-    if (decimalIndex === -1) {
-      return 0;
-    }
-    return str.length - decimalIndex - 1;
   }
 
   /**

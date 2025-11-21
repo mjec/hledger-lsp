@@ -29,6 +29,7 @@ export interface Posting {
 export interface Amount {
   quantity: number;
   commodity: string;
+  format?: Format;
 }
 
 export interface Cost {
@@ -60,7 +61,11 @@ export interface Commodity {
 
   // Optional display/format info parsed from a commodity directive sample/format
   // See commodity directive documentation: we capture symbol placement, separators, precision and grouping.
-  format?: {
+  format?: Format;
+  line?: number; // 0-based line number where declared/first seen
+}
+
+export interface Format {
     // symbol as declared (empty string for no-symbol commodities)
     symbol?: string;
 
@@ -79,8 +84,6 @@ export interface Commodity {
     // number of decimal digits to display; 0 if decimal mark at end, null if unknown/unspecified
     precision?: number | null;
   };
-  line?: number; // 0-based line number where declared/first seen
-}
 
 export interface Tag {
   name: string;
@@ -105,3 +108,6 @@ export interface ParsedDocument {
   payees: Payee[];
   tags: Tag[];
 }
+
+export type decimalMark = '.' | ',' | null;
+export type thousandsSeparator = '.' | ',' | ' ' | null;
