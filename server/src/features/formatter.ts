@@ -501,7 +501,7 @@ export class FormattingProvider {
    * Find the commodity format from parsed document
    */
   private findCommodity(commodityName: string, parsed: ParsedDocument): Commodity | undefined {
-    return parsed.commodities.find(c => c.name === commodityName);
+    return parsed.commodities.get(commodityName);
   }
 }
 

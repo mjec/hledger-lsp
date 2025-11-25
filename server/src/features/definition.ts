@@ -30,28 +30,28 @@ export class DefinitionProvider {
     if (!token) return null;
 
     // Search accounts
-    const account = parsed.accounts.find(a => a.name === token);
+    const account = parsed.accounts.get(token);
     if (account && account.sourceUri) {
       const lineNum = account.line ?? 0;
       return Location.create(account.sourceUri, Range.create(Position.create(lineNum, 0), Position.create(lineNum, 0)));
     }
 
     // Search payees
-    const payee = parsed.payees.find(p => p.name === token);
+    const payee = parsed.payees.get(token);
     if (payee && payee.sourceUri) {
       const lineNum = payee.line ?? 0;
       return Location.create(payee.sourceUri, Range.create(Position.create(lineNum, 0), Position.create(lineNum, 0)));
     }
 
     // Search commodities
-    const commodity = parsed.commodities.find(c => c.name === token || c.format?.symbol === token);
+    const commodity = parsed.commodities.get(token) || Array.from(parsed.commodities.values()).find(c => c.format?.symbol === token);
     if (commodity && commodity.sourceUri) {
       const lineNum = commodity.line ?? 0;
       return Location.create(commodity.sourceUri, Range.create(Position.create(lineNum, 0), Position.create(lineNum, 0)));
     }
 
     // Search tags
-    const tag = parsed.tags.find(t => t.name === token);
+    const tag = parsed.tags.get(token);
     if (tag && tag.sourceUri) {
       const lineNum = tag.line ?? 0;
       return Location.create(tag.sourceUri, Range.create(Position.create(lineNum, 0), Position.create(lineNum, 0)));

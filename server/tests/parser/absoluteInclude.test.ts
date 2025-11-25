@@ -44,9 +44,9 @@ account Assets:Checking
     expect(mainTx).toBeDefined();
 
     // Should have accounts from both files
-    expect(parsed.accounts.some(a => a.name === 'Assets:Bank')).toBe(true);
-    expect(parsed.accounts.some(a => a.name === 'Assets:Checking')).toBe(true);
-    expect(parsed.accounts.some(a => a.name === 'Expenses:Test')).toBe(true);
+    expect(Array.from(parsed.accounts.values()).some(a => a.name === 'Assets:Bank')).toBe(true);
+    expect(Array.from(parsed.accounts.values()).some(a => a.name === 'Assets:Checking')).toBe(true);
+    expect(Array.from(parsed.accounts.values()).some(a => a.name === 'Expenses:Test')).toBe(true);
   });
 
   test('should handle absolute path with file:// URI', () => {

@@ -71,13 +71,13 @@ export class HoverProvider {
     }
 
     // Check for commodity
-    const commodity = parsed.commodities.find(c => c.name === token);
+    const commodity = parsed.commodities.get(token);
     if (commodity) {
       return this.provideCommodityHover(commodity);
     }
 
     // Check for payee - only if token is part of payee name
-    const payee = parsed.payees.find(p => p.name.toLowerCase().includes(token.toLowerCase()));
+    const payee = parsed.payees.get(token) || Array.from(parsed.payees.values()).find(p => p.name.toLowerCase().includes(token.toLowerCase()));
     if (payee?.declared) {
       return this.providePayeeHover(payee, parsed);
     }
@@ -148,7 +148,7 @@ export class HoverProvider {
    * Provide hover for accounts
    */
   private provideAccountHover(accountName: string, parsed: ParsedDocument): Hover {
-    const account = parsed.accounts.find(a => a.name === accountName);
+    const account = parsed.accounts.get(accountName);
 
     if (!account) {
       return {
@@ -286,7 +286,7 @@ export class HoverProvider {
    * Provide hover for tags
    */
   private provideTagHover(tagName: string, parsed: ParsedDocument): Hover {
-    const tag = parsed.tags.find(t => t.name === tagName);
+    const tag = parsed.tags.get(tagName);
 
     if (!tag) {
       return {

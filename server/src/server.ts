@@ -216,10 +216,10 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
   updateDependencies(textDocument.uri, includedFiles);
 
   // Update completion data from the parsed document (includes all included files)
-  completionProvider.updateAccounts(parsedDoc.accounts.map(a => ({ name: a.name, declared: a.declared })));
-  completionProvider.updatePayees(parsedDoc.payees.map(p => ({ name: p.name, declared: p.declared })));
-  completionProvider.updateCommodities(parsedDoc.commodities.map(c => ({ name: c.name, declared: c.declared })));
-  completionProvider.updateTags(parsedDoc.tags.map(t => ({ name: t.name, declared: t.declared })));
+  completionProvider.updateAccounts(parsedDoc.accounts);
+  completionProvider.updatePayees(parsedDoc.payees);
+  completionProvider.updateCommodities(parsedDoc.commodities);
+  completionProvider.updateTags(parsedDoc.tags);
 
   // Validate the document with settings
   const validationResult = validator.validate(textDocument, parsedDoc, {

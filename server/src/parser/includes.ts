@@ -19,43 +19,35 @@ export class IncludeManager {
     const transactions = [...base.transactions, ...included.transactions];
     const directives = [...base.directives, ...included.directives];
 
-    const accountMap = new Map<string, Account>();
-    for (const a of base.accounts) accountMap.set(a.name, a);
-    for (const a of included.accounts) {
-      const existing = accountMap.get(a.name);
-      if (existing) accountMap.set(a.name, { ...existing, declared: existing.declared || a.declared });
-      else accountMap.set(a.name, a);
+    const accountMap = new Map<string, Account>(base.accounts);
+    for (const [name, a] of included.accounts) {
+      const existing = accountMap.get(name);
+      if (existing) accountMap.set(name, { ...existing, declared: existing.declared || a.declared });
+      else accountMap.set(name, a);
     }
-    const accounts = Array.from(accountMap.values()).sort((x,y) => x.name.localeCompare(y.name));
 
-    const payeeMap = new Map<string, Payee>();
-    for (const p of base.payees) payeeMap.set(p.name, p);
-    for (const p of included.payees) {
-      const existing = payeeMap.get(p.name);
-      if (existing) payeeMap.set(p.name, { ...existing, declared: existing.declared || p.declared });
-      else payeeMap.set(p.name, p);
+    const payeeMap = new Map<string, Payee>(base.payees);
+    for (const [name, p] of included.payees) {
+      const existing = payeeMap.get(name);
+      if (existing) payeeMap.set(name, { ...existing, declared: existing.declared || p.declared });
+      else payeeMap.set(name, p);
     }
-    const payees = Array.from(payeeMap.values()).sort((a,b)=>a.name.localeCompare(b.name));
 
-    const commodityMap = new Map<string, Commodity>();
-    for (const c of base.commodities) commodityMap.set(c.name, c);
-    for (const c of included.commodities) {
-      const existing = commodityMap.get(c.name);
-      if (existing) commodityMap.set(c.name, { ...existing, declared: existing.declared || c.declared });
-      else commodityMap.set(c.name, c);
+    const commodityMap = new Map<string, Commodity>(base.commodities);
+    for (const [name, c] of included.commodities) {
+      const existing = commodityMap.get(name);
+      if (existing) commodityMap.set(name, { ...existing, declared: existing.declared || c.declared });
+      else commodityMap.set(name, c);
     }
-    const commodities = Array.from(commodityMap.values()).sort((a,b)=>a.name.localeCompare(b.name));
 
-    const tagMap = new Map<string, Tag>();
-    for (const t of base.tags) tagMap.set(t.name, t);
-    for (const t of included.tags) {
-      const existing = tagMap.get(t.name);
-      if (existing) tagMap.set(t.name, { ...existing, declared: existing.declared || t.declared });
-      else tagMap.set(t.name, t);
+    const tagMap = new Map<string, Tag>(base.tags);
+    for (const [name, t] of included.tags) {
+      const existing = tagMap.get(name);
+      if (existing) tagMap.set(name, { ...existing, declared: existing.declared || t.declared });
+      else tagMap.set(name, t);
     }
-    const tags = Array.from(tagMap.values()).sort((a,b)=>a.name.localeCompare(b.name));
 
-    return { transactions, accounts, directives, commodities, payees, tags };
+    return { transactions, accounts: accountMap, directives, commodities: commodityMap, payees: payeeMap, tags: tagMap };
   }
   /**
    * Process include directives: resolve include paths using resolveIncludePaths, use fileReader to load

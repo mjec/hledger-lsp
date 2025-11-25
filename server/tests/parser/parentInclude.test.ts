@@ -36,9 +36,9 @@ describe('parent directory includes', () => {
     expect(childTx?.sourceUri).toContain('child.journal');
 
     // Should have accounts from both files
-    expect(parsed.accounts.some(a => a.name === 'Assets:Bank')).toBe(true);
-    expect(parsed.accounts.some(a => a.name === 'Assets:Cash')).toBe(true);
-    expect(parsed.accounts.some(a => a.name === 'Expenses:Utilities')).toBe(true);
+    expect(Array.from(parsed.accounts.values()).some(a => a.name === 'Assets:Bank')).toBe(true);
+    expect(Array.from(parsed.accounts.values()).some(a => a.name === 'Assets:Cash')).toBe(true);
+    expect(Array.from(parsed.accounts.values()).some(a => a.name === 'Expenses:Utilities')).toBe(true);
   });
 
   test('should handle multiple levels of parent directory (.../../)', () => {

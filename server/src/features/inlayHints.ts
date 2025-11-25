@@ -32,7 +32,7 @@ export class InlayHintsProvider {
    */
   private formatAmount(quantity: number, commodity: string, parsed: ParsedDocument): string {
     // Find commodity format if available
-    const commodityInfo = parsed.commodities.find(c => c.name === commodity);
+    const commodityInfo = parsed.commodities.get(commodity);
 
     // Determine commodity placement
     let commodityBefore = '';

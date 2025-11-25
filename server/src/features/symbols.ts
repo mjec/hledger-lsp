@@ -197,7 +197,7 @@ export class WorkspaceSymbolProvider {
     const lowerQuery = query.toLowerCase();
 
     // Search accounts
-    for (const account of parsedDoc.accounts) {
+    for (const account of parsedDoc.accounts.values()) {
       if (account.name.toLowerCase().includes(lowerQuery)) {
         const uri = account.sourceUri || '';
         const line = account.line ?? 0;
@@ -213,7 +213,7 @@ export class WorkspaceSymbolProvider {
     }
 
     // Search payees
-    for (const payee of parsedDoc.payees) {
+    for (const payee of parsedDoc.payees.values()) {
       if (payee.name.toLowerCase().includes(lowerQuery)) {
         const uri = payee.sourceUri || '';
         const line = payee.line ?? 0;
@@ -229,7 +229,7 @@ export class WorkspaceSymbolProvider {
     }
 
     // Search commodities
-    for (const commodity of parsedDoc.commodities) {
+    for (const commodity of parsedDoc.commodities.values()) {
       if (commodity.name.toLowerCase().includes(lowerQuery)) {
         const uri = commodity.sourceUri || '';
         const line = commodity.line ?? 0;
@@ -245,7 +245,7 @@ export class WorkspaceSymbolProvider {
     }
 
     // Search tags
-    for (const tag of parsedDoc.tags) {
+    for (const tag of parsedDoc.tags.values()) {
       if (tag.name.toLowerCase().includes(lowerQuery)) {
         const uri = tag.sourceUri || '';
         const line = tag.line ?? 0;

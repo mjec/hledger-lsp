@@ -90,12 +90,12 @@ describe('File paths with spaces integration test', () => {
     expect(includeDirective?.value).toBe('../../../Ledgers/declarations.journal');
 
     // Verify that accounts from the included file are present
-    const accountNames = parsed.accounts.map(a => a.name);
+    const accountNames = Array.from(parsed.accounts.values()).map(a => a.name);
     expect(accountNames).toContain('Assets:Cash');
     expect(accountNames).toContain('Income:Salary');
 
     // Verify that declared items are marked as declared
-    const assetsCash = parsed.accounts.find(a => a.name === 'Assets:Cash');
+    const assetsCash = parsed.accounts.get('Assets:Cash');
     expect(assetsCash?.declared).toBe(true);
   });
 

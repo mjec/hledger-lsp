@@ -525,7 +525,7 @@ export function parseFormat(sample: string): { name: string; format?: Format } |
 }
 
 
-export function extractAccounts(document: TextDocument, sourceUri?: string): Account[] {
+export function extractAccounts(document: TextDocument, sourceUri?: string): Map<string, Account> {
   const text = document.getText();
   const lines = text.split('\n');
   const accountMap = new Map<string, Account>();
@@ -548,10 +548,10 @@ export function extractAccounts(document: TextDocument, sourceUri?: string): Acc
       }
     }
   }
-  return Array.from(accountMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  return accountMap;
 }
 
-export function extractPayees(document: TextDocument, sourceUri?: string): Payee[] {
+export function extractPayees(document: TextDocument, sourceUri?: string): Map<string, Payee> {
   const text = document.getText();
   const lines = text.split('\n');
   const payeeMap = new Map<string, Payee>();
@@ -575,7 +575,7 @@ export function extractPayees(document: TextDocument, sourceUri?: string): Payee
       }
     }
   }
-  return Array.from(payeeMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  return payeeMap;
 }
 
 const stripQuotes = (s: string) => { const t = s.trim(); if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) return t.substring(1, t.length - 1); return t; };
@@ -611,7 +611,7 @@ function parseFormatSubDirective(line: string): { name?: string, format?: Format
   return null;
 }
 
-export function extractCommodities(document: TextDocument, sourceUri?: string): Commodity[] {
+export function extractCommodities(document: TextDocument, sourceUri?: string): Map<string, Commodity> {
   const text = document.getText();
   const lines = text.split('\n');
   const commodityMap = new Map<string, Commodity>();
@@ -674,10 +674,10 @@ export function extractCommodities(document: TextDocument, sourceUri?: string): 
       }
     }
   }
-  return Array.from(commodityMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  return commodityMap;
 }
 
-export function extractTagNames(document: TextDocument, sourceUri?: string): Tag[] {
+export function extractTagNames(document: TextDocument, sourceUri?: string): Map<string, Tag> {
   const text = document.getText();
   const lines = text.split('\n');
   const tagMap = new Map<string, Tag>();
@@ -720,7 +720,7 @@ export function extractTagNames(document: TextDocument, sourceUri?: string): Tag
       }
     }
   }
-  return Array.from(tagMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  return tagMap;
 }
 
 export function parseDirective(line: string): Directive | null {

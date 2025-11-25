@@ -33,10 +33,10 @@ describe('Smart Completion Integration Tests', () => {
       expect(parsed.transactions.length).toBeGreaterThan(25);
 
       // Should have all declared accounts
-      expect(parsed.accounts.length).toBeGreaterThan(5);
+      expect(parsed.accounts.size).toBeGreaterThan(5);
 
       // Should have declared payees
-      expect(parsed.payees.length).toBeGreaterThan(4);
+      expect(parsed.payees.size).toBeGreaterThan(4);
     });
 
     test('should suggest Whole Foods accounts based on history', () => {
@@ -53,9 +53,9 @@ describe('Smart Completion Integration Tests', () => {
       });
 
       // Update provider with parsed data
-      provider.updateAccounts(parsed.accounts.map(a => ({ name: a.name, declared: a.declared })));
-      provider.updatePayees(parsed.payees.map(p => ({ name: p.name, declared: p.declared })));
-      provider.updateCommodities(parsed.commodities.map(c => ({ name: c.name, declared: c.declared })));
+      provider.updateAccounts(parsed.accounts);
+      provider.updatePayees(parsed.payees);
+      provider.updateCommodities(parsed.commodities);
 
       // Get completion at the posting line
       const lines = modifiedContent.split('\n');
@@ -101,8 +101,8 @@ describe('Smart Completion Integration Tests', () => {
         fileReader: defaultFileReader
       });
 
-      provider.updateAccounts(parsed.accounts.map(a => ({ name: a.name, declared: a.declared })));
-      provider.updatePayees(parsed.payees.map(p => ({ name: p.name, declared: p.declared })));
+      provider.updateAccounts(parsed.accounts);
+      provider.updatePayees(parsed.payees);
 
       const lines = modifiedContent.split('\n');
       const lastLine = lines.length - 1;
@@ -133,8 +133,8 @@ describe('Smart Completion Integration Tests', () => {
         fileReader: defaultFileReader
       });
 
-      provider.updateAccounts(parsed.accounts.map(a => ({ name: a.name, declared: a.declared })));
-      provider.updatePayees(parsed.payees.map(p => ({ name: p.name, declared: p.declared })));
+      provider.updateAccounts(parsed.accounts);
+      provider.updatePayees(parsed.payees);
 
       const lines = modifiedContent.split('\n');
       const lastLine = lines.length - 1;
@@ -166,8 +166,8 @@ describe('Smart Completion Integration Tests', () => {
         fileReader: defaultFileReader
       });
 
-      provider.updateAccounts(parsed.accounts.map(a => ({ name: a.name, declared: a.declared })));
-      provider.updatePayees(parsed.payees.map(p => ({ name: p.name, declared: p.declared })));
+      provider.updateAccounts(parsed.accounts);
+      provider.updatePayees(parsed.payees);
 
       const lines = modifiedContent.split('\n');
       const lastLine = lines.length - 1;
@@ -194,8 +194,8 @@ describe('Smart Completion Integration Tests', () => {
         fileReader: defaultFileReader
       });
 
-      provider.updateAccounts(parsed.accounts.map(a => ({ name: a.name, declared: a.declared })));
-      provider.updatePayees(parsed.payees.map(p => ({ name: p.name, declared: p.declared })));
+      provider.updateAccounts(parsed.accounts);
+      provider.updatePayees(parsed.payees);
 
       const lines = modifiedContent.split('\n');
       const lastLine = lines.length - 1;
@@ -228,8 +228,8 @@ describe('Smart Completion Integration Tests', () => {
         fileReader: defaultFileReader
       });
 
-      provider.updateAccounts(parsed.accounts.map(a => ({ name: a.name, declared: a.declared })));
-      provider.updatePayees(parsed.payees.map(p => ({ name: p.name, declared: p.declared })));
+      provider.updateAccounts(parsed.accounts);
+      provider.updatePayees(parsed.payees);
 
       const lines = modifiedContent.split('\n');
       const lastLine = lines.length - 1;
@@ -256,8 +256,8 @@ describe('Smart Completion Integration Tests', () => {
         fileReader: defaultFileReader
       });
 
-      provider.updateAccounts(parsed.accounts.map(a => ({ name: a.name, declared: a.declared })));
-      provider.updatePayees(parsed.payees.map(p => ({ name: p.name, declared: p.declared })));
+      provider.updateAccounts(parsed.accounts);
+      provider.updatePayees(parsed.payees);
 
       const lines = modifiedContent.split('\n');
       const lastLine = lines.length - 1;
@@ -291,8 +291,8 @@ describe('Smart Completion Integration Tests', () => {
         fileReader: defaultFileReader
       });
 
-      provider.updateAccounts(parsed.accounts.map(a => ({ name: a.name, declared: a.declared })));
-      provider.updatePayees(parsed.payees.map(p => ({ name: p.name, declared: p.declared })));
+      provider.updateAccounts(parsed.accounts);
+      provider.updatePayees(parsed.payees);
 
       const lines = modifiedContent.split('\n');
       const lastLine = lines.length - 1;

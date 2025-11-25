@@ -271,7 +271,7 @@ export class Validator {
 
     // Check undeclared accounts (if enabled)
     if (checkAccounts) {
-      const undeclaredAccounts = parsedDoc.accounts.filter(a => !a.declared);
+      const undeclaredAccounts = Array.from(parsedDoc.accounts.values()).filter(a => !a.declared);
       for (const account of undeclaredAccounts) {
         const ranges = markAllInstances
           ? this.findAllOccurrences(document, account.name)
@@ -292,7 +292,7 @@ export class Validator {
 
     // Check undeclared payees (if enabled)
     if (checkPayees) {
-      const undeclaredPayees = parsedDoc.payees.filter(p => !p.declared);
+      const undeclaredPayees = Array.from(parsedDoc.payees.values()).filter(p => !p.declared);
       for (const payee of undeclaredPayees) {
         const ranges = markAllInstances
           ? this.findAllOccurrences(document, payee.name)
@@ -313,7 +313,7 @@ export class Validator {
 
     // Check undeclared commodities (if enabled)
     if (checkCommodities) {
-      const undeclaredCommodities = parsedDoc.commodities.filter(c => !c.declared);
+      const undeclaredCommodities = Array.from(parsedDoc.commodities.values()).filter(c => !c.declared);
       for (const commodity of undeclaredCommodities) {
         const ranges = markAllInstances
           ? this.findAllOccurrences(document, commodity.name)
@@ -334,7 +334,7 @@ export class Validator {
 
     // Check undeclared tags (if enabled)
     if (checkTags) {
-      const undeclaredTags = parsedDoc.tags.filter(t => !t.declared);
+      const undeclaredTags = Array.from(parsedDoc.tags.values()).filter(t => !t.declared);
       for (const tag of undeclaredTags) {
         const ranges = markAllInstances
           ? this.findAllOccurrences(document, tag.name + ':')
@@ -462,7 +462,7 @@ export class Validator {
     parsedDoc: ParsedDocument
   ): string {
     // Find commodity format
-    const commodity = parsedDoc.commodities.find(c => c.name === commodityName);
+    const commodity = parsedDoc.commodities.get(commodityName);
 
     if (!commodity?.format) {
       // No format declared, use default: amount then commodity with space

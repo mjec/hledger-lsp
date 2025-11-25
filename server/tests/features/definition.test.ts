@@ -10,11 +10,11 @@ describe('definition provider', () => {
 
     const parsed: ParsedDocument = {
       transactions: [],
-      accounts: [{ name: 'Assets:Bank', declared: true, sourceUri: uri, line: 0 }],
+      accounts: new Map([['Assets:Bank', { name: 'Assets:Bank', declared: true, sourceUri: uri, line: 0 }]]),
       directives: [],
-      commodities: [],
-      payees: [],
-      tags: []
+      commodities: new Map(),
+      payees: new Map(),
+      tags: new Map()
     };
 
     // position somewhere on 'Assets:Bank' on the posting line (line 3, char ~4)
@@ -32,11 +32,11 @@ describe('definition provider', () => {
 
     const parsed: ParsedDocument = {
       transactions: [],
-      accounts: [],
+      accounts: new Map(),
       directives: [],
-      commodities: [],
-      payees: [{ name: 'PayeeName', declared: true, sourceUri: includedUri, line: 5 }],
-      tags: []
+      commodities: new Map(),
+      payees: new Map([['PayeeName', { name: 'PayeeName', declared: true, sourceUri: includedUri, line: 5 }]]),
+      tags: new Map()
     };
 
     const loc = definitionProvider.provideDefinition(doc, 0, 11, parsed); // over 'PayeeName'
@@ -52,11 +52,11 @@ describe('definition provider', () => {
 
     const parsed: ParsedDocument = {
       transactions: [],
-      accounts: [],
+      accounts: new Map(),
       directives: [],
-      commodities: [],
-      payees: [],
-      tags: []
+      commodities: new Map(),
+      payees: new Map(),
+      tags: new Map()
     };
 
     const loc = definitionProvider.provideDefinition(doc, 0, 11, parsed);
@@ -70,14 +70,13 @@ describe('definition provider', () => {
 
     const parsed: ParsedDocument = {
       transactions: [],
-      accounts: [],
+      accounts: new Map(),
       directives: [],
-      commodities: [],
-      payees: [
-        { name: 'MultiPayee', declared: true, sourceUri: 'file://a.journal', line: 2 },
-        { name: 'MultiPayee', declared: true, sourceUri: 'file://b.journal', line: 10 }
-      ],
-      tags: []
+      commodities: new Map(),
+      payees: new Map([
+        ['MultiPayee', { name: 'MultiPayee', declared: true, sourceUri: 'file://a.journal', line: 2 }]
+      ]),
+      tags: new Map()
     };
 
     const loc = definitionProvider.provideDefinition(doc, 0, 12, parsed);

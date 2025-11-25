@@ -102,11 +102,11 @@ export interface Directive {
 
 export interface ParsedDocument {
   transactions: Transaction[];
-  accounts: Account[];
+  accounts: Map<string, Account>;
   directives: Directive[];
-  commodities: Commodity[];
-  payees: Payee[];
-  tags: Tag[];
+  commodities: Map<string, Commodity>;
+  payees: Map<string, Payee>;
+  tags: Map<string, Tag>;
 }
 
 export type decimalMark = '.' | ',' | null;

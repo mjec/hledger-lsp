@@ -34,29 +34,29 @@ export class CompletionProvider {
   /**
    * Update the list of known accounts
    */
-  updateAccounts(accounts: Array<{ name: string; declared: boolean }>) {
-    this.accounts = accounts;
+  updateAccounts(accounts: Map<string, { name: string; declared: boolean }> | Array<{ name: string; declared: boolean }>) {
+    this.accounts = Array.isArray(accounts) ? accounts : Array.from(accounts.values());
   }
 
   /**
    * Update the list of known payees
    */
-  updatePayees(payees: Array<{ name: string; declared: boolean }>) {
-    this.payees = payees;
+  updatePayees(payees: Map<string, { name: string; declared: boolean }> | Array<{ name: string; declared: boolean }>) {
+    this.payees = Array.isArray(payees) ? payees : Array.from(payees.values());
   }
 
   /**
    * Update the list of known commodities
    */
-  updateCommodities(commodities: Array<{ name: string; declared: boolean }>) {
-    this.commodities = commodities;
+  updateCommodities(commodities: Map<string, { name: string; declared: boolean }> | Array<{ name: string; declared: boolean }>) {
+    this.commodities = Array.isArray(commodities) ? commodities : Array.from(commodities.values());
   }
 
   /**
    * Update the list of known tags
    */
-  updateTags(tags: Array<{ name: string; declared: boolean }>) {
-    this.tags = tags;
+  updateTags(tags: Map<string, { name: string; declared: boolean }> | Array<{ name: string; declared: boolean }>) {
+    this.tags = Array.isArray(tags) ? tags : Array.from(tags.values());
   }
 
   /**

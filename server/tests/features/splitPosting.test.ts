@@ -11,11 +11,11 @@ describe('Split Posting Code Actions', () => {
     codeActionProvider = new CodeActionProvider();
     parsedDoc = {
       transactions: [],
-      accounts: [],
+      accounts: new Map(),
       directives: [],
-      commodities: [],
-      payees: [],
-      tags: []
+      commodities: new Map(),
+      payees: new Map(),
+      tags: new Map()
     };
   });
 

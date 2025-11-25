@@ -55,7 +55,7 @@ describe('include glob expansion', () => {
     const parsed = sharedParser.parse(includeAll, { baseUri: includeAll.uri, fileReader });
 
     // Should contain accounts from a.journal and b.journal, but not re-include include-all.journal
-    const accounts: string[] = parsed.accounts.map(acc => acc.name);
+    const accounts: string[] = Array.from(parsed.accounts.values()).map(acc => acc.name);
     expect(accounts).toContain('Assets:Cash');
     expect(accounts).toContain('Expenses:Food');
   });
@@ -83,7 +83,7 @@ describe('include glob expansion', () => {
     };
 
     const parsed = sharedParser.parse(rootInclude, { baseUri: rootInclude.uri, fileReader });
-    const accounts: string[] = parsed.accounts.map(acc => acc.name);
+    const accounts: string[] = Array.from(parsed.accounts.values()).map(acc => acc.name);
 
     expect(accounts).toContain('Liabilities:Card');
     expect(accounts).toContain('Income:Salary');
