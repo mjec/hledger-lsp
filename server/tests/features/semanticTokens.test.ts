@@ -518,5 +518,62 @@ tag project
       const numberTokens = tokens.filter(t => t.tokenType === 'number' && t.line === 1);
       expect(numberTokens.length).toBe(3);
     });
+
+    it('should tokenize amounts with unusual number formats (spaces within numbers)', () => {
+      const content = `2024-01-01 Test
+    expenses:food    EUR 1 000 000,00
+    assets:checking    -1 000 000,00 EUR
+`;
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsed = parser.parse(doc);
+      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const tokens = decodeTokens(data);
+
+      // First posting: EUR 1 000 000,00
+      const line1Tokens = tokens.filter(t => t.line === 1);
+
+      // Should have commodity token (EUR)
+      const commodityTokens1 = line1Tokens.filter(t => t.tokenType === 'enum');
+      expect(commodityTokens1.length).toBe(1);
+      expect(commodityTokens1[0].length).toBe(3); // EUR
+
+      // Should have number token (1 000 000,00 - but trimmed to remove trailing spaces)
+      const numberTokens1 = line1Tokens.filter(t => t.tokenType === 'number');
+      expect(numberTokens1.length).toBe(1);
+      // The number should be recognized even with spaces
+
+      // Second posting: -1 000 000,00 EUR
+      const line2Tokens = tokens.filter(t => t.line === 2);
+
+      // Should have commodity token (EUR)
+      const commodityTokens2 = line2Tokens.filter(t => t.tokenType === 'enum');
+      expect(commodityTokens2.length).toBe(1);
+      expect(commodityTokens2[0].length).toBe(3); // EUR
+
+      // Should have number token (-1 000 000,00)
+      const numberTokens2 = line2Tokens.filter(t => t.tokenType === 'number');
+      expect(numberTokens2.length).toBe(1);
+    });
+
+    it('should tokenize amounts with apostrophe separators', () => {
+      const content = `2024-01-01 Test
+    expenses:food    CHF 1'000'000.00
+`;
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsed = parser.parse(doc);
+      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const tokens = decodeTokens(data);
+
+      const line1Tokens = tokens.filter(t => t.line === 1);
+
+      // Should have commodity token (CHF)
+      const commodityTokens = line1Tokens.filter(t => t.tokenType === 'enum');
+      expect(commodityTokens.length).toBe(1);
+      expect(commodityTokens[0].length).toBe(3);
+
+      // Should have number token
+      const numberTokens = line1Tokens.filter(t => t.tokenType === 'number');
+      expect(numberTokens.length).toBe(1);
+    });
   });
 });

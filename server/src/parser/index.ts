@@ -65,13 +65,28 @@ export class HledgerParser {
 
     const transactions: Transaction[] = [];
     const directives: Directive[] = [];
+    const accounts = new Map<string, Account>();
+    const payees = new Map<string, Payee>();
+    const commodities = new Map<string, Commodity>();
+    const tags = new Map<string, Tag>();
 
     let i = 0;
     while (i < lines.length) {
       const line = lines[i];
 
-      // Skip empty lines and comments
-      if (!line.trim() || isComment(line)) {
+      // Skip empty lines and comments (but process tags from comments)
+      if (!line.trim()) {
+        i++;
+        continue;
+      }
+
+      if (isComment(line)) {
+        // Extract tags from comment lines
+        const commentText = line.trim().substring(1);
+        const extractedTags = extractTags(commentText);
+        for (const tagName of Object.keys(extractedTags)) {
+          ast.addTag(tags, tagName, false, document.uri, i);
+        }
         i++;
         continue;
       }
@@ -83,6 +98,20 @@ export class HledgerParser {
           directive.sourceUri = document.uri;
           directive.line = i;
           directives.push(directive);
+
+          // Process the directive to extract metadata
+          const trimmed = line.trim();
+          if (trimmed.startsWith('account ')) {
+            ast.processAccountDirective(line, accounts, document.uri, i);
+          } else if (trimmed.startsWith('payee ')) {
+            ast.processPayeeDirective(line, payees, document.uri, i);
+          } else if (trimmed.startsWith('commodity ')) {
+            // Commodity directives can be multi-line, so we need to handle that
+            const lastLine = ast.processCommodityDirective(lines, i, commodities, document.uri);
+            i = lastLine; // Skip past any subdirectives we processed
+          } else if (trimmed.startsWith('tag ')) {
+            ast.processTagDirective(line, tags, document.uri, i);
+          }
         }
         i++;
         continue;
@@ -94,6 +123,15 @@ export class HledgerParser {
         if (transaction) {
           transaction.sourceUri = document.uri;
           transactions.push(transaction);
+
+          // Extract metadata from the transaction
+          // Add payee
+          if (transaction.payee) {
+            ast.addPayee(payees, transaction.payee, false, document.uri, i);
+          }
+
+          // Extract accounts, commodities, and tags from postings
+          ast.processTransaction(transaction, accounts, commodities, tags, document.uri);
         }
 
         // Skip past the transaction lines to find where it ends
@@ -114,12 +152,6 @@ export class HledgerParser {
       // Unknown line type, skip
       i++;
     }
-
-    // Extract metadata using extracted AST helpers with source tracking
-    const accounts = ast.extractAccounts(document, document.uri);
-    const payees = ast.extractPayees(document, document.uri);
-    const commodities = ast.extractCommodities(document, document.uri);
-    const tags = ast.extractTagNames(document, document.uri);
 
     let result: ParsedDocument = {
       transactions,

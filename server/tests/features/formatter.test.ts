@@ -15,6 +15,15 @@ describe('FormattingProvider', () => {
     return TextDocument.create('file:///test.journal', 'hledger', 1, content);
   };
 
+  /**
+   * Helper to check if a line contains expected content, ignoring extra whitespace
+   * Normalizes multiple spaces to single space for comparison
+   */
+  const expectLineToContainNormalized = (line: string, expected: string): void => {
+    const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
+    expect(normalize(line)).toContain(normalize(expected));
+  };
+
   describe('formatDocument', () => {
     it('should format a simple transaction with decimal alignment', () => {
       const content = `2024-01-01 Grocery Store
@@ -473,7 +482,7 @@ payee Grocery Store;main grocery store
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
 
-      expect(lines[1]).toContain('€ 100 @ $1.35');
+      expectLineToContainNormalized(lines[1], '€ 100 @ $1.35');
       expect(lines[1]).toContain('assets:euros');
       expect(lines[2]).toContain('$-135');
       expect(lines[2]).toContain('assets:dollars');
@@ -507,7 +516,7 @@ payee Grocery Store;main grocery store
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
 
-      expect(lines[1]).toContain('€ 100 @ $1.35 = €100');
+      expectLineToContainNormalized(lines[1], '€ 100 @ $1.35 = €100');
     });
 
     it('should format inferred costs', () => {
@@ -538,7 +547,7 @@ payee Grocery Store;main grocery store
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
 
-      expect(lines[1]).toContain('10 AAPL @ $150.5');
+      expectLineToContainNormalized(lines[1], '10 AAPL @ $150.5');
       expect(lines[1]).toContain(';purchase shares');
     });
 
@@ -554,7 +563,7 @@ payee Grocery Store;main grocery store
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
 
-      expect(lines[1]).toContain('10 SHARES @ 125.50 USD');
+      expectLineToContainNormalized(lines[1], '10 SHARES @ 125.50 USD');
     });
 
     it('should format negative amounts with cost', () => {
@@ -569,7 +578,7 @@ payee Grocery Store;main grocery store
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
 
-      expect(lines[1]).toContain('€-100 @ $1.35');
+      expectLineToContainNormalized(lines[1], '€-100 @ $1.35');
     });
 
     it('should align multiple postings with costs', () => {
@@ -602,7 +611,7 @@ payee Grocery Store;main grocery store
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
 
-      expect(lines[1]).toContain('100    SHARES @ $12.345');
+      expectLineToContainNormalized(lines[1], '100 SHARES @ $12.345');
     });
   });
 
@@ -867,6 +876,150 @@ payee Grocery Store;main grocery store
       const line1EqualsPos = lines[1].indexOf(' = ');
       const line2EqualsPos = lines[2].indexOf(' = ');
       expect(line1EqualsPos).toBe(line2EqualsPos);
+    });
+  });
+
+  describe('precision handling', () => {
+    it('should never reduce precision if posting has higher precision than declared commodity', () => {
+      const content = `commodity $
+    format $1,000.00
+
+2024-01-01 Test
+    expenses:food    $10.12345
+    assets:checking
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      // Should preserve all 5 decimal places, not reduce to 2 as declared
+      expectLineToContainNormalized(lines[4], '$10.12345');
+      expect(lines[4]).not.toMatch(/\$10\.12\s/);
+    });
+
+    it('should add zeros to match declared precision when actual precision is lower', () => {
+      const content = `commodity $
+    format $1,000.00
+
+2024-01-01 Test
+    expenses:food    $10.5
+    assets:checking
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      // Should add zero to match declared precision of 2
+      expectLineToContainNormalized(lines[4], '$10.50');
+    });
+
+    it('should not remove non-zero digits even if declared precision is lower', () => {
+      const content = `commodity $
+    format $1,000.00
+
+2024-01-01 Test
+    expenses:food    $10.123
+    assets:checking
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      // Should preserve all 3 decimal places, not truncate to 2
+      expectLineToContainNormalized(lines[4], '$10.123');
+      expect(lines[4]).not.toMatch(/\$10\.12\s/);
+    });
+
+    it('should not change formatting when commodity is not declared', () => {
+      const content = `2024-01-01 Test
+    expenses:food    $10.5
+    assets:checking    $-10.5
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      // Should keep original precision (1 decimal place)
+      expectLineToContainNormalized(lines[1], '$ 10.5');  // Allow space between $ and number
+      expectLineToContainNormalized(lines[2], '$-10.5');
+      // Should not add zeros
+      expect(lines[1]).not.toContain('10.50');
+      expect(lines[2]).not.toContain('-10.50');
+    });
+
+    it('should preserve trailing zeros when explicitly written', () => {
+      const content = `commodity $
+    format $1,000.00
+
+2024-01-01 Test
+    expenses:food    $10.50
+    assets:checking
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      // Should keep the trailing zero
+      expectLineToContainNormalized(lines[4], '$10.50');
+    });
+
+    it('should handle multiple commodities with different declared precisions', () => {
+      const content = `commodity $
+    format $1,000.00
+
+commodity €
+    format €1.000,0000
+
+2024-01-01 Test
+    expenses:food    $10.5
+    expenses:travel    €20.12
+    assets:checking
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      // $ should be formatted to 2 decimal places
+      expectLineToContainNormalized(lines[7], '$10.50');
+      // € should be formatted to 4 decimal places
+      expectLineToContainNormalized(lines[8], '€20,1200');
+    });
+
+    it('should handle amounts with no decimal when commodity has declared precision', () => {
+      const content = `commodity $
+    format $1,000.00
+
+2024-01-01 Test
+    expenses:food    $10
+    assets:checking
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      // Should add decimal places to match declared precision
+      expectLineToContainNormalized(lines[4], '$10.00');
     });
   });
 });

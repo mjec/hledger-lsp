@@ -608,6 +608,11 @@ function parseFormatSubDirective(line: string): { name?: string, format?: Format
       return { name: fs, format: parsedFormat.format };
     }
   }
+  // If no match, try parsing rest directly as a format sample (e.g., "format $1,000.00")
+  const parsedDirect = parseFormat(rest);
+  if (parsedDirect && parsedDirect.format) {
+    return { name: parsedDirect.name, format: parsedDirect.format };
+  }
   return null;
 }
 
@@ -721,6 +726,207 @@ export function extractTagNames(document: TextDocument, sourceUri?: string): Map
     }
   }
   return tagMap;
+}
+
+/**
+ * Helper functions for incremental parsing - adding items to Maps
+ */
+
+/**
+ * Add or update an account in the accounts map
+ * If account exists, mark as declared if it wasn't already
+ */
+export function addAccount(accountMap: Map<string, Account>, name: string, declared: boolean, sourceUri?: string, line?: number): void {
+  const existing = accountMap.get(name);
+  if (existing) {
+    // If we're adding a declared version, update the existing entry
+    if (declared && !existing.declared) {
+      existing.declared = true;
+      if (sourceUri !== undefined) existing.sourceUri = sourceUri;
+      if (line !== undefined) existing.line = line;
+    }
+  } else {
+    const acc: Account = { name, declared };
+    if (sourceUri !== undefined) { acc.sourceUri = sourceUri; acc.line = line; }
+    accountMap.set(name, acc);
+  }
+}
+
+/**
+ * Add or update a payee in the payees map
+ */
+export function addPayee(payeeMap: Map<string, Payee>, name: string, declared: boolean, sourceUri?: string, line?: number): void {
+  const existing = payeeMap.get(name);
+  if (existing) {
+    if (declared && !existing.declared) {
+      existing.declared = true;
+      if (sourceUri !== undefined) existing.sourceUri = sourceUri;
+      if (line !== undefined) existing.line = line;
+    }
+  } else {
+    const p: Payee = { name, declared };
+    if (sourceUri !== undefined) { p.sourceUri = sourceUri; p.line = line; }
+    payeeMap.set(name, p);
+  }
+}
+
+/**
+ * Add or update a commodity in the commodities map
+ * When merging formats, prefer the one with higher precision or more detail
+ */
+export function addCommodity(commodityMap: Map<string, Commodity>, name: string, declared: boolean, format?: Format, sourceUri?: string, line?: number): void {
+  const existing = commodityMap.get(name);
+  if (existing) {
+    if (declared) {
+      existing.declared = true;
+      if (format) existing.format = format;
+      if (sourceUri !== undefined) existing.sourceUri = sourceUri;
+      if (line !== undefined) existing.line = line;
+    } else if (format && !existing.declared) {
+      // For undeclared commodities, keep the format with better precision
+      const newPrecision = format.precision ?? null;
+      const existingPrecision = existing.format?.precision ?? null;
+      if (!existing.format || (newPrecision !== null && (existingPrecision === null || newPrecision > existingPrecision))) {
+        existing.format = format;
+      }
+    }
+  } else {
+    const c: Commodity = { name, declared, format };
+    if (sourceUri !== undefined) { c.sourceUri = sourceUri; c.line = line; }
+    commodityMap.set(name, c);
+  }
+}
+
+/**
+ * Add or update a tag in the tags map
+ */
+export function addTag(tagMap: Map<string, Tag>, name: string, declared: boolean, sourceUri?: string, line?: number): void {
+  const existing = tagMap.get(name);
+  if (existing) {
+    if (declared && !existing.declared) {
+      existing.declared = true;
+      if (sourceUri !== undefined) existing.sourceUri = sourceUri;
+      if (line !== undefined) existing.line = line;
+    }
+  } else {
+    const t: Tag = { name, declared };
+    if (sourceUri !== undefined) { t.sourceUri = sourceUri; t.line = line; }
+    tagMap.set(name, t);
+  }
+}
+
+/**
+ * Process an account directive and add it to the accounts map
+ */
+export function processAccountDirective(line: string, accountMap: Map<string, Account>, sourceUri?: string, lineNumber?: number): void {
+  const accountName = line.trim().substring(8).split(';')[0].trim();
+  if (accountName) {
+    addAccount(accountMap, accountName, true, sourceUri, lineNumber);
+  }
+}
+
+/**
+ * Process a payee directive and add it to the payees map
+ */
+export function processPayeeDirective(line: string, payeeMap: Map<string, Payee>, sourceUri?: string, lineNumber?: number): void {
+  const payeeName = line.trim().substring(6).split(';')[0].trim();
+  if (payeeName) {
+    addPayee(payeeMap, payeeName, true, sourceUri, lineNumber);
+  }
+}
+
+/**
+ * Process a commodity directive and add it to the commodities map
+ * Handles multi-line commodity directives with format subdirectives
+ */
+export function processCommodityDirective(
+  lines: string[],
+  startLine: number,
+  commodityMap: Map<string, Commodity>,
+  sourceUri?: string
+): number {
+  const line = lines[startLine];
+  const parsed = parseCommodityDirective(line);
+  if (!parsed) return startLine;
+
+  let commodityName = parsed.name;
+  let format = parsed.format;
+
+  // Check for format subdirective on following lines
+  let look = startLine + 1;
+  while (look < lines.length) {
+    const next = lines[look];
+    if (!next.trim()) { look++; continue; }
+    if (!/^\s+/.test(next)) break;
+
+    const subParsed = parseFormatSubDirective(next);
+    if (subParsed) {
+      if (subParsed.format) format = subParsed.format;
+      if (subParsed.name && subParsed.name !== '' && (!commodityName || commodityName === '' || commodityName === subParsed.name)) {
+        commodityName = subParsed.name;
+      }
+    }
+    look++;
+  }
+
+  addCommodity(commodityMap, commodityName, true, format, sourceUri, startLine);
+
+  // Return the last line we processed
+  return look - 1;
+}
+
+/**
+ * Process a tag directive and add it to the tags map
+ */
+export function processTagDirective(line: string, tagMap: Map<string, Tag>, sourceUri?: string, lineNumber?: number): void {
+  const tagName = line.trim().substring(4).split(';')[0].trim();
+  if (tagName) {
+    addTag(tagMap, tagName, true, sourceUri, lineNumber);
+  }
+}
+
+/**
+ * Extract accounts, commodities, tags from a transaction and add them to the maps
+ */
+export function processTransaction(transaction: Transaction, accountMap: Map<string, Account>, commodityMap: Map<string, Commodity>, tagMap: Map<string, Tag>, sourceUri?: string): void {
+  // Extract payee is handled separately since it's in the transaction header
+
+  // Extract accounts and commodities from postings
+  for (const posting of transaction.postings) {
+    // Add account
+    if (posting.account) {
+      addAccount(accountMap, posting.account, false, sourceUri);
+    }
+
+    // Add commodity from amount
+    if (posting.amount?.commodity && posting.amount.commodity !== '') {
+      addCommodity(commodityMap, posting.amount.commodity, false, undefined, sourceUri);
+    }
+
+    // Add commodity from cost
+    if (posting.cost?.amount?.commodity && posting.cost.amount.commodity !== '') {
+      addCommodity(commodityMap, posting.cost.amount.commodity, false, undefined, sourceUri);
+    }
+
+    // Add commodity from balance assertion
+    if (posting.assertion?.commodity && posting.assertion.commodity !== '') {
+      addCommodity(commodityMap, posting.assertion.commodity, false, undefined, sourceUri);
+    }
+
+    // Extract tags from posting comments
+    if (posting.tags) {
+      for (const tagName of Object.keys(posting.tags)) {
+        addTag(tagMap, tagName, false, sourceUri);
+      }
+    }
+  }
+
+  // Extract tags from transaction-level tags
+  if (transaction.tags) {
+    for (const tagName of Object.keys(transaction.tags)) {
+      addTag(tagMap, tagName, false, sourceUri);
+    }
+  }
 }
 
 export function parseDirective(line: string): Directive | null {

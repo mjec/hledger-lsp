@@ -261,7 +261,7 @@ export class FormattingProvider {
         line += ' '.repeat(Math.max(0, neededPadding));
         line += ' '.repeat(
           amountDecimalMarkColumnWidth +
-          amountDecimalColumnWidth +  
+          amountDecimalColumnWidth +
           spaceBetweenAmountAndCommodityAfterColumnWidth +
           commodityAfterColumnWidth
         ); // space for missing amount
@@ -278,12 +278,12 @@ export class FormattingProvider {
           line += layout.demicalMark.padEnd(costAmountDecimalMarkColumnWidth, ' ');
           line += layout.amountDecimalString.padEnd(costAmountDecimalColumnWidth, ' ');
         } else {
-          line += ' '.repeat(costAmountDecimalColumnWidth + costAmountDecimalMarkColumnWidth); 
+          line += ' '.repeat(costAmountDecimalColumnWidth + costAmountDecimalMarkColumnWidth);
         }
         line += ' '.repeat(spaceBetweenCostAmountAndCommodityAfterColumnWidth);
         line += layout.commodityAfter.padEnd(costCommodityAfterColumnWidth, ' ');
       } else {
-        line += ' '.repeat( costColumnWidth +
+        line += ' '.repeat(costColumnWidth +
           costCommodityBeforeColumnWidth +
           spaceBetweenCostCommodityBeforeAndAmount +
           costNegativeSignColumnWidth +
@@ -352,23 +352,42 @@ export class FormattingProvider {
   private layoutAmount(amount: Amount, parsed: ParsedDocument, options: Required<FormattingOptions>): amountLayout {
     const commodity = this.findCommodity(amount.commodity, parsed);
     let format: Format = {};
+    let declaredPrecision: number | undefined = undefined;
+
     if (commodity && commodity.format) {
       format = commodity.format;
-      if (amount.format?.precision && commodity.format.precision && amount.format?.precision > commodity.format.precision) {
-        format.precision = amount.format.precision;
-      }
+      declaredPrecision = commodity.format.precision ?? undefined;
     } else if (amount.format) {
       format = amount.format;
     } else {
       format = {};
     }
 
+    // Determine the actual precision to use based on the rules:
+    // 1. Never reduce precision if posting has higher precision than declared
+    // 2. Add zeros to match declared precision when actual < declared
+    // 3. Don't change formatting when commodity is not declared
+    const actualPrecision = amount.format?.precision ?? undefined;
+    let targetPrecision: number | undefined = undefined;
+
+    if (declaredPrecision !== undefined) {
+      // Commodity is declared - use max of actual and declared precision
+      if (actualPrecision !== undefined) {
+        targetPrecision = Math.max(actualPrecision, declaredPrecision);
+      } else {
+        targetPrecision = declaredPrecision;
+      }
+    } else {
+      // Commodity is not declared - preserve original precision
+      targetPrecision = actualPrecision;
+    }
+
     return {
       commodityBefore: format.symbolOnLeft ? format.symbol || '' : '',
       isNegative: amount.quantity < 0,
       amountIntegerString: this.formatIntegerAmount(amount, format),
-      amountDecimalString: this.formatDecimalAmount(amount, format),
-      demicalMark: format.precision && format.precision > 0 ? (format.decimalMark || '.') : '',
+      amountDecimalString: this.formatDecimalAmount(amount, format, targetPrecision),
+      demicalMark: targetPrecision && targetPrecision > 0 ? (format.decimalMark || '.') : '',
       spaceBetweenCommodityAndAmount: format.spaceBetween || false,
       commodityAfter: !format.symbolOnLeft ? format.symbol || '' : ''
     };
@@ -389,18 +408,18 @@ export class FormattingProvider {
     return integerString;
   }
 
-  private formatDecimalAmount(amount: Amount, format: Format): string {
+  private formatDecimalAmount(amount: Amount, format: Format, targetPrecision?: number): string {
     const decimalPart = Math.abs(amount.quantity) % 1;
 
-    // Format decimal part based on precision
+    // Format decimal part based on target precision
     let decimalString = '';
-    if (format.precision) {
-      decimalString = decimalPart.toFixed(format.precision).substring(2); // Skip "0."
+    if (targetPrecision !== undefined && targetPrecision > 0) {
+      decimalString = decimalPart.toFixed(targetPrecision).substring(2); // Skip "0."
     } else if (decimalPart > 0) {
       decimalString = decimalPart.toString().substring(2); // Skip "0."
     }
 
-    return decimalString
+    return decimalString;
   }
 
 
