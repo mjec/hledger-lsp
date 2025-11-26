@@ -84,4 +84,111 @@ describe('definition provider', () => {
     expect(loc?.uri).toBe('file://a.journal');
     expect(loc?.range.start.line).toBe(2);
   });
+
+  test('returns commodity declaration location', () => {
+    const uri = 'file://main.journal';
+    const commodityUri = 'file://commodities.journal';
+    const content = '2025-05-05 Purchase\n    Assets:Cash  100 USD';
+    const doc = TextDocument.create(uri, 'hledger', 1, content);
+
+    const parsed: ParsedDocument = {
+      transactions: [],
+      accounts: new Map(),
+      directives: [],
+      commodities: new Map([
+        ['USD', { name: 'USD', declared: true, sourceUri: commodityUri, line: 3, format: { symbol: '$' } }]
+      ]),
+      payees: new Map(),
+      tags: new Map()
+    };
+
+    const loc = definitionProvider.provideDefinition(doc, 1, 25, parsed); // over 'USD'
+    expect(loc).not.toBeNull();
+    expect(loc?.uri).toBe(commodityUri);
+    expect(loc?.range.start.line).toBe(3);
+  });
+
+  test('returns null for commodity without sourceUri', () => {
+    const uri = 'file://main.journal';
+    const content = '2025-05-05 Purchase\n    Assets:Cash  100 USD';
+    const doc = TextDocument.create(uri, 'hledger', 1, content);
+
+    const parsed: ParsedDocument = {
+      transactions: [],
+      accounts: new Map(),
+      directives: [],
+      commodities: new Map([
+        // Commodity exists but has no sourceUri (inferred, not declared)
+        ['USD', { name: 'USD', declared: false, format: { symbol: '$' } }]
+      ]),
+      payees: new Map(),
+      tags: new Map()
+    };
+
+    const loc = definitionProvider.provideDefinition(doc, 1, 25, parsed); // over 'USD'
+    expect(loc).toBeNull(); // Should return null because no sourceUri
+  });
+
+  test('returns tag declaration location', () => {
+    const uri = 'file://main.journal';
+    const tagsUri = 'file://tags.journal';
+    const content = '2025-06-06 Tagged\n    project: alpha\n    Expenses:Dev  $50';
+    const doc = TextDocument.create(uri, 'hledger', 1, content);
+
+    const parsed: ParsedDocument = {
+      transactions: [],
+      accounts: new Map(),
+      directives: [],
+      commodities: new Map(),
+      payees: new Map(),
+      tags: new Map([
+        ['project:', { name: 'project:', declared: true, sourceUri: tagsUri, line: 10 }]
+      ])
+    };
+
+    const loc = definitionProvider.provideDefinition(doc, 1, 8, parsed); // over 'project:'
+    expect(loc).not.toBeNull();
+    expect(loc?.uri).toBe(tagsUri);
+    expect(loc?.range.start.line).toBe(10);
+  });
+
+  test('returns null when token is empty', () => {
+    const uri = 'file://empty.journal';
+    const content = '   \n\n';
+    const doc = TextDocument.create(uri, 'hledger', 1, content);
+
+    const parsed: ParsedDocument = {
+      transactions: [],
+      accounts: new Map(),
+      directives: [],
+      commodities: new Map(),
+      payees: new Map(),
+      tags: new Map()
+    };
+
+    const loc = definitionProvider.provideDefinition(doc, 0, 1, parsed);
+    expect(loc).toBeNull();
+  });
+
+  test('handles undeclared entities gracefully', () => {
+    const uri = 'file://undeclared.journal';
+    const content = '2025-07-07 Transaction\n    Expenses:Unknown  $10';
+    const doc = TextDocument.create(uri, 'hledger', 1, content);
+
+    const parsed: ParsedDocument = {
+      transactions: [],
+      accounts: new Map([
+        // Account exists but is not declared (no sourceUri)
+        ['Expenses:Unknown', { name: 'Expenses:Unknown', declared: false }]
+      ]),
+      directives: [],
+      commodities: new Map(),
+      payees: new Map(),
+      tags: new Map()
+    };
+
+    const loc = definitionProvider.provideDefinition(doc, 1, 8, parsed); // over 'Expenses:Unknown'
+    // Should return null because the account has no sourceUri
+    expect(loc).toBeNull();
+  });
 });

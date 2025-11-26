@@ -110,7 +110,7 @@ const documentSettings: Map<string, Thenable<HledgerSettings>> = new Map();
 /**
  * Deep merge two objects, with values from 'source' overriding 'target'
  */
-function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>): T {
+export function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>): T {
   const result = { ...target };
 
   for (const key in source) {

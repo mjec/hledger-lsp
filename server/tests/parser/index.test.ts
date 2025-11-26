@@ -5,8 +5,11 @@ import * as ast from '../../src/parser/ast';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
 // Helper functions to convert Maps to sorted arrays for testing
-function mapToSortedArray<T extends { name: string }>(map: Map<string, T>): T[] {
-  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+// Strips sourceUri and line fields that are added by the parser
+function mapToSortedArray<T extends { name: string; sourceUri?: string; line?: number }>(map: Map<string, T>): Partial<T>[] {
+  return Array.from(map.values())
+    .map(({ sourceUri, line, ...rest }) => rest as Partial<T>)
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 }
 
 describe('HledgerParser', () => {
@@ -231,13 +234,14 @@ alias old:account = new:account`;
     });
   });
 
-  describe('extractAccounts', () => {
+  describe('parse - accounts extraction', () => {
     test('should extract accounts from a simple transaction', () => {
       const content = `2024-01-15 * Grocery Store
     expenses:food:groceries  $50.00
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const accounts = mapToSortedArray(ast.extractAccounts(doc))
+      const parsed = parser.parse(doc);
+      const accounts = mapToSortedArray(parsed.accounts);
 
       expect(accounts).toEqual([
         { name: 'assets:checking', declared: false },
@@ -254,7 +258,7 @@ alias old:account = new:account`;
     expenses:fuel  $30.00
     liabilities:credit card`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const accounts = mapToSortedArray(ast.extractAccounts(doc));
+      const accounts = mapToSortedArray(parser.parse(doc).accounts);
 
       expect(accounts).toEqual([
         { name: 'assets:checking', declared: false },
@@ -273,7 +277,7 @@ account income:salary
     expenses:food  $20
     assets:bank:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const accounts = mapToSortedArray(ast.extractAccounts(doc));
+      const accounts = mapToSortedArray(parser.parse(doc).accounts);
 
       expect(accounts).toEqual([
         { name: 'assets:bank:checking', declared: true },
@@ -291,7 +295,7 @@ account income:salary
     expenses:food  $30
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const accounts = mapToSortedArray(ast.extractAccounts(doc));
+      const accounts = mapToSortedArray(parser.parse(doc).accounts);
 
       expect(accounts).toEqual([
         { name: 'assets:checking', declared: false },
@@ -303,7 +307,7 @@ account income:salary
       const content = `account assets:checking  ; main checking account
 account expenses:food    ; grocery expenses`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const accounts = mapToSortedArray(ast.extractAccounts(doc));
+      const accounts = mapToSortedArray(parser.parse(doc).accounts);
 
       expect(accounts).toEqual([
         { name: 'assets:checking', declared: true },
@@ -313,7 +317,7 @@ account expenses:food    ; grocery expenses`;
 
     test('should handle empty documents', () => {
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, '');
-      const accounts = mapToSortedArray(ast.extractAccounts(doc));
+      const accounts = mapToSortedArray(parser.parse(doc).accounts);
 
       expect(accounts).toEqual([]);
     });
@@ -323,7 +327,7 @@ account expenses:food    ; grocery expenses`;
     zzz:last  $10
     aaa:first  $-10`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const accounts = mapToSortedArray(ast.extractAccounts(doc));
+      const accounts = mapToSortedArray(parser.parse(doc).accounts);
 
       expect(accounts).toEqual([
         { name: 'aaa:first', declared: false },
@@ -338,7 +342,7 @@ account expenses:food    ; grocery expenses`;
     assets:checking  $100
     expenses:food  $-100`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const accounts = mapToSortedArray(ast.extractAccounts(doc));
+      const accounts = mapToSortedArray(parser.parse(doc).accounts);
 
       expect(accounts).toEqual([
         { name: 'assets:checking', declared: true },
@@ -347,7 +351,7 @@ account expenses:food    ; grocery expenses`;
     });
   });
 
-  describe('extractPayees', () => {
+  describe('parse - payees extraction', () => {
     test('should extract payees from transactions', () => {
       const content = `2024-01-15 * Grocery Store
     expenses:food  $50.00
@@ -357,7 +361,7 @@ account expenses:food    ; grocery expenses`;
     expenses:fuel  $40.00
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const payees = mapToSortedArray(ast.extractPayees(doc));
+      const payees = mapToSortedArray(parser.parse(doc).payees);
 
       expect(payees).toEqual([
         { name: 'Gas Station', declared: false },
@@ -374,7 +378,7 @@ payee Amazon
     expenses:shopping  $100
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const payees = mapToSortedArray(ast.extractPayees(doc));
+      const payees = mapToSortedArray(parser.parse(doc).payees);
 
       expect(payees).toEqual([
         { name: 'Amazon', declared: true },
@@ -392,7 +396,7 @@ payee Amazon
     expenses:food  $30
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const payees = mapToSortedArray(ast.extractPayees(doc));
+      const payees = mapToSortedArray(parser.parse(doc).payees);
 
       expect(payees).toEqual([
         { name: 'Grocery Store', declared: false }
@@ -412,7 +416,7 @@ payee Amazon
     expenses:food  $20
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const payees = mapToSortedArray(ast.extractPayees(doc));
+      const payees = mapToSortedArray(parser.parse(doc).payees);
 
       expect(payees).toEqual([
         { name: 'Cleared Payee', declared: false },
@@ -425,7 +429,7 @@ payee Amazon
       const content = `payee Walmart  ; big box store
 payee Target   ; another store`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const payees = mapToSortedArray(ast.extractPayees(doc));
+      const payees = mapToSortedArray(parser.parse(doc).payees);
 
       expect(payees).toEqual([
         { name: 'Target', declared: true },
@@ -435,7 +439,7 @@ payee Target   ; another store`;
 
     test('should handle empty documents', () => {
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, '');
-      const payees = mapToSortedArray(ast.extractPayees(doc));
+      const payees = mapToSortedArray(parser.parse(doc).payees);
 
       expect(payees).toEqual([]);
     });
@@ -444,7 +448,7 @@ payee Target   ; another store`;
       const content = `2024-01-15 * Zebra Store
 2024-01-16 * Apple Store`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const payees = mapToSortedArray(ast.extractPayees(doc));
+      const payees = mapToSortedArray(parser.parse(doc).payees);
 
       expect(payees).toEqual([
         { name: 'Apple Store', declared: false },
@@ -463,7 +467,7 @@ payee Target   ; another store`;
     expenses:shopping  $50
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const payees = mapToSortedArray(ast.extractPayees(doc));
+      const payees = mapToSortedArray(parser.parse(doc).payees);
 
       expect(payees).toEqual([
         { name: 'Target', declared: false },
@@ -472,13 +476,13 @@ payee Target   ; another store`;
     });
   });
 
-  describe('extractCommodities', () => {
+  describe('parse - commodities extraction', () => {
     test('should extract commodities from postings', () => {
       const content = `2024-01-15 * Store
     expenses:food  $50.00
     assets:checking  -50.00 USD`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const commodities = mapToSortedArray(ast.extractCommodities(doc));
+      const commodities = mapToSortedArray(parser.parse(doc).commodities);
 
       expect(commodities).toEqual([
         { name: '$', declared: false },
@@ -495,7 +499,7 @@ commodity GBP
     expenses:food  $50
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const commodities = mapToSortedArray(ast.extractCommodities(doc));
+      const commodities = mapToSortedArray(parser.parse(doc).commodities);
 
       expect(commodities).toEqual([
         { name: '$', declared: false },
@@ -510,7 +514,7 @@ commodity GBP
 commodity 1.000,00 EUR
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const commodities = mapToSortedArray(ast.extractCommodities(doc));
+      const commodities = mapToSortedArray(parser.parse(doc).commodities);
 
       expect(commodities).toEqual([
         { name: '$', declared: true, format: { symbol: '$', symbolOnLeft: true, spaceBetween: false, decimalMark: '.', thousandsSeparator: null, precision: 2 } },
@@ -527,7 +531,7 @@ commodity 1.000,00 EUR
     expenses:fuel  $30
     assets:checking  $-30`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const commodities = mapToSortedArray(ast.extractCommodities(doc));
+      const commodities = mapToSortedArray(parser.parse(doc).commodities);
 
       expect(commodities).toEqual([
         { name: '$', declared: false }
@@ -539,7 +543,7 @@ commodity 1.000,00 EUR
     assets:checking  $100 = $500
     income:salary`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const commodities = mapToSortedArray(ast.extractCommodities(doc));
+      const commodities = mapToSortedArray(parser.parse(doc).commodities);
 
       expect(commodities).toEqual([
         { name: '$', declared: false }
@@ -553,7 +557,7 @@ commodity 1.000,00 EUR
     expenses:misc  ¥1000
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const commodities = mapToSortedArray(ast.extractCommodities(doc));
+      const commodities = mapToSortedArray(parser.parse(doc).commodities);
 
       expect(commodities).toEqual([
         { name: '£', declared: false },
@@ -566,7 +570,7 @@ commodity 1.000,00 EUR
       const content = `commodity USD  ; US Dollar
 commodity EUR  ; Euro`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const commodities = mapToSortedArray(ast.extractCommodities(doc));
+      const commodities = mapToSortedArray(parser.parse(doc).commodities);
 
       expect(commodities).toEqual([
         { name: 'EUR', declared: true },
@@ -579,14 +583,14 @@ commodity EUR  ; Euro`;
     expenses:food  50
     assets:checking  -50`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const commodities = mapToSortedArray(ast.extractCommodities(doc));
+      const commodities = mapToSortedArray(parser.parse(doc).commodities);
 
       expect(commodities).toEqual([]);
     });
 
     test('should handle empty documents', () => {
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, '');
-      const commodities = mapToSortedArray(ast.extractCommodities(doc));
+      const commodities = mapToSortedArray(parser.parse(doc).commodities);
 
       expect(commodities).toEqual([]);
     });
@@ -597,7 +601,7 @@ commodity EUR  ; Euro`;
     expenses:b  AUD 50
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const commodities = mapToSortedArray(ast.extractCommodities(doc));
+      const commodities = mapToSortedArray(parser.parse(doc).commodities);
 
       expect(commodities).toEqual([
         { name: 'AUD', declared: false },
@@ -612,7 +616,7 @@ commodity EUR  ; Euro`;
     expenses:food  $50
     assets:checking  -50 USD`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const commodities = mapToSortedArray(ast.extractCommodities(doc));
+      const commodities = mapToSortedArray(parser.parse(doc).commodities);
 
       expect(commodities).toEqual([
         { name: '$', declared: false },
@@ -621,13 +625,13 @@ commodity EUR  ; Euro`;
     });
   });
 
-  describe('extractTagNames', () => {
+  describe('parse - tags extraction', () => {
     test('should extract tags from transaction header comments', () => {
       const content = `2024-01-15 * Grocery Store  ; category:food store:walmart
     expenses:food  $50
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const tags = mapToSortedArray(ast.extractTagNames(doc));
+      const tags = mapToSortedArray(parser.parse(doc).tags);
 
       expect(tags).toEqual([
         { name: 'category', declared: false },
@@ -640,7 +644,7 @@ commodity EUR  ; Euro`;
     expenses:food  $50  ; category:groceries important:
     assets:checking  ; account:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const tags = mapToSortedArray(ast.extractTagNames(doc));
+      const tags = mapToSortedArray(parser.parse(doc).tags);
 
       expect(tags).toEqual([
         { name: 'account', declared: false },
@@ -655,7 +659,7 @@ commodity EUR  ; Euro`;
     expenses:food  $50
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const tags = mapToSortedArray(ast.extractTagNames(doc));
+      const tags = mapToSortedArray(parser.parse(doc).tags);
 
       expect(tags).toEqual([
         { name: 'category', declared: false },
@@ -672,7 +676,7 @@ tag important
     expenses:food  $50
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const tags = mapToSortedArray(ast.extractTagNames(doc));
+      const tags = mapToSortedArray(parser.parse(doc).tags);
 
       expect(tags).toEqual([
         { name: 'category', declared: true },
@@ -690,7 +694,7 @@ tag important
     expenses:fuel  $30
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const tags = mapToSortedArray(ast.extractTagNames(doc));
+      const tags = mapToSortedArray(parser.parse(doc).tags);
 
       expect(tags).toEqual([
         { name: 'category', declared: false }
@@ -705,7 +709,7 @@ tag important
     expenses:food  $50  ; store:walmart
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const tags = mapToSortedArray(ast.extractTagNames(doc));
+      const tags = mapToSortedArray(parser.parse(doc).tags);
 
       expect(tags).toEqual([
         { name: 'category', declared: false },
@@ -719,7 +723,7 @@ tag important
       const content = `tag project  ; for organizing expenses
 tag category ; type of expense`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const tags = mapToSortedArray(ast.extractTagNames(doc));
+      const tags = mapToSortedArray(parser.parse(doc).tags);
 
       expect(tags).toEqual([
         { name: 'category', declared: true },
@@ -729,7 +733,7 @@ tag category ; type of expense`;
 
     test('should handle empty documents', () => {
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, '');
-      const tags = mapToSortedArray(ast.extractTagNames(doc));
+      const tags = mapToSortedArray(parser.parse(doc).tags);
 
       expect(tags).toEqual([]);
     });
@@ -737,7 +741,7 @@ tag category ; type of expense`;
     test('should return sorted tag names', () => {
       const content = `2024-01-15 * Test  ; zebra: apple:`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const tags = mapToSortedArray(ast.extractTagNames(doc));
+      const tags = mapToSortedArray(parser.parse(doc).tags);
 
       expect(tags).toEqual([
         { name: 'apple', declared: false },
@@ -752,7 +756,7 @@ tag category ; type of expense`;
     expenses:food  $50
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const tags = mapToSortedArray(ast.extractTagNames(doc));
+      const tags = mapToSortedArray(parser.parse(doc).tags);
 
       expect(tags).toEqual([
         { name: 'category', declared: false },
