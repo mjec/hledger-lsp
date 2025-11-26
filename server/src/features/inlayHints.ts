@@ -7,7 +7,7 @@
  * - Cost conversions when costs are involved
  */
 
-import { InlayHint, InlayHintKind, Position, Range } from 'vscode-languageserver';
+import { InlayHint, InlayHintKind, InlayHintLabelPart, Position, Range, Command } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction, Posting } from '../types';
 
@@ -170,9 +170,26 @@ export class InlayHintsProvider {
         // Find end of account name
         const accountEnd = line.indexOf(posting.account) + posting.account.length;
 
+        const amountText = inferredAmounts.join(', ');
+
+        // Create clickable label part with command to insert the amount
+        const labelPart: InlayHintLabelPart = {
+          value: `  ${amountText}`,
+          command: {
+            title: 'Insert inferred amount',
+            command: 'hledger.insertInferredAmount',
+            arguments: [
+              document.uri,
+              lineNum,
+              posting.account,
+              amountText
+            ]
+          }
+        };
+
         hints.push({
           position: Position.create(lineNum, accountEnd),
-          label: `  ${inferredAmounts.join(', ')}`,
+          label: [labelPart],
           kind: InlayHintKind.Parameter,
           paddingLeft: true
         });
@@ -193,8 +210,22 @@ export class InlayHintsProvider {
     // Track global account balances across all transactions
     const accountBalances = new Map<string, Map<string, number>>();
 
-    for (let txIndex = 0; txIndex < parsed.transactions.length; txIndex++) {
-      const transaction = parsed.transactions[txIndex];
+    // Sort transactions by date to calculate balances in chronological order
+    // This is important when transactions come from multiple files via includes
+    const sortedTransactions = [...parsed.transactions].sort((a, b) => {
+      return a.date.localeCompare(b.date);
+    });
+
+    // Create a map from sorted index to original index
+    const sortedToOriginalIndex = new Map<number, number>();
+    sortedTransactions.forEach((tx, sortedIdx) => {
+      const originalIdx = parsed.transactions.indexOf(tx);
+      sortedToOriginalIndex.set(sortedIdx, originalIdx);
+    });
+
+    for (let sortedIdx = 0; sortedIdx < sortedTransactions.length; sortedIdx++) {
+      const transaction = sortedTransactions[sortedIdx];
+      const txIndex = sortedToOriginalIndex.get(sortedIdx)!;
       const postingBalances = new Map<number, Map<string, number>>();
 
       for (let postingIndex = 0; postingIndex < transaction.postings.length; postingIndex++) {
@@ -275,9 +306,27 @@ export class InlayHintsProvider {
           balanceHints.push(formattedBalance);
         }
 
+        const balanceText = balanceHints.join(', ');
+
+        // Create clickable label part with command to insert balance assertion
+        // Format as actual balance assertion syntax: " = $amount"
+        const labelPart: InlayHintLabelPart = {
+          value: ` = ${balanceText}`,
+          command: {
+            title: 'Insert balance assertion',
+            command: 'hledger.insertBalanceAssertion',
+            arguments: [
+              document.uri,
+              lineNum,
+              posting.account,
+              balanceHints
+            ]
+          }
+        };
+
         hints.push({
           position: Position.create(lineNum, endPos),
-          label: ` [${balanceHints.join(', ')}]`,
+          label: [labelPart],
           kind: InlayHintKind.Type,
           paddingLeft: true
         });
@@ -318,9 +367,34 @@ export class InlayHintsProvider {
           const costEnd = line.indexOf(costMatch[0]) + costMatch[0].length;
 
           const formattedCost = this.formatAmount(totalCost, posting.cost.amount.commodity || '', parsed);
+
+          // For unit cost (@), show total cost equivalent (@@ notation)
+          // For total cost (@@), just show the calculated value
+          let hintValue: string;
+          if (posting.cost.type === 'unit') {
+            hintValue = ` @@ ${formattedCost}`;
+          } else {
+            hintValue = ` = ${formattedCost}`;
+          }
+
+          // Create clickable label part with command to convert to total cost
+          const labelPart: InlayHintLabelPart = {
+            value: hintValue,
+            command: posting.cost.type === 'unit' ? {
+              title: 'Convert to total cost',
+              command: 'hledger.convertToTotalCost',
+              arguments: [
+                document.uri,
+                lineNum,
+                posting.account,
+                formattedCost
+              ]
+            } : undefined
+          };
+
           hints.push({
             position: Position.create(lineNum, costEnd),
-            label: ` = ${formattedCost}`,
+            label: [labelPart],
             kind: InlayHintKind.Type,
             paddingLeft: true
           });
