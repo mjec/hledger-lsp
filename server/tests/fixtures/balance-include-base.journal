@@ -1,0 +1,6 @@
+; Base file that includes another file
+include balance-include-other.journal
+
+2024-01-16 * Second Transaction
+    assets:checking                $-40
+    expenses:gas                   $40

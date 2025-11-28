@@ -12,7 +12,7 @@ import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction, Posting } from '../types';
 import { FileReader } from '../parser/index';
-import { resolveIncludePath } from '../utils/uri';
+import { resolveIncludePath, resolveIncludePaths } from '../utils/uri';
 import { defaultSettings } from '../server/settings';
 
 export interface ValidationResult {
@@ -89,6 +89,12 @@ export class Validator {
 
     // Validate each transaction
     for (const transaction of parsedDoc.transactions) {
+      // Only validate transactions in the current document
+      // (workspace parsing may include transactions from other files)
+      if (transaction.sourceUri !== document.uri) {
+        continue;
+      }
+
       // Check balance
       if (isEnabled('balance')) {
         const balanceIssues = this.validateBalance(transaction, document);
@@ -435,16 +441,19 @@ export class Validator {
   private validateDateOrdering(transactions: Transaction[], document: TextDocument): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
-    for (let i = 1; i < transactions.length; i++) {
-      const prevDate = this.parseDate(transactions[i - 1].date);
-      const currDate = this.parseDate(transactions[i].date);
+    // Only validate transactions in the current document
+    const documentTransactions = transactions.filter(t => t.sourceUri === document.uri);
+
+    for (let i = 1; i < documentTransactions.length; i++) {
+      const prevDate = this.parseDate(documentTransactions[i - 1].date);
+      const currDate = this.parseDate(documentTransactions[i].date);
 
       if (prevDate && currDate && currDate < prevDate) {
-        const range = this.getTransactionRange(transactions[i], document);
+        const range = this.getTransactionRange(documentTransactions[i], document);
         diagnostics.push({
           severity: DiagnosticSeverity.Warning,
           range,
-          message: `Transaction date ${transactions[i].date} is before previous transaction date ${transactions[i - 1].date}`,
+          message: `Transaction date ${documentTransactions[i].date} is before previous transaction date ${documentTransactions[i - 1].date}`,
           source: 'hledger'
         });
       }
@@ -500,6 +509,8 @@ export class Validator {
     // Track running balances per account per commodity
     const balances = new Map<string, Map<string, number>>();
 
+    // Process ALL transactions to calculate running balances correctly
+    // (workspace parsing includes transactions from all files)
     for (const transaction of transactions) {
       for (const posting of transaction.postings) {
         // Update running balance
@@ -515,8 +526,8 @@ export class Validator {
           balances.set(posting.account, accountBalances);
         }
 
-        // Check assertion
-        if (posting.assertion) {
+        // Check assertion - but only create diagnostics for assertions in the current document
+        if (posting.assertion && transaction.sourceUri === document.uri) {
           const accountBalances = balances.get(posting.account);
           const commodity = posting.assertion.commodity || '';
           const expectedBalance = posting.assertion.quantity;
@@ -757,53 +768,96 @@ export class Validator {
     for (const directive of includeDirectives) {
       const includePath = directive.value;
 
-      // Resolve the include path
-      const resolvedPath = resolveIncludePath(includePath, baseUri);
+      // Check if this is a glob pattern
+      const isGlob = /[*?\[\]{}]/.test(includePath);
 
-      // Check for duplicate includes in the same document
-      if (visited.has(resolvedPath)) {
-        const range = this.findFirstOccurrence(document, includePath);
-        if (range) {
-          diagnostics.push({
-            severity: DiagnosticSeverity.Warning,
-            range,
-            message: `Duplicate include: ${includePath}`,
-            source: 'hledger'
-          });
-        }
-        continue;
-      }
+      if (isGlob) {
+        // For glob patterns, expand to all matching files
+        const resolvedPaths = resolveIncludePaths(includePath, baseUri);
 
-      visited.add(resolvedPath);
-
-      // Check if file exists (if enabled)
-      const includeDoc = fileReader(resolvedPath);
-
-      if (!includeDoc && checkMissingFiles) {
-        // File doesn't exist
-        const range = this.findFirstOccurrence(document, includePath);
-        if (range) {
-          diagnostics.push({
-            severity: DiagnosticSeverity.Error,
-            range,
-            message: `Include file not found: ${includePath}`,
-            source: 'hledger'
-          });
-        }
-      }
-
-      // Check for circular includes (if enabled and file exists)
-      if (includeDoc && checkCircularIncludes) {
-        const circularCheck = this.checkCircularInclude(document.uri, includeDoc, fileReader, new Set([baseUri, resolvedPath]));
-        if (circularCheck) {
+        // Check if glob matched any files (if enabled)
+        if (resolvedPaths.length === 0 && checkMissingFiles) {
           const range = this.findFirstOccurrence(document, includePath);
           if (range) {
             diagnostics.push({
               severity: DiagnosticSeverity.Error,
               range,
-              message: `Circular include detected: ${includePath}`,
+              message: `Include glob pattern matches no files: ${includePath}`,
               source: 'hledger'
             });
+          }
+        }
+
+        // Check for circular includes for each matched file
+        if (checkCircularIncludes) {
+          for (const resolvedPath of resolvedPaths) {
+            const includeDoc = fileReader(resolvedPath);
+            if (includeDoc) {
+              const circularCheck = this.checkCircularInclude(document.uri, includeDoc, fileReader, new Set([baseUri, resolvedPath]));
+              if (circularCheck) {
+                const range = this.findFirstOccurrence(document, includePath);
+                if (range) {
+                  diagnostics.push({
+                    severity: DiagnosticSeverity.Error,
+                    range,
+                    message: `Circular include detected in glob: ${includePath} (via ${resolvedPath})`,
+                    source: 'hledger'
+                  });
+                  break; // Only report once per glob pattern
+                }
+              }
+            }
+          }
+        }
+      } else {
+        // Single file include (existing logic)
+        const resolvedPath = resolveIncludePath(includePath, baseUri);
+
+        // Check for duplicate includes in the same document
+        if (visited.has(resolvedPath)) {
+          const range = this.findFirstOccurrence(document, includePath);
+          if (range) {
+            diagnostics.push({
+              severity: DiagnosticSeverity.Warning,
+              range,
+              message: `Duplicate include: ${includePath}`,
+              source: 'hledger'
+            });
+          }
+          continue;
+        }
+
+        visited.add(resolvedPath);
+
+        // Check if file exists (if enabled)
+        const includeDoc = fileReader(resolvedPath);
+
+        if (!includeDoc && checkMissingFiles) {
+          // File doesn't exist
+          const range = this.findFirstOccurrence(document, includePath);
+          if (range) {
+            diagnostics.push({
+              severity: DiagnosticSeverity.Error,
+              range,
+              message: `Include file not found: ${includePath}`,
+              source: 'hledger'
+            });
+          }
+        }
+
+        // Check for circular includes (if enabled and file exists)
+        if (includeDoc && checkCircularIncludes) {
+          const circularCheck = this.checkCircularInclude(document.uri, includeDoc, fileReader, new Set([baseUri, resolvedPath]));
+          if (circularCheck) {
+            const range = this.findFirstOccurrence(document, includePath);
+            if (range) {
+              diagnostics.push({
+                severity: DiagnosticSeverity.Error,
+                range,
+                message: `Circular include detected: ${includePath}`,
+                source: 'hledger'
+              });
+            }
           }
         }
       }

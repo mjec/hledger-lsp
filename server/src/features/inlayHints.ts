@@ -81,6 +81,11 @@ export class InlayHintsProvider {
 
     // Only process transactions within the requested range
     for (const transaction of parsed.transactions) {
+      // Only show inlay hints for transactions in the current document
+      if (transaction.sourceUri !== document.uri) {
+        continue;
+      }
+
       const txLine = transaction.line ?? 0;
 
       // Skip transactions outside the range
@@ -191,13 +196,63 @@ export class InlayHintsProvider {
           position: Position.create(lineNum, accountEnd),
           label: [labelPart],
           kind: InlayHintKind.Parameter,
-          paddingLeft: true
+          paddingLeft: true,
+          tooltip: 'Click to insert this inferred amount into the document'
         });
       }
       postingIndex++;
     }
 
     return hints;
+  }
+
+  /**
+   * Calculate inferred amounts for a transaction
+   * Returns a map of posting index to inferred amounts (commodity -> quantity)
+   */
+  private calculateInferredAmounts(transaction: Transaction): Map<number, Map<string, number>> {
+    const result = new Map<number, Map<string, number>>();
+
+    // Calculate balance per commodity from explicit amounts
+    const balances = new Map<string, number>();
+
+    for (const posting of transaction.postings) {
+      if (posting.amount) {
+        // Use cost commodity if cost is present
+        if (posting.cost) {
+          const costCommodity = posting.cost.amount.commodity || '';
+          let costValue: number;
+
+          if (posting.cost.type === 'unit') {
+            costValue = posting.amount.quantity * posting.cost.amount.quantity;
+          } else {
+            costValue = posting.cost.amount.quantity;
+          }
+
+          const current = balances.get(costCommodity) || 0;
+          balances.set(costCommodity, current + costValue);
+        } else {
+          const commodity = posting.amount.commodity || '';
+          const current = balances.get(commodity) || 0;
+          balances.set(commodity, current + posting.amount.quantity);
+        }
+      }
+    }
+
+    // The inferred amount is the negation of the sum
+    const inferredAmounts = new Map<string, number>();
+    for (const [commodity, balance] of balances.entries()) {
+      inferredAmounts.set(commodity, -balance);
+    }
+
+    // Assign inferred amounts to postings without explicit amounts
+    for (let i = 0; i < transaction.postings.length; i++) {
+      if (!transaction.postings[i].amount) {
+        result.set(i, new Map(inferredAmounts));
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -228,26 +283,45 @@ export class InlayHintsProvider {
       const txIndex = sortedToOriginalIndex.get(sortedIdx)!;
       const postingBalances = new Map<number, Map<string, number>>();
 
+      // Calculate inferred amounts for this transaction
+      const inferredAmounts = this.calculateInferredAmounts(transaction);
+
       for (let postingIndex = 0; postingIndex < transaction.postings.length; postingIndex++) {
         const posting = transaction.postings[postingIndex];
+        const account = posting.account;
+
+        // Get amount (either explicit or inferred)
+        let amountMap: Map<string, number> | undefined;
 
         if (posting.amount) {
-          const account = posting.account;
+          // Explicit amount
           const commodity = posting.amount.commodity || '';
+          amountMap = new Map([[commodity, posting.amount.quantity]]);
+        } else {
+          // Inferred amount
+          amountMap = inferredAmounts.get(postingIndex);
+        }
 
-          // Get or create account balance map
-          if (!accountBalances.has(account)) {
-            accountBalances.set(account, new Map<string, number>());
+        if (amountMap) {
+          // Update balance for each commodity in this posting
+          for (const [commodity, quantity] of amountMap.entries()) {
+            // Get or create account balance map
+            if (!accountBalances.has(account)) {
+              accountBalances.set(account, new Map<string, number>());
+            }
+            const commodityBalances = accountBalances.get(account)!;
+
+            // Update balance
+            const currentBalance = commodityBalances.get(commodity) || 0;
+            const newBalance = currentBalance + quantity;
+            commodityBalances.set(commodity, newBalance);
+
+            // Store this posting's resulting balance
+            if (!postingBalances.has(postingIndex)) {
+              postingBalances.set(postingIndex, new Map());
+            }
+            postingBalances.get(postingIndex)!.set(commodity, newBalance);
           }
-          const commodityBalances = accountBalances.get(account)!;
-
-          // Update balance
-          const currentBalance = commodityBalances.get(commodity) || 0;
-          const newBalance = currentBalance + posting.amount.quantity;
-          commodityBalances.set(commodity, newBalance);
-
-          // Store this posting's resulting balance
-          postingBalances.set(postingIndex, new Map([[commodity, newBalance]]));
         }
       }
 
@@ -285,7 +359,9 @@ export class InlayHintsProvider {
       const posting = transaction.postings[postingIndex];
       const balanceMap = postingBalances.get(postingIndex);
 
-      if (posting.amount && balanceMap) {
+      // Don't show running balance hint if posting already has a balance assertion
+      // Show hint for both explicit and inferred amounts
+      if (balanceMap && !posting.assertion) {
         const lineNum = txLine + 1 + postingIndex;
         const line = document.getText({
           start: { line: lineNum, character: 0 },
@@ -328,7 +404,8 @@ export class InlayHintsProvider {
           position: Position.create(lineNum, endPos),
           label: [labelPart],
           kind: InlayHintKind.Type,
-          paddingLeft: true
+          paddingLeft: true,
+          tooltip: `Click to insert balance assertion for ${posting.account}`
         });
       }
     }
@@ -346,14 +423,10 @@ export class InlayHintsProvider {
     let postingIndex = 0;
 
     for (const posting of transaction.postings) {
-      if (posting.amount && posting.cost) {
-        let totalCost: number;
-
-        if (posting.cost.type === 'unit') {
-          totalCost = posting.amount.quantity * posting.cost.amount.quantity;
-        } else {
-          totalCost = posting.cost.amount.quantity;
-        }
+      // Only show cost conversion hints for unit cost (@), not total cost (@@)
+      // since total cost is already explicit
+      if (posting.amount && posting.cost && posting.cost.type === 'unit') {
+        const totalCost = posting.amount.quantity * posting.cost.amount.quantity;
 
         const lineNum = txLine + 1 + postingIndex;
         const line = document.getText({
@@ -369,18 +442,9 @@ export class InlayHintsProvider {
           const formattedCost = this.formatAmount(totalCost, posting.cost.amount.commodity || '', parsed);
 
           // For unit cost (@), show total cost equivalent (@@ notation)
-          // For total cost (@@), just show the calculated value
-          let hintValue: string;
-          if (posting.cost.type === 'unit') {
-            hintValue = ` @@ ${formattedCost}`;
-          } else {
-            hintValue = ` = ${formattedCost}`;
-          }
-
-          // Create clickable label part with command to convert to total cost
           const labelPart: InlayHintLabelPart = {
-            value: hintValue,
-            command: posting.cost.type === 'unit' ? {
+            value: ` @@ ${formattedCost}`,
+            command: {
               title: 'Convert to total cost',
               command: 'hledger.convertToTotalCost',
               arguments: [
@@ -389,14 +453,15 @@ export class InlayHintsProvider {
                 posting.account,
                 formattedCost
               ]
-            } : undefined
+            }
           };
 
           hints.push({
             position: Position.create(lineNum, costEnd),
             label: [labelPart],
             kind: InlayHintKind.Type,
-            paddingLeft: true
+            paddingLeft: true,
+            tooltip: 'Click to convert unit cost (@) to total cost (@@)'
           });
         }
       }

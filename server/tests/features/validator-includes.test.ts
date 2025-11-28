@@ -229,4 +229,115 @@ include ~/.hledger-validator-test.journal
       expect(includeDiagnostics.length).toBe(0);
     }
   });
+
+  test('should not error on valid glob pattern include', () => {
+    // Use test-workspace-2 which has 2024/*.journal
+    const testWorkspace2 = path.join(__dirname, '..', 'fixtures', 'test-workspace-2');
+    const mainJournalPath = path.join(testWorkspace2, 'main.journal');
+
+    if (!fs.existsSync(mainJournalPath)) {
+      return; // Skip if test workspace doesn't exist
+    }
+
+    const content = fs.readFileSync(mainJournalPath, 'utf8');
+    const uri = 'file://' + mainJournalPath;
+    const doc = TextDocument.create(uri, 'hledger', 1, content);
+
+    const parsed = parser.parse(doc, {
+      baseUri: uri,
+      fileReader: defaultFileReader
+    });
+
+    const result = validator.validate(doc, parsed, {
+      baseUri: uri,
+      fileReader: defaultFileReader,
+      settings: {
+        validation: {
+          includeFiles: true
+        }
+      }
+    });
+
+    // Should NOT have any diagnostics about missing includes or glob not matching
+    const includeDiagnostics = result.diagnostics.filter(d =>
+      d.message.includes('Include file not found') ||
+      d.message.includes('glob pattern matches no files')
+    );
+    expect(includeDiagnostics.length).toBe(0);
+  });
+
+  test('should error on glob pattern that matches no files', () => {
+    const content = `; Test glob pattern that matches nothing
+include nonexistent/*.journal
+
+2024-01-26 * Test
+    Assets:Bank    $100
+    Expenses:Test $-100
+`;
+
+    const uri = 'file://' + path.join(fixturesPath, 'validator-glob-empty.journal');
+    const doc = TextDocument.create(uri, 'hledger', 1, content);
+    const parsed = parser.parse(doc, {
+      baseUri: uri,
+      fileReader: defaultFileReader
+    });
+
+    const result = validator.validate(doc, parsed, {
+      baseUri: uri,
+      fileReader: defaultFileReader,
+      settings: {
+        validation: {
+          includeFiles: true
+        }
+      }
+    });
+
+    // Should have error about glob not matching
+    const includeDiagnostics = result.diagnostics.filter(d =>
+      d.message.includes('glob pattern matches no files')
+    );
+    expect(includeDiagnostics.length).toBe(1);
+    expect(includeDiagnostics[0].message).toContain('nonexistent/*.journal');
+  });
+
+  test('should handle multiple glob patterns', () => {
+    const content = `; Test multiple glob patterns
+include 2024/*.journal
+include 2023/*.journal
+
+2024-01-27 * Test
+    Assets:Bank    $50
+    Expenses:Test $-50
+`;
+
+    // Use test-workspace-2 which has 2024/*.journal
+    const testWorkspace2 = path.join(__dirname, '..', 'fixtures', 'test-workspace-2');
+    const testPath = path.join(testWorkspace2, 'validator-multi-glob.journal');
+
+    const uri = 'file://' + testPath;
+    const doc = TextDocument.create(uri, 'hledger', 1, content);
+    const parsed = parser.parse(doc, {
+      baseUri: uri,
+      fileReader: defaultFileReader
+    });
+
+    const result = validator.validate(doc, parsed, {
+      baseUri: uri,
+      fileReader: defaultFileReader,
+      settings: {
+        validation: {
+          includeFiles: true
+        }
+      }
+    });
+
+    // Should have error for 2023/*.journal (no files) but not for 2024/*.journal (has files)
+    const includeDiagnostics = result.diagnostics.filter(d =>
+      d.message.includes('glob pattern matches no files')
+    );
+
+    // Should have 1 diagnostic for the 2023 glob that matches nothing
+    expect(includeDiagnostics.length).toBe(1);
+    expect(includeDiagnostics[0].message).toContain('2023/*.journal');
+  });
 });

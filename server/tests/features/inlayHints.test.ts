@@ -1,11 +1,15 @@
 import { InlayHintsProvider } from '../../src/features/inlayHints';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { Range, InlayHintKind } from 'vscode-languageserver';
+import { Range, InlayHintKind, InlayHintLabelPart } from 'vscode-languageserver';
 import { parser } from '../../src/parser';
 
 // Helper to convert InlayHint label to string
-function labelToString(label: string | any[]): string {
-  return typeof label === 'string' ? label : '';
+function labelToString(label: string | InlayHintLabelPart[]): string {
+  if (typeof label === 'string') {
+    return label;
+  }
+  // If it's an array of InlayHintLabelPart, concatenate the values
+  return label.map(part => part.value).join('');
 }
 
 describe('InlayHintsProvider', () => {
@@ -32,7 +36,7 @@ describe('InlayHintsProvider', () => {
       });
 
       expect(hints).toHaveLength(1);
-      expect(hints[0].label).toBe('  $-50.00');
+      expect(labelToString(hints[0].label)).toBe('  $-50.00');
       expect(hints[0].kind).toBe(InlayHintKind.Parameter);
       expect(hints[0].position.line).toBe(2);
     });
@@ -54,7 +58,7 @@ describe('InlayHintsProvider', () => {
       });
 
       expect(hints).toHaveLength(1);
-      expect(hints[0].label).toBe('  $95.00');
+      expect(labelToString(hints[0].label)).toBe('  $95.00');
       expect(hints[0].position.line).toBe(3);
     });
 
@@ -74,7 +78,7 @@ describe('InlayHintsProvider', () => {
       });
 
       expect(hints).toHaveLength(1);
-      expect(hints[0].label).toBe('  $-1000.00');
+      expect(labelToString(hints[0].label)).toBe('  $-1000.00');
       expect(hints[0].position.line).toBe(2);
     });
 
@@ -94,7 +98,7 @@ describe('InlayHintsProvider', () => {
       });
 
       expect(hints).toHaveLength(1);
-      expect(hints[0].label).toBe('  $-135.00');
+      expect(labelToString(hints[0].label)).toBe('  $-135.00');
       expect(hints[0].position.line).toBe(2);
     });
 
@@ -153,9 +157,9 @@ describe('InlayHintsProvider', () => {
 
       expect(hints).toHaveLength(2);
       // Running balance shows cumulative balance per account
-      expect(hints[0].label).toContain('$50.00');  // expenses:food balance after this transaction
+      expect(labelToString(hints[0].label)).toContain('$50.00');  // expenses:food balance after this transaction
       expect(hints[0].kind).toBe(InlayHintKind.Type);
-      expect(hints[1].label).toContain('$-50.00'); // assets:checking balance after this transaction
+      expect(labelToString(hints[1].label)).toContain('$-50.00'); // assets:checking balance after this transaction
     });
 
     test('should show balance before comment', () => {
@@ -198,6 +202,27 @@ describe('InlayHintsProvider', () => {
       expect(hints).toHaveLength(0);
     });
 
+    test('should not show running balance when posting has balance assertion', () => {
+      const content = `2024-01-15 * Withdraw
+    assets:checking               $-200.00 = $800.00
+    expenses:cash                 $200.00`;
+
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsed = parser.parse(doc);
+      const range = Range.create(0, 0, 2, 0);
+
+      const hints = provider.provideInlayHints(doc, range, parsed, {
+        showInferredAmounts: false,
+        showRunningBalances: true,
+        showCostConversions: false
+      });
+
+      // Should only show hint for expenses:cash, not for assets:checking (has assertion)
+      expect(hints).toHaveLength(1);
+      expect(labelToString(hints[0].label)).toContain('$200.00');
+      expect(hints[0].position.line).toBe(2); // expenses:cash line
+    });
+
     test('should accumulate balances across multiple transactions', () => {
       const content = `2024-01-15 * Initial deposit
     assets:checking               $1000
@@ -221,19 +246,20 @@ describe('InlayHintsProvider', () => {
         showCostConversions: false
       });
 
-      // Should have 5 hints (equity:opening has no amount, so no hint for it)
-      expect(hints).toHaveLength(5);
+      // Should have 6 hints (including equity:opening which now shows balance even with inferred amount)
+      expect(hints).toHaveLength(6);
 
-      // First transaction: checking = $1000
-      expect(hints[0].label).toContain('$1000.00');
+      // First transaction: checking = $1000, equity:opening = $-1000 (inferred)
+      expect(labelToString(hints[0].label)).toContain('$1000.00');
+      expect(labelToString(hints[1].label)).toContain('$-1000.00'); // equity:opening balance (inferred amount)
 
       // Second transaction: food = $50, checking = $950 (1000 - 50)
-      expect(hints[1].label).toContain('$50.00');  // expenses:food first occurrence
-      expect(hints[2].label).toContain('$950.00'); // assets:checking cumulative (running balance!)
+      expect(labelToString(hints[2].label)).toContain('$50.00');  // expenses:food first occurrence
+      expect(labelToString(hints[3].label)).toContain('$950.00'); // assets:checking cumulative (running balance!)
 
       // Third transaction: gas = $40, checking = $910 (950 - 40)
-      expect(hints[3].label).toContain('$40.00');  // expenses:gas first occurrence
-      expect(hints[4].label).toContain('$910.00'); // assets:checking cumulative (running balance!)
+      expect(labelToString(hints[4].label)).toContain('$40.00');  // expenses:gas first occurrence
+      expect(labelToString(hints[5].label)).toContain('$910.00'); // assets:checking cumulative (running balance!)
     });
   });
 
@@ -254,12 +280,12 @@ describe('InlayHintsProvider', () => {
       });
 
       expect(hints).toHaveLength(1);
-      expect(hints[0].label).toBe(' = $1000.00');
+      expect(labelToString(hints[0].label)).toBe(' @@ $1000.00');
       expect(hints[0].kind).toBe(InlayHintKind.Type);
       expect(hints[0].position.line).toBe(1);
     });
 
-    test('should show total cost for total cost notation', () => {
+    test('should not show hint for total cost notation (already explicit)', () => {
       const content = `2024-01-15 * Currency Exchange
     assets:euros                  €100 @@ $135
     assets:checking               $-135`;
@@ -274,9 +300,8 @@ describe('InlayHintsProvider', () => {
         showCostConversions: true
       });
 
-      expect(hints).toHaveLength(1);
-      expect(hints[0].label).toBe(' = $135.00');
-      expect(hints[0].position.line).toBe(1);
+      // Total cost (@@ notation) is already explicit, so no hint should be shown
+      expect(hints).toHaveLength(0);
     });
 
     test('should handle multiple postings with costs', () => {
@@ -296,8 +321,8 @@ describe('InlayHintsProvider', () => {
       });
 
       expect(hints).toHaveLength(2);
-      expect(hints[0].label).toBe(' = $1000.00');
-      expect(hints[1].label).toBe(' = $25000.00');
+      expect(labelToString(hints[0].label)).toBe(' @@ $1000.00');
+      expect(labelToString(hints[1].label)).toBe(' @@ $25000.00');
     });
 
     test('should not show hints when showCostConversions is false', () => {
@@ -347,7 +372,7 @@ describe('InlayHintsProvider', () => {
 
       expect(hints).toHaveLength(1);
       expect(hints[0].position.line).toBe(6);
-      expect(hints[0].label).toBe('  $-1000.00');
+      expect(labelToString(hints[0].label)).toBe('  $-1000.00');
     });
 
     test('should handle empty range', () => {
@@ -385,10 +410,10 @@ describe('InlayHintsProvider', () => {
         showCostConversions: true
       });
 
-      // Should have: 1 cost conversion, 1 running balance, 1 inferred amount
+      // Should have: 1 cost conversion (@@), 1 running balance (stock), 1 inferred amount (checking)
       expect(hints.length).toBeGreaterThanOrEqual(2);
 
-      const costHint = hints.find(h => labelToString(h.label).includes('='));
+      const costHint = hints.find(h => labelToString(h.label).includes('@@'));
       const inferredHint = hints.find(h => labelToString(h.label).includes('-1000'));
 
       expect(costHint).toBeDefined();
@@ -440,7 +465,7 @@ describe('InlayHintsProvider', () => {
       });
 
       expect(hints).toHaveLength(1);
-      expect(hints[0].label).toBe('  -50.00');
+      expect(labelToString(hints[0].label)).toBe('  -50.00');
     });
 
     test('should handle inferred costs', () => {
@@ -479,7 +504,57 @@ describe('InlayHintsProvider', () => {
       });
 
       expect(hints).toHaveLength(1);
-      expect(hints[0].label).toContain('$');
+      expect(labelToString(hints[0].label)).toContain('$');
+    });
+  });
+
+  describe('includes', () => {
+    test('should accumulate running balances across included files', () => {
+      const otherContent = `; Included file
+2024-01-15 * First Transaction
+    assets:checking                $-50
+    expenses:food                  $50`;
+
+      const baseContent = `; Base file that includes another file
+include balance-include-other.journal
+
+2024-01-16 * Second Transaction
+    assets:checking                $-40
+    expenses:gas                   $40`;
+
+      const otherUri = 'file:///home/patrick/Development/hledger_lsp/server/tests/fixtures/balance-include-other.journal';
+      const baseUri = 'file:///home/patrick/Development/hledger_lsp/server/tests/fixtures/balance-include-base.journal';
+
+      const otherDoc = TextDocument.create(otherUri, 'hledger', 1, otherContent);
+      const baseDoc = TextDocument.create(baseUri, 'hledger', 1, baseContent);
+
+      // Create a mock file reader that returns our test documents
+      const fileReader = (uri: string) => {
+        if (uri === otherUri) return otherDoc;
+        return null;
+      };
+
+      // Parse with includes
+      const parsed = parser.parse(baseDoc, {
+        baseUri: baseUri,
+        fileReader: fileReader
+      });
+
+      const range = Range.create(0, 0, 100, 0);
+
+      const hints = provider.provideInlayHints(baseDoc, range, parsed, {
+        showInferredAmounts: false,
+        showRunningBalances: true,
+        showCostConversions: false
+      });
+
+      // Should have running balance hints for postings in the base file
+      // assets:checking at line 4 should show accumulated balance: -50 (from include) + -40 (this transaction) = -90
+      const line4Hints = hints.filter(h => h.position.line === 4);
+      expect(line4Hints.length).toBeGreaterThan(0);
+
+      const line4Label = labelToString(line4Hints[0].label);
+      expect(line4Label).toContain('$-90.00');
     });
   });
 });

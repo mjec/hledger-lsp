@@ -20,7 +20,7 @@ export class FoldingRangesProvider {
     const lines = document.getText().split('\n');
 
     // Add folding ranges for transactions
-    foldingRanges.push(...this.getTransactionFoldingRanges(lines, parsedDoc));
+    foldingRanges.push(...this.getTransactionFoldingRanges(document, lines, parsedDoc));
 
     // Add folding ranges for comment blocks
     foldingRanges.push(...this.getCommentFoldingRanges(lines));
@@ -32,11 +32,16 @@ export class FoldingRangesProvider {
    * Get folding ranges for transactions
    * Transactions can be folded to hide their postings
    */
-  private getTransactionFoldingRanges(lines: string[], parsedDoc: ParsedDocument): FoldingRange[] {
+  private getTransactionFoldingRanges(document: TextDocument, lines: string[], parsedDoc: ParsedDocument): FoldingRange[] {
     const ranges: FoldingRange[] = [];
 
     for (const transaction of parsedDoc.transactions) {
       if (transaction.line === undefined) continue;
+
+      // Only fold transactions from the current document (skip if from workspace parsing)
+      if (transaction.sourceUri !== document.uri) {
+        continue;
+      }
 
       // Find the last posting line for this transaction
       const startLine = transaction.line;

@@ -127,6 +127,15 @@ cost notation (@ or @@)
 - **Range-aware** - Only show hints for visible portions of the document for
 better performance
 
+### Code Lens
+
+- **Balance assertions** - Show running balances on each posting line in balance
+assertion format (`= $50.00`)
+- **Clickable** - Click a balance assertion code lens to insert it into the posting
+- **Transaction counts** - Display how many transactions each account has been
+involved in on transaction headers
+- **Configurable** - Enable/disable each lens type independently
+
 ### Editor Integration
 
 - **Folding ranges** - Collapse/expand transactions to hide postings, fold
@@ -165,25 +174,11 @@ language server can be used with any LSP-compatible editor.
 
 ### Neovim
 
-Add this to your lazy.nvim configuration (e.g., `~/.config/nvim/lua/plugins/hledger.lua`):
+See [../docs/neovim-setup.md](../docs/neovim-setup.md) for complete setup instructions including LazyVim configuration, standard nvim-lspconfig setup, root directory detection, and troubleshooting.
 
-```lua
-return {
-  {
-    "neovim/nvim-lspconfig",
-    opts = {
-      servers = {
-        hledger_lsp = {
-          cmd = { "hledger-lsp", "--stdio" },
-          filetypes = { "hledger", "journal" },
-        },
-      },
-    },
-  },
-}
-```
+**Quick start for LazyVim users:**
 
-And add this to your `init.lua` for file type detection:
+1. Add filetype detection in `~/.config/nvim/lua/config/options.lua`:
 
 ```lua
 vim.filetype.add({
@@ -194,33 +189,87 @@ vim.filetype.add({
 })
 ```
 
-**Optional:** Customize settings by adding a `settings` block:
+2. Create `~/.config/nvim/lua/plugins/hledger.lua`:
 
 ```lua
 return {
-  {
-    "neovim/nvim-lspconfig",
-    opts = {
-      servers = {
-        hledger_lsp = {
-          cmd = { "hledger-lsp", "--stdio" },
-          filetypes = { "hledger", "journal" },
-          settings = {
-            hledgerLanguageServer = {
-              validation = {
-                undeclaredPayees = true,  -- Enable payee validation
-              },
-              inlayHints = {
-                showRunningBalances = true,  -- Show running balances
-              },
-              -- See settings documentation below for all options
+  "neovim/nvim-lspconfig",
+  ft = { "hledger", "journal" },
+  opts = {
+    servers = {
+      hledger_lsp = {
+        settings = {
+          hledgerLanguageServer = {
+            inlayHints = {
+              showInferredAmounts = true,
+              showRunningBalances = true,
+              showCostConversions = true,
             },
+            codeLens = {
+              showRunningBalances = true,
+              showTransactionCounts = true,
+            },
+            -- See settings documentation below for all options
           },
         },
       },
     },
+    setup = {
+      hledger_lsp = function(_, opts)
+        local lspconfig = require("lspconfig")
+        local util = require("lspconfig.util")
+        local configs = require("lspconfig.configs")
+
+        if not configs.hledger_lsp then
+          configs.hledger_lsp = {
+            default_config = {
+              cmd = { "hledger-lsp", "--stdio" },
+              filetypes = { "hledger", "journal" },
+              root_dir = function(fname)
+                return util.root_pattern(".hledger-lsp.json", "main.journal", "all.journal", ".git")(fname)
+                  or vim.fs.dirname(fname)
+              end,
+              single_file_support = true,
+            },
+          }
+        end
+
+        lspconfig.hledger_lsp.setup(opts)
+
+        -- Attach to already-open buffers (fixes first file open issue)
+        vim.schedule(function()
+          for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.api.nvim_buf_is_loaded(buf) then
+              local ft = vim.api.nvim_get_option_value("filetype", { buf = buf })
+              if ft == "hledger" or ft == "journal" then
+                local clients = vim.lsp.get_clients({ bufnr = buf, name = "hledger_lsp" })
+                if #clients == 0 then
+                  lspconfig.hledger_lsp.manager:try_add_wrapper(buf)
+                end
+              end
+            end
+          end
+        end)
+
+        return true
+      end,
+    },
   },
 }
+```
+
+**Optional:** Enable code lens auto-refresh by adding an `on_attach` handler to the `hledger_lsp` server settings:
+
+```lua
+on_attach = function(client, bufnr)
+  if client.server_capabilities.codeLensProvider then
+    vim.lsp.codelens.refresh()
+    vim.api.nvim_create_autocmd({ "BufEnter", "CursorHold", "InsertLeave" }, {
+      buffer = bufnr,
+      callback = vim.lsp.codelens.refresh,
+    })
+  end
+end,
 ```
 
 ### VS Code
@@ -278,6 +327,46 @@ journal files
 - `include.maxDepth` (number, default: 10): Maximum include depth to prevent
 infinite recursion
 
+### Workspace Settings
+
+Enable workspace-aware parsing for features that need global context (running balances, completion, validation):
+
+- `workspace.enabled` (boolean, default: true): Enable workspace-aware parsing. When enabled, the server discovers all journal files in your workspace, builds an include graph, and identifies root files. This allows features to access workspace-wide state even when working with "leaf" files that don't include other files.
+- `workspace.eagerParsing` (boolean, default: true): Parse all discovered files eagerly on startup. If disabled, files are parsed on-demand.
+- `workspace.autoDetectRoots` (boolean, default: true): Automatically detect root files using heuristics (files with no parents, files that include many others). If disabled, only explicitly configured root files are used (see Configuration File Support below).
+
+**Configuration File Support:**
+
+You can create a `.hledger-lsp.json` file in your workspace to explicitly configure workspace behavior:
+
+```json
+{
+  "rootFiles": ["main.journal", "budget.journal"],
+  "include": ["**/*.journal", "**/*.hledger"],
+  "exclude": ["**/archive/**", "**/temp/**"],
+  "workspace": {
+    "enabled": true,
+    "eagerParsing": true,
+    "autoDetectRoots": false
+  }
+}
+```
+
+Settings:
+- `rootFiles` (array of strings): Explicit root files (paths relative to config file)
+- `include` (array of glob patterns): File discovery patterns (default: `["**/*.journal", "**/*.hledger"]`)
+- `exclude` (array of glob patterns): Files to exclude (default: `["**/node_modules/**", "**/.git/**", "**/.*"]`)
+- `workspace` (object): Same workspace settings as above
+
+**Important**: The `.hledger-lsp.json` file is ONLY for workspace structure configuration (which files to discover, which are roots, etc.). LSP feature settings like inlay hints, code lens, validation rules, and formatting preferences should be configured in your editor/IDE settings (VS Code `settings.json`, Neovim LSP config, etc.).
+
+The configuration file will be automatically discovered by walking up the directory tree from your journal files. Settings from VS Code/editor configuration override settings from the config file.
+
+**Performance Tips:**
+- For large workspaces (>100 files), use `exclude` patterns to skip unnecessary files
+- Disable `eagerParsing` if initialization is slow
+- Check LSP server logs for performance warnings and metrics
+
 ### Completion Settings
 
 Control which items appear in auto-completion suggestions. All settings default
@@ -324,6 +413,19 @@ amounts for postings that omit explicit amounts
 balance after each posting
 - `inlayHints.showCostConversions` (boolean, default: false): Show total cost in
 target commodity for postings with @ or @@ notation
+
+### Code Lens Settings
+
+Configure which code lenses to display (all disabled by default):
+
+- `codeLens.showRunningBalances` (boolean, default: false): Show running
+balances after each transaction as code lenses
+- `codeLens.showTransactionCounts` (boolean, default: false): Show transaction
+counts for each account on transaction headers
+
+**Note:** Code lens and inlay hints can both show running balances. Choose one
+or the other based on your preference. Code lenses are more prominent and
+appear on separate lines, while inlay hints are subtle and inline.
 
 ## Development
 

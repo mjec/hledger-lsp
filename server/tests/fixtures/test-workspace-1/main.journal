@@ -1,0 +1,10 @@
+include expenses.journal
+commodity $1,000.00
+account equity:opening
+
+
+
+
+2024-01-01 Opening Balance
+    assets:checking                           $1,000.00
+    equity:opening

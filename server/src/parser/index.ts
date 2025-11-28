@@ -43,6 +43,14 @@ export interface ParseOptions {
    * Internal use only
    */
   visited?: Set<string>;
+
+  /**
+   * Parse mode: 'document' or 'workspace'
+   * - 'document': Standard include-based parsing from the current file
+   * - 'workspace': Parse from workspace root for global state
+   * This option is primarily used by the server's parseDocument helper
+   */
+  parseMode?: 'document' | 'workspace';
 }
 
 export class HledgerParser {

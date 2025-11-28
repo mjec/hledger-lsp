@@ -50,6 +50,14 @@ export interface HledgerSettings {
     showRunningBalances?: boolean;
     showCostConversions?: boolean;
   };
+  codeLens?: {
+    showTransactionCounts?: boolean;
+  };
+  workspace?: {
+    enabled?: boolean;
+    eagerParsing?: boolean;
+    autoDetectRoots?: boolean;
+  };
 }
 
 export const defaultSettings: HledgerSettings = {
@@ -101,6 +109,14 @@ export const defaultSettings: HledgerSettings = {
     showInferredAmounts: false,
     showRunningBalances: false,
     showCostConversions: false,
+  },
+  codeLens: {
+    showTransactionCounts: false,
+  },
+  workspace: {
+    enabled: true,
+    eagerParsing: true,
+    autoDetectRoots: true,
   }
 };
 

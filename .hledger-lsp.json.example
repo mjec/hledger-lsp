@@ -1,0 +1,24 @@
+{
+  "$schema": "https://github.com/yourusername/hledger-lsp/blob/main/schema/hledger-lsp.schema.json",
+  "rootFiles": [
+    "main.journal",
+    "budget.journal"
+  ],
+  "include": [
+    "**/*.journal",
+    "**/*.hledger",
+    "ledger/**/*.dat"
+  ],
+  "exclude": [
+    "**/archive/**",
+    "**/temp/**",
+    "**/backup/**",
+    "**/node_modules/**",
+    "**/.git/**"
+  ],
+  "workspace": {
+    "enabled": true,
+    "eagerParsing": true,
+    "autoDetectRoots": true
+  }
+}
