@@ -12,7 +12,7 @@
 
 import { CompletionItem, CompletionItemKind } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { Position } from 'vscode-languageserver-protocol';
+import { Position, Range, TextEdit } from 'vscode-languageserver-protocol';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ParsedDocument } from '../types';
@@ -99,13 +99,24 @@ export class CompletionProvider {
 
       // Otherwise, suggest accounts for posting line
       // Try to get smart suggestions based on current transaction context
+      // Calculate range for replacement
+      const accountMatch = line.match(/^\s+(.*)$/);
+      let range: Range | undefined;
+      if (accountMatch) {
+        const startChar = line.length - accountMatch[1].length;
+        range = {
+          start: { line: position.line, character: startChar },
+          end: position
+        };
+      }
+
       if (parsed) {
         const payee = this.getCurrentTransactionPayee(document, position);
         if (payee) {
-          return this.getSmartAccountCompletions(payee, parsed, settings);
+          return this.getSmartAccountCompletions(payee, parsed, settings, range);
         }
       }
-      return this.getAccountCompletions(settings);
+      return this.getAccountCompletions(settings, range);
     }
 
     // Transaction header - suggest payees
@@ -124,14 +135,15 @@ export class CompletionProvider {
   /**
    * Get account name completions
    */
-  private getAccountCompletions(settings?: CompletionSettings): CompletionItem[] {
+  private getAccountCompletions(settings?: CompletionSettings, range?: Range): CompletionItem[] {
     const onlyDeclared = settings?.onlyDeclaredAccounts ?? true;
     const filtered = onlyDeclared ? this.accounts.filter(a => a.declared) : this.accounts;
 
     return filtered.map(account => ({
       label: account.name,
       kind: CompletionItemKind.Field,
-      detail: 'Account'
+      detail: 'Account',
+      textEdit: range ? TextEdit.replace(range, account.name) : undefined
     }));
   }
 
@@ -298,7 +310,8 @@ export class CompletionProvider {
   private getSmartAccountCompletions(
     payee: string,
     parsed: ParsedDocument,
-    settings?: CompletionSettings
+    settings?: CompletionSettings,
+    range?: Range
   ): CompletionItem[] {
     // Analyze the parsed document to build patterns
     transactionAnalyzer.analyze(parsed);
@@ -321,7 +334,8 @@ export class CompletionProvider {
       const item: CompletionItem = {
         label: account.name,
         kind: CompletionItemKind.Field,
-        detail: 'Account'
+        detail: 'Account',
+        textEdit: range ? TextEdit.replace(range, account.name) : undefined
       };
 
       // Add sort text to prioritize suggested accounts

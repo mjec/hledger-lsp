@@ -1,0 +1,2 @@
+ - Personal Finances includes tests
+- Autocompleteig partially typed accounts
