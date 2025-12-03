@@ -409,4 +409,22 @@ include 2024/*.journal`
       expect(diagnostics2.cacheSize).toBe(1);
     });
   });
+
+  describe('getWorkspaceGraph', () => {
+    test('should generate mermaid graph', async () => {
+      await manager.initialize(
+        ['file:///workspace1'],
+        parser,
+        fileReader,
+        mockConnection
+      );
+
+      const graph = manager.getWorkspaceGraph();
+      expect(graph).toContain('graph TD');
+      expect(graph).toContain('main.journal (Root)');
+      expect(graph).toContain('expenses.journal');
+      expect(graph).toContain('-->');
+      expect(graph).toContain('classDef root');
+    });
+  });
 });

@@ -569,4 +569,113 @@ export class WorkspaceManager {
     this.connection.console.log(`  Total parse time: ${info.performance.totalParseTime}ms`);
     this.connection.console.log('===================================');
   }
+  /**
+   * Generate a text-based tree representation of the workspace.
+   */
+  getWorkspaceTree(): string {
+    const lines: string[] = [];
+    const sortedRoots = Array.from(this.rootFiles).sort();
+
+    for (const root of sortedRoots) {
+      lines.push(path.basename(toFilePath(root)));
+      this.printTree(root, '', lines, new Set([root]));
+      lines.push(''); // Empty line between trees
+    }
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Generate a structured representation of the workspace for better tooling integration.
+   * Returns an array of entries with display text and absolute file paths.
+   */
+  getWorkspaceTreeStructured(): Array<{ display: string; path: string; uri: string }> {
+    const entries: Array<{ display: string; path: string; uri: string }> = [];
+    const sortedRoots = Array.from(this.rootFiles).sort();
+
+    for (const root of sortedRoots) {
+      const rootPath = toFilePath(root);
+      entries.push({
+        display: path.basename(rootPath),
+        path: rootPath,
+        uri: root
+      });
+      this.collectTreeEntries(root, '', entries, new Set([root]));
+    }
+
+    return entries;
+  }
+
+  private collectTreeEntries(
+    uri: string,
+    prefix: string,
+    entries: Array<{ display: string; path: string; uri: string }>,
+    visited: Set<string>
+  ): void {
+    const includes = this.includeGraph.get(uri);
+    if (!includes || includes.size === 0) return;
+
+    const children = Array.from(includes).sort();
+    const parentPath = toFilePath(uri);
+    const parentDir = path.dirname(parentPath);
+
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      const isLast = i === children.length - 1;
+      const marker = isLast ? '└── ' : '├── ';
+
+      const childPath = toFilePath(child);
+      const displayPath = path.relative(parentDir, childPath);
+
+      entries.push({
+        display: `${prefix}${marker}${displayPath}`,
+        path: childPath,
+        uri: child
+      });
+
+      if (!visited.has(child)) {
+        const newPrefix = prefix + (isLast ? '    ' : '│   ');
+        this.collectTreeEntries(child, newPrefix, entries, new Set([...visited, child]));
+      } else {
+        entries.push({
+          display: `${prefix}${isLast ? '    ' : '│   '}└── (cycle)`,
+          path: '',
+          uri: ''
+        });
+      }
+    }
+  }
+
+  private printTree(uri: string, prefix: string, lines: string[], visited: Set<string>): void {
+    const includes = this.includeGraph.get(uri);
+    if (!includes || includes.size === 0) return;
+
+    const children = Array.from(includes).sort();
+    const parentPath = toFilePath(uri);
+    const parentDir = path.dirname(parentPath);
+
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      const isLast = i === children.length - 1;
+      const marker = isLast ? '└── ' : '├── ';
+
+      const childPath = toFilePath(child);
+      let displayPath = path.relative(parentDir, childPath);
+
+      // Ensure it looks like a file path
+      if (!displayPath.startsWith('.') && !displayPath.startsWith('/')) {
+        // It's in the same directory or a subdirectory, keep it as is
+        // (path.relative returns just filename for same dir)
+      }
+
+      lines.push(`${prefix}${marker}${displayPath}`);
+
+      if (!visited.has(child)) {
+        const newPrefix = prefix + (isLast ? '    ' : '│   ');
+        this.printTree(child, newPrefix, lines, new Set([...visited, child]));
+      } else {
+        lines.push(`${prefix}${isLast ? '    ' : '│   '}└── (cycle)`);
+      }
+    }
+  }
 }

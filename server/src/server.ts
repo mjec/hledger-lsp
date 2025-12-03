@@ -154,7 +154,9 @@ connection.onInitialize((params: InitializeParams) => {
           'hledger.insertBalanceAssertion',
           'hledger.insertInferredAmount',
           'hledger.convertToTotalCost',
-          'hledger.refreshInlayHints'
+          'hledger.refreshInlayHints',
+          'hledger.showWorkspaceGraph',
+          'hledger.showWorkspaceGraphStructured'
         ]
       }
     }
@@ -925,6 +927,38 @@ connection.onExecuteCommand(async (params) => {
       });
     } else {
       connection.window.showInformationMessage('Inlay hint refresh not supported by your editor');
+    }
+  } else if (params.command === 'hledger.showWorkspaceGraph') {
+    connection.console.log(`[ExecuteCommand] showWorkspaceGraph called. workspaceManager exists: ${!!workspaceManager}`);
+    if (workspaceManager) {
+      try {
+        const graph = workspaceManager.getWorkspaceTree();
+        connection.console.log(`[ExecuteCommand] Tree generated, length: ${graph.length}`);
+        return graph;
+      } catch (error) {
+        connection.console.error(`[ExecuteCommand] Error generating tree: ${error}`);
+        return `Error generating tree: ${error}`;
+      }
+    } else {
+      connection.console.warn('[ExecuteCommand] Workspace manager not initialized');
+      connection.window.showErrorMessage('Workspace manager not initialized');
+      return 'Error: Workspace manager not initialized. Check LSP logs.';
+    }
+  } else if (params.command === 'hledger.showWorkspaceGraphStructured') {
+    connection.console.log(`[ExecuteCommand] showWorkspaceGraphStructured called. workspaceManager exists: ${!!workspaceManager}`);
+    if (workspaceManager) {
+      try {
+        const entries = workspaceManager.getWorkspaceTreeStructured();
+        connection.console.log(`[ExecuteCommand] Structured tree generated, ${entries.length} entries`);
+        return entries;
+      } catch (error) {
+        connection.console.error(`[ExecuteCommand] Error generating structured tree: ${error}`);
+        return [];
+      }
+    } else {
+      connection.console.warn('[ExecuteCommand] Workspace manager not initialized');
+      connection.window.showErrorMessage('Workspace manager not initialized');
+      return [];
     }
   }
 });
