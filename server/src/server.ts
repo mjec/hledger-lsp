@@ -220,6 +220,15 @@ async function initializeWorkspaceManager(folders: string[], forceReinit: boolea
       connection,
       runtimeConfig
     );
+
+    // Log the root file being used
+    const diagnostics = workspaceManager.getDiagnosticInfo();
+    if (diagnostics.rootFile) {
+      connection.console.info(`✓ Workspace root file: ${diagnostics.rootFile}`);
+    } else {
+      connection.console.warn(`⚠ No workspace root file detected - workspace features disabled`);
+    }
+
     connection.console.log('hledger Language Server initialized with workspace awareness');
 
     // Refresh all open documents now that workspace context is available
@@ -263,18 +272,20 @@ function parseDocument(
   if (mode === 'workspace' && workspaceManager) {
     const root = workspaceManager.getRootForFile(document.uri);
     if (root) {
-      connection.console.log(`[parseDocument] Workspace mode: using root ${root}`);
-      const parsed = workspaceManager.parseWorkspace(root);
-      return parsed;
+      connection.console.info(`[parseDocument] Workspace mode: using root ${root}`);
+      const parsed = workspaceManager.parseWorkspace();
+      if (parsed) {
+        return parsed;
+      }
     }
     // Fallback to document mode if no root found (normal during initialization)
-    connection.console.log(
+    connection.console.info(
       `[parseDocument] No root found yet for ${document.uri}, using document mode`
     );
   }
 
   // Document mode: standard include-based parsing
-  connection.console.log(`[parseDocument] Document mode for ${document.uri}`);
+  connection.console.info(`[parseDocument] Document mode for ${document.uri}`);
   return sharedParser.parse(document, {
     baseUri: document.uri,
     fileReader

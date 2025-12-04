@@ -9,7 +9,7 @@ import {
   HledgerLspConfig,
   discoverConfigFile,
   loadConfigFile,
-  resolveRootFiles,
+  resolveRootFile,
   mergeConfig
 } from '../../src/server/configFile';
 
@@ -119,15 +119,15 @@ describe('ConfigFile', () => {
       expect(result.warnings).toEqual([]);
     });
 
-    it('should load config with rootFiles', () => {
+    it('should load config with rootFile', () => {
       const configPath = path.join(tempDir, '.hledger-lsp.json');
       const config: HledgerLspConfig = {
-        rootFiles: ['main.journal', 'budget.journal']
+        rootFile: 'main.journal'
       };
       fs.writeFileSync(configPath, JSON.stringify(config));
 
       const result = loadConfigFile(configPath);
-      expect(result.config.rootFiles).toEqual(['main.journal', 'budget.journal']);
+      expect(result.config.rootFile).toEqual('main.journal');
       expect(result.warnings).toEqual([]);
     });
 
@@ -151,7 +151,7 @@ describe('ConfigFile', () => {
         workspace: {
           enabled: false,
           eagerParsing: false,
-          autoDetectRoots: false
+          autoDetectRoot: false
         }
       };
       fs.writeFileSync(configPath, JSON.stringify(config));
@@ -160,26 +160,17 @@ describe('ConfigFile', () => {
       expect(result.config.workspace).toEqual({
         enabled: false,
         eagerParsing: false,
-        autoDetectRoots: false
+        autoDetectRoot: false
       });
       expect(result.warnings).toEqual([]);
     });
 
-    it('should warn on invalid rootFiles type', () => {
+    it('should warn on invalid rootFile type', () => {
       const configPath = path.join(tempDir, '.hledger-lsp.json');
-      fs.writeFileSync(configPath, '{"rootFiles": "main.journal"}');
+      fs.writeFileSync(configPath, '{"rootFile": ["main.journal"]}');
 
       const result = loadConfigFile(configPath);
-      expect(result.warnings).toContain('rootFiles should be an array, ignoring');
-    });
-
-    it('should filter out non-string rootFiles', () => {
-      const configPath = path.join(tempDir, '.hledger-lsp.json');
-      fs.writeFileSync(configPath, '{"rootFiles": ["main.journal", 123, "budget.journal"]}');
-
-      const result = loadConfigFile(configPath);
-      expect(result.config.rootFiles).toEqual(['main.journal', 'budget.journal']);
-      expect(result.warnings).toContain('Some rootFiles entries are not strings, ignoring them');
+      expect(result.warnings).toContain('rootFile should be a string, ignoring');
     });
 
     it('should warn on invalid include type', () => {
@@ -227,40 +218,41 @@ describe('ConfigFile', () => {
     });
   });
 
-  describe('resolveRootFiles', () => {
-    it('should resolve relative paths', () => {
+  describe('resolveRootFile', () => {
+    it('should resolve relative path', () => {
       const config: HledgerLspConfig = {
-        rootFiles: ['main.journal', 'sub/budget.journal']
+        rootFile: 'main.journal'
       };
       const configDir = '/home/user/ledger';
 
-      const resolved = resolveRootFiles(config, configDir);
-      expect(resolved).toEqual([
-        'file:///home/user/ledger/main.journal',
-        'file:///home/user/ledger/sub/budget.journal'
-      ]);
+      const resolved = resolveRootFile(config, configDir);
+      expect(resolved).toBe('file:///home/user/ledger/main.journal');
     });
 
-    it('should handle absolute paths', () => {
+    it('should resolve relative path in subdirectory', () => {
       const config: HledgerLspConfig = {
-        rootFiles: ['/absolute/path/main.journal']
+        rootFile: 'sub/budget.journal'
       };
       const configDir = '/home/user/ledger';
 
-      const resolved = resolveRootFiles(config, configDir);
-      expect(resolved).toEqual(['file:///absolute/path/main.journal']);
+      const resolved = resolveRootFile(config, configDir);
+      expect(resolved).toBe('file:///home/user/ledger/sub/budget.journal');
     });
 
-    it('should return empty array if no rootFiles', () => {
+    it('should handle absolute path', () => {
+      const config: HledgerLspConfig = {
+        rootFile: '/absolute/path/main.journal'
+      };
+      const configDir = '/home/user/ledger';
+
+      const resolved = resolveRootFile(config, configDir);
+      expect(resolved).toBe('file:///absolute/path/main.journal');
+    });
+
+    it('should return null if no rootFile', () => {
       const config: HledgerLspConfig = {};
-      const resolved = resolveRootFiles(config, tempDir);
-      expect(resolved).toEqual([]);
-    });
-
-    it('should return empty array if rootFiles is empty', () => {
-      const config: HledgerLspConfig = { rootFiles: [] };
-      const resolved = resolveRootFiles(config, tempDir);
-      expect(resolved).toEqual([]);
+      const resolved = resolveRootFile(config, tempDir);
+      expect(resolved).toBeNull();
     });
   });
 
@@ -268,17 +260,17 @@ describe('ConfigFile', () => {
     it('should use defaults when no config provided', () => {
       const merged = mergeConfig({});
 
-      expect(merged.rootFiles).toEqual([]);
+      expect(merged.rootFile).toBeUndefined();
       expect(merged.include).toEqual(['**/*.journal', '**/*.hledger']);
       expect(merged.exclude).toEqual(['**/node_modules/**', '**/.git/**', '**/.*']);
       expect(merged.workspace.enabled).toBe(true);
       expect(merged.workspace.eagerParsing).toBe(true);
-      expect(merged.workspace.autoDetectRoots).toBe(true);
+      expect(merged.workspace.autoDetectRoot).toBe(true);
     });
 
     it('should merge file config with defaults', () => {
       const fileConfig: HledgerLspConfig = {
-        rootFiles: ['main.journal'],
+        rootFile: 'main.journal',
         workspace: {
           enabled: false
         }
@@ -286,7 +278,7 @@ describe('ConfigFile', () => {
 
       const merged = mergeConfig(fileConfig);
 
-      expect(merged.rootFiles).toEqual(['main.journal']);
+      expect(merged.rootFile).toBe('main.journal');
       expect(merged.include).toEqual(['**/*.journal', '**/*.hledger']);
       expect(merged.workspace.enabled).toBe(false);
       expect(merged.workspace.eagerParsing).toBe(true);
@@ -294,7 +286,7 @@ describe('ConfigFile', () => {
 
     it('should prioritize runtime settings over file config', () => {
       const fileConfig: HledgerLspConfig = {
-        rootFiles: ['main.journal'],
+        rootFile: 'main.journal',
         include: ['**/*.journal'],
         workspace: {
           enabled: false,
@@ -303,7 +295,7 @@ describe('ConfigFile', () => {
       };
 
       const runtimeSettings: Partial<HledgerLspConfig> = {
-        rootFiles: ['override.journal'],
+        rootFile: 'override.journal',
         workspace: {
           enabled: true
         }
@@ -311,7 +303,7 @@ describe('ConfigFile', () => {
 
       const merged = mergeConfig(fileConfig, runtimeSettings);
 
-      expect(merged.rootFiles).toEqual(['override.journal']);
+      expect(merged.rootFile).toBe('override.journal');
       expect(merged.include).toEqual(['**/*.journal']);
       expect(merged.workspace.enabled).toBe(true);
       expect(merged.workspace.eagerParsing).toBe(false);
@@ -319,7 +311,7 @@ describe('ConfigFile', () => {
 
     it('should handle partial runtime settings', () => {
       const fileConfig: HledgerLspConfig = {
-        rootFiles: ['main.journal'],
+        rootFile: 'main.journal',
         include: ['**/*.journal']
       };
 
@@ -329,7 +321,7 @@ describe('ConfigFile', () => {
 
       const merged = mergeConfig(fileConfig, runtimeSettings);
 
-      expect(merged.rootFiles).toEqual(['main.journal']);
+      expect(merged.rootFile).toBe('main.journal');
       expect(merged.include).toEqual(['**/*.journal']);
       expect(merged.exclude).toEqual(['**/temp/**']);
     });
@@ -339,7 +331,7 @@ describe('ConfigFile', () => {
         workspace: {
           enabled: false,
           eagerParsing: false,
-          autoDetectRoots: false
+          autoDetectRoot: false
         }
       };
 
@@ -354,7 +346,7 @@ describe('ConfigFile', () => {
 
       expect(merged.workspace.enabled).toBe(true);
       expect(merged.workspace.eagerParsing).toBe(false);
-      expect(merged.workspace.autoDetectRoots).toBe(false);
+      expect(merged.workspace.autoDetectRoot).toBe(false);
     });
   });
 });

@@ -7,6 +7,7 @@ import { Connection } from 'vscode-languageserver/node';
 const mockConnection = {
   console: {
     log: jest.fn(),
+    info: jest.fn(),
     error: jest.fn(),
     warn: jest.fn()
   }
@@ -188,14 +189,14 @@ include 2024/*.journal`
       );
 
       const diagnostics = manager.getDiagnosticInfo();
-      expect(diagnostics.rootFiles).toBeGreaterThan(0);
+      expect(diagnostics.rootFile).toBe('file:///workspace1/main.journal');
 
-      // main.journal should be a root (it includes others but isn't included)
+      // main.journal should be the root (it includes others but isn't included)
       const rootForMain = manager.getRootForFile('file:///workspace1/main.journal');
       expect(rootForMain).toBe('file:///workspace1/main.journal');
     });
 
-    test('should detect files that include many others as roots', async () => {
+    test('should detect file that includes many others as root', async () => {
       await manager.initialize(
         ['file:///workspace1'],
         parser,
@@ -205,10 +206,10 @@ include 2024/*.journal`
 
       // main.journal includes 3+ files, should be detected as root
       const diagnostics = manager.getDiagnosticInfo();
-      expect(diagnostics.rootFiles).toBeGreaterThan(0);
+      expect(diagnostics.rootFile).toBe('file:///workspace1/main.journal');
     });
 
-    test('should treat all files as roots when no clear root exists', async () => {
+    test('should select best root when multiple candidates exist', async () => {
       // Create a workspace with disconnected files
       await manager.initialize(
         ['file:///workspace2'],
@@ -218,8 +219,8 @@ include 2024/*.journal`
       );
 
       const diagnostics = manager.getDiagnosticInfo();
-      // Both personal.journal and business.journal should be roots
-      expect(diagnostics.rootFiles).toBe(2);
+      // Should pick one of the two files (alphabetically: business.journal comes first)
+      expect(diagnostics.rootFile).toBe('file:///workspace2/business.journal');
     });
   });
 
@@ -265,34 +266,28 @@ include 2024/*.journal`
     });
 
     test('should parse workspace from root', () => {
-      const parsed = manager.parseWorkspace('file:///workspace1/main.journal');
+      const parsed = manager.parseWorkspace();
 
       expect(parsed).toBeDefined();
-      expect(parsed.transactions).toBeDefined();
-      expect(parsed.accounts).toBeDefined();
+      expect(parsed!.transactions).toBeDefined();
+      expect(parsed!.accounts).toBeDefined();
     });
 
     test('should cache parsed workspace', () => {
-      const parsed1 = manager.parseWorkspace('file:///workspace1/main.journal');
+      const parsed1 = manager.parseWorkspace();
       const diagnostics1 = manager.getDiagnosticInfo();
-      expect(diagnostics1.cacheSize).toBe(1);
+      expect(diagnostics1.cached).toBe(true);
 
-      const parsed2 = manager.parseWorkspace('file:///workspace1/main.journal');
+      const parsed2 = manager.parseWorkspace();
       expect(parsed2).toBe(parsed1); // Same object (cached)
     });
 
     test('should force re-parse when requested', () => {
-      const parsed1 = manager.parseWorkspace('file:///workspace1/main.journal');
-      const parsed2 = manager.parseWorkspace('file:///workspace1/main.journal', true);
+      const parsed1 = manager.parseWorkspace();
+      const parsed2 = manager.parseWorkspace(true);
 
       // Different objects (re-parsed)
       expect(parsed2).not.toBe(parsed1);
-    });
-
-    test('should throw error for missing root file', () => {
-      expect(() =>
-        manager.parseWorkspace('file:///workspace1/missing.journal')
-      ).toThrow('Root file not found');
     });
   });
 
@@ -306,40 +301,32 @@ include 2024/*.journal`
       );
     });
 
-    test('should invalidate cache for affected roots', () => {
+    test('should invalidate cache when included file changes', () => {
       // Parse and cache
-      manager.parseWorkspace('file:///workspace1/main.journal');
+      manager.parseWorkspace();
       let diagnostics = manager.getDiagnosticInfo();
-      expect(diagnostics.cacheSize).toBe(1);
+      expect(diagnostics.cached).toBe(true);
 
       // Invalidate a leaf file
       manager.invalidateFile('file:///workspace1/expenses.journal');
 
-      // Cache should be cleared for main.journal (which includes expenses)
+      // Cache should be cleared for the workspace (main.journal includes expenses)
       diagnostics = manager.getDiagnosticInfo();
-      expect(diagnostics.cacheSize).toBe(0);
+      expect(diagnostics.cached).toBe(false);
     });
 
-    test('should not affect unrelated roots', async () => {
-      // This test would work with multiple roots
-      await manager.initialize(
-        ['file:///workspace2'],
-        parser,
-        fileReader,
-        mockConnection
-      );
-
-      manager.parseWorkspace('file:///workspace2/personal.journal');
-      manager.parseWorkspace('file:///workspace2/business.journal');
-
+    test('should not invalidate cache for unrelated files', () => {
+      // Parse and cache
+      manager.parseWorkspace();
       let diagnostics = manager.getDiagnosticInfo();
-      expect(diagnostics.cacheSize).toBe(2);
+      expect(diagnostics.cached).toBe(true);
 
-      // Invalidate personal - should not affect business
-      manager.invalidateFile('file:///workspace2/personal.journal');
+      // Invalidate a file that's not part of the include graph
+      manager.invalidateFile('file:///workspace1/orphan.journal');
 
+      // Cache should still be valid
       diagnostics = manager.getDiagnosticInfo();
-      expect(diagnostics.cacheSize).toBe(1);
+      expect(diagnostics.cached).toBe(true);
     });
   });
 
@@ -366,11 +353,9 @@ include 2024/*.journal`
     });
   });
 
-  describe('multiple roots', () => {
-    test('should prefer root from same workspace folder', async () => {
-      // This test verifies that when a file could belong to multiple roots,
-      // we prefer the root from the same workspace folder
-
+  describe('multiple workspace folders', () => {
+    test('should select single root across all workspace folders', async () => {
+      // With multiple workspace folders, we still select only one root
       await manager.initialize(
         ['file:///workspace1', 'file:///workspace2'],
         parser,
@@ -378,13 +363,12 @@ include 2024/*.journal`
         mockConnection
       );
 
-      // expenses.journal is in workspace1 and included by main.journal
-      const root1 = manager.getRootForFile('file:///workspace1/expenses.journal');
-      expect(root1).toBe('file:///workspace1/main.journal');
+      const diagnostics = manager.getDiagnosticInfo();
+      // Should have exactly one root file
+      expect(diagnostics.rootFile).toBeTruthy();
 
-      // personal.journal is in workspace2
-      const root2 = manager.getRootForFile('file:///workspace2/personal.journal');
-      expect(root2).toBe('file:///workspace2/personal.journal'); // It's a root itself
+      // The root should be main.journal since it has the most includes
+      expect(diagnostics.rootFile).toBe('file:///workspace1/main.journal');
     });
   });
 
@@ -400,18 +384,18 @@ include 2024/*.journal`
       const diagnostics = manager.getDiagnosticInfo();
 
       expect(diagnostics.totalFiles).toBeGreaterThan(0);
-      expect(diagnostics.rootFiles).toBeGreaterThan(0);
-      expect(diagnostics.cacheSize).toBe(0); // No parsing done yet
+      expect(diagnostics.rootFile).toBe('file:///workspace1/main.journal');
+      expect(diagnostics.cached).toBe(false); // No parsing done yet
 
-      manager.parseWorkspace('file:///workspace1/main.journal');
+      manager.parseWorkspace();
 
       const diagnostics2 = manager.getDiagnosticInfo();
-      expect(diagnostics2.cacheSize).toBe(1);
+      expect(diagnostics2.cached).toBe(true);
     });
   });
 
-  describe('getWorkspaceGraph', () => {
-    test('should generate mermaid graph', async () => {
+  describe('getWorkspaceTree', () => {
+    test('should generate text tree', async () => {
       await manager.initialize(
         ['file:///workspace1'],
         parser,
@@ -419,12 +403,16 @@ include 2024/*.journal`
         mockConnection
       );
 
-      const graph = manager.getWorkspaceGraph();
-      expect(graph).toContain('graph TD');
-      expect(graph).toContain('main.journal (Root)');
-      expect(graph).toContain('expenses.journal');
-      expect(graph).toContain('-->');
-      expect(graph).toContain('classDef root');
+      const tree = manager.getWorkspaceTree();
+      expect(tree).toContain('main.journal');
+      expect(tree).toContain('expenses.journal');
+      expect(tree).toContain('income.journal');
+    });
+
+    test('should return message when no root', async () => {
+      // Don't initialize - no root will be identified
+      const tree = manager.getWorkspaceTree();
+      expect(tree).toBe('No root file identified');
     });
   });
 });

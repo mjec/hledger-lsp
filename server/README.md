@@ -331,9 +331,9 @@ infinite recursion
 
 Enable workspace-aware parsing for features that need global context (running balances, completion, validation):
 
-- `workspace.enabled` (boolean, default: true): Enable workspace-aware parsing. When enabled, the server discovers all journal files in your workspace, builds an include graph, and identifies root files. This allows features to access workspace-wide state even when working with "leaf" files that don't include other files.
+- `workspace.enabled` (boolean, default: true): Enable workspace-aware parsing. When enabled, the server discovers all journal files in your workspace, builds an include graph, and identifies a single root file. This allows features to access workspace-wide state even when working with "leaf" files that don't include other files.
 - `workspace.eagerParsing` (boolean, default: true): Parse all discovered files eagerly on startup. If disabled, files are parsed on-demand.
-- `workspace.autoDetectRoots` (boolean, default: true): Automatically detect root files using heuristics (files with no parents, files that include many others). If disabled, only explicitly configured root files are used (see Configuration File Support below).
+- `workspace.autoDetectRoot` (boolean, default: true): Automatically detect the root file using heuristics (prefers files with no parents that include many others, with names like "main", "all", or "index"). If disabled, only an explicitly configured root file is used (see Configuration File Support below).
 
 **Configuration File Support:**
 
@@ -341,19 +341,19 @@ You can create a `.hledger-lsp.json` file in your workspace to explicitly config
 
 ```json
 {
-  "rootFiles": ["main.journal", "budget.journal"],
+  "rootFile": "main.journal",
   "include": ["**/*.journal", "**/*.hledger"],
   "exclude": ["**/archive/**", "**/temp/**"],
   "workspace": {
     "enabled": true,
     "eagerParsing": true,
-    "autoDetectRoots": false
+    "autoDetectRoot": false
   }
 }
 ```
 
 Settings:
-- `rootFiles` (array of strings): Explicit root files (paths relative to config file)
+- `rootFile` (string): Explicit root file path (relative to config file location)
 - `include` (array of glob patterns): File discovery patterns (default: `["**/*.journal", "**/*.hledger"]`)
 - `exclude` (array of glob patterns): Files to exclude (default: `["**/node_modules/**", "**/.git/**", "**/.*"]`)
 - `workspace` (object): Same workspace settings as above

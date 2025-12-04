@@ -1,3 +1,5 @@
+include sub.journal
+
 2024-01-15 Groceries
     expenses:food                              $  50.00
     assets:checking                            $ -50.00

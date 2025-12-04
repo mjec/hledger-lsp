@@ -15,13 +15,13 @@ import { toFilePath, toFileUri } from '../utils/uri';
  */
 export interface HledgerLspConfig {
   /**
-   * Root journal files that should be considered entry points.
-   * These are parsed first and cached for workspace-wide features.
-   * Paths are relative to the config file location.
+   * Root journal file that serves as the entry point to the workspace.
+   * This file is parsed to build the complete include graph.
+   * Path is relative to the config file location.
    *
-   * Example: ["main.journal", "budget.journal"]
+   * Example: "main.journal"
    */
-  rootFiles?: string[];
+  rootFile?: string;
 
   /**
    * Glob patterns for files to include in workspace discovery.
@@ -55,10 +55,10 @@ export interface HledgerLspConfig {
     eagerParsing?: boolean;
 
     /**
-     * Automatically detect root files using heuristics (default: true)
-     * If false, only uses explicitly configured rootFiles
+     * Automatically detect the root file using heuristics (default: true)
+     * If false, only uses explicitly configured rootFile
      */
-    autoDetectRoots?: boolean;
+    autoDetectRoot?: boolean;
   };
 }
 
@@ -66,13 +66,13 @@ export interface HledgerLspConfig {
  * Default configuration values
  */
 const DEFAULT_CONFIG: Required<HledgerLspConfig> = {
-  rootFiles: [],
+  rootFile: undefined as any, // No default root file
   include: ['**/*.journal', '**/*.hledger'],
   exclude: ['**/node_modules/**', '**/.git/**', '**/.*'],
   workspace: {
     enabled: true,
     eagerParsing: true,
-    autoDetectRoots: true
+    autoDetectRoot: true
   }
 };
 
@@ -151,16 +151,12 @@ export function loadConfigFile(configPath: string): ConfigLoadResult {
   // Validate and normalize config
   const config: HledgerLspConfig = {};
 
-  // Validate rootFiles
-  if (rawConfig.rootFiles !== undefined) {
-    if (!Array.isArray(rawConfig.rootFiles)) {
-      warnings.push('rootFiles should be an array, ignoring');
+  // Validate rootFile
+  if (rawConfig.rootFile !== undefined) {
+    if (typeof rawConfig.rootFile !== 'string') {
+      warnings.push('rootFile should be a string, ignoring');
     } else {
-      const validRoots = rawConfig.rootFiles.filter((f: any) => typeof f === 'string');
-      if (validRoots.length !== rawConfig.rootFiles.length) {
-        warnings.push('Some rootFiles entries are not strings, ignoring them');
-      }
-      config.rootFiles = validRoots;
+      config.rootFile = rawConfig.rootFile;
     }
   }
 
@@ -213,11 +209,11 @@ export function loadConfigFile(configPath: string): ConfigLoadResult {
         }
       }
 
-      if (rawConfig.workspace.autoDetectRoots !== undefined) {
-        if (typeof rawConfig.workspace.autoDetectRoots !== 'boolean') {
-          warnings.push('workspace.autoDetectRoots should be a boolean, using default');
+      if (rawConfig.workspace.autoDetectRoot !== undefined) {
+        if (typeof rawConfig.workspace.autoDetectRoot !== 'boolean') {
+          warnings.push('workspace.autoDetectRoot should be a boolean, using default');
         } else {
-          config.workspace.autoDetectRoots = rawConfig.workspace.autoDetectRoots;
+          config.workspace.autoDetectRoot = rawConfig.workspace.autoDetectRoot;
         }
       }
     }
@@ -234,23 +230,21 @@ export function loadConfigFile(configPath: string): ConfigLoadResult {
 }
 
 /**
- * Resolve root file paths relative to config directory
+ * Resolve root file path relative to config directory
  *
  * @param config - The loaded configuration
  * @param configDir - Directory containing the config file
- * @returns Array of absolute file URIs
+ * @returns Absolute file URI, or null if not configured
  */
-export function resolveRootFiles(config: HledgerLspConfig, configDir: string): string[] {
-  if (!config.rootFiles || config.rootFiles.length === 0) {
-    return [];
+export function resolveRootFile(config: HledgerLspConfig, configDir: string): string | null {
+  if (!config.rootFile) {
+    return null;
   }
 
-  return config.rootFiles.map(relPath => {
-    const absPath = path.isAbsolute(relPath)
-      ? relPath
-      : path.resolve(configDir, relPath);
-    return toFileUri(absPath);
-  });
+  const absPath = path.isAbsolute(config.rootFile)
+    ? config.rootFile
+    : path.resolve(configDir, config.rootFile);
+  return toFileUri(absPath);
 }
 
 /**
@@ -270,13 +264,13 @@ export function mergeConfig(
   runtimeSettings?: Partial<HledgerLspConfig>
 ): Required<HledgerLspConfig> {
   return {
-    rootFiles: runtimeSettings?.rootFiles ?? fileConfig.rootFiles ?? DEFAULT_CONFIG.rootFiles,
+    rootFile: runtimeSettings?.rootFile ?? fileConfig.rootFile ?? DEFAULT_CONFIG.rootFile,
     include: runtimeSettings?.include ?? fileConfig.include ?? DEFAULT_CONFIG.include,
     exclude: runtimeSettings?.exclude ?? fileConfig.exclude ?? DEFAULT_CONFIG.exclude,
     workspace: {
       enabled: runtimeSettings?.workspace?.enabled ?? fileConfig.workspace?.enabled ?? DEFAULT_CONFIG.workspace.enabled,
       eagerParsing: runtimeSettings?.workspace?.eagerParsing ?? fileConfig.workspace?.eagerParsing ?? DEFAULT_CONFIG.workspace.eagerParsing,
-      autoDetectRoots: runtimeSettings?.workspace?.autoDetectRoots ?? fileConfig.workspace?.autoDetectRoots ?? DEFAULT_CONFIG.workspace.autoDetectRoots
+      autoDetectRoot: runtimeSettings?.workspace?.autoDetectRoot ?? fileConfig.workspace?.autoDetectRoot ?? DEFAULT_CONFIG.workspace.autoDetectRoot
     }
   };
 }

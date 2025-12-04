@@ -1,10 +1,11 @@
 import { Connection } from 'vscode-languageserver/node';
 import fg from 'fast-glob';
 import * as path from 'path';
+import * as os from 'os';
 import { HledgerParser, FileReader } from '../parser/index';
 import { ParsedDocument, Directive } from '../types';
 import { toFilePath, toFileUri } from '../utils/uri';
-import { HledgerLspConfig, discoverConfigFile, loadConfigFile, resolveRootFiles, mergeConfig } from './configFile';
+import { HledgerLspConfig, discoverConfigFile, loadConfigFile, resolveRootFile, mergeConfig } from './configFile';
 
 export class WorkspaceManager {
   // Core state
@@ -12,8 +13,8 @@ export class WorkspaceManager {
   private journalFiles: Set<string> = new Set();
   private includeGraph: Map<string, Set<string>> = new Map(); // file → files it includes
   private reverseGraph: Map<string, Set<string>> = new Map(); // file → files that include it
-  private rootFiles: Set<string> = new Set();
-  private workspaceCache: Map<string, ParsedDocument> = new Map(); // root → parsed state
+  private rootFile: string | null = null;
+  private workspaceCache: ParsedDocument | null = null; // single cached workspace state
 
   // Configuration
   private config: Required<HledgerLspConfig> | null = null;
@@ -76,14 +77,14 @@ export class WorkspaceManager {
     // Build include graph
     await this.buildIncludeGraph();
 
-    // Identify root files (auto-detect + explicit from config)
-    this.identifyRootFiles();
+    // Identify root file (auto-detect + explicit from config)
+    this.identifyRootFile();
 
     const endTime = Date.now();
     this.metrics.initializationTime = endTime - startTime;
 
-    connection.console.log(
-      `Identified ${this.rootFiles.size} root files (initialized in ${this.metrics.initializationTime}ms)`
+    connection.console.info(
+      `[WorkspaceManager] Root file: ${this.rootFile || 'none'} (initialized in ${this.metrics.initializationTime}ms)`
     );
 
     // Warn if initialization was slow
@@ -172,66 +173,85 @@ export class WorkspaceManager {
   /**
    * Build the include graph by parsing each discovered file for include directives.
    * This creates both forward (file → includes) and reverse (file → included by) mappings.
+   *
+   * IMPORTANT: We parse WITHOUT following includes to get only DIRECT includes,
+   * not transitive ones. This ensures the graph accurately represents the include structure.
    */
   private async buildIncludeGraph(): Promise<void> {
     for (const fileUri of this.journalFiles) {
       const doc = this.fileReader(fileUri);
       if (!doc) continue;
 
-      // Parse the document to extract directives
-      // We do a lightweight parse here - just need directives, not full parsing
+      // Parse WITHOUT following includes - we only want direct include directives from this file
       const parsed = this.parser.parse(doc, {
         baseUri: fileUri,
-        fileReader: this.fileReader
+        // Don't provide fileReader - this prevents following includes
+        fileReader: undefined
       });
 
-      // Extract include directives
+      // Extract include directives from this file only
       const includeDirectives = parsed.directives.filter(
-        (d: Directive) => d.type === 'include'
+        (d: Directive) => d.type === 'include' && d.sourceUri === fileUri
       );
 
-      // Resolve include paths and build graph
-      const includes = new Set<string>();
-
-      for (const directive of includeDirectives) {
-        // Use the same include resolution logic as the parser
-        // resolveIncludePaths is already used by the parser via IncludeManager
-        const includePath = directive.value;
-
-        // Simple resolution for now - we'll leverage the parser's resolution
-        // For graph building, we need to determine which files this one includes
-        // The parser already does this work in IncludeManager.processIncludes
-
-        // Instead of duplicating resolution logic, we can use the parsed document
-        // which already has all included files merged in
-        // We'll track which files were actually included by looking at sourceUri
-
-        // For now, we'll note that this file has include directives
-        // The actual graph will be built from the parsed results
-      }
-
-      // Build graph from the parsed document's source URIs
-      // Collect all unique sourceUris from the parsed document
+      // Now resolve each include directive to get the actual file URIs
       const includedFiles = new Set<string>();
 
-      // Check accounts
-      for (const [_, account] of parsed.accounts) {
-        if (account.sourceUri && account.sourceUri !== fileUri) {
-          includedFiles.add(account.sourceUri);
-        }
-      }
+      for (const directive of includeDirectives) {
+        // The parser's include manager already resolved these paths
+        // We can find which files were meant to be included by looking at
+        // include directives that have the resolved path
 
-      // Check transactions
-      for (const transaction of parsed.transactions) {
-        if (transaction.sourceUri && transaction.sourceUri !== fileUri) {
-          includedFiles.add(transaction.sourceUri);
-        }
-      }
+        // Since we didn't follow includes, we need to resolve the paths ourselves
+        // Get the include manager's resolution logic
+        const includePath = directive.value;
 
-      // Check directives
-      for (const directive of parsed.directives) {
-        if (directive.sourceUri && directive.sourceUri !== fileUri) {
-          includedFiles.add(directive.sourceUri);
+        // Try to resolve this include path to a file URI
+        // We'll check against our discovered journal files
+        const baseDir = path.dirname(toFilePath(fileUri));
+
+        // Handle different include path types
+        let resolvedPaths: string[] = [];
+
+        if (includePath.includes('*') || includePath.includes('?')) {
+          // Glob pattern - find matching files
+          const pattern = path.isAbsolute(includePath)
+            ? includePath
+            : path.join(baseDir, includePath);
+
+          try {
+            const matches = fg.sync(pattern, {
+              cwd: baseDir,
+              absolute: true,
+              onlyFiles: true
+            });
+            resolvedPaths = matches.map(p => toFileUri(p));
+          } catch (err) {
+            this.connection.console.warn(`[WorkspaceManager] Failed to resolve glob pattern ${includePath}: ${err}`);
+          }
+        } else {
+          // Regular file path
+          let resolvedPath: string;
+          if (path.isAbsolute(includePath)) {
+            resolvedPath = includePath;
+          } else if (includePath.startsWith('~/')) {
+            resolvedPath = path.join(os.homedir(), includePath.slice(2));
+          } else {
+            resolvedPath = path.join(baseDir, includePath);
+          }
+
+          const resolvedUri = toFileUri(resolvedPath);
+          // Only add if it's in our discovered files
+          if (this.journalFiles.has(resolvedUri)) {
+            resolvedPaths = [resolvedUri];
+          }
+        }
+
+        // Add all resolved paths to included files
+        for (const resolvedUri of resolvedPaths) {
+          if (this.journalFiles.has(resolvedUri)) {
+            includedFiles.add(resolvedUri);
+          }
         }
       }
 
@@ -239,7 +259,7 @@ export class WorkspaceManager {
       this.includeGraph.set(fileUri, includedFiles);
 
       if (includedFiles.size > 0) {
-        this.connection.console.log(`[WorkspaceManager] ${fileUri} includes ${includedFiles.size} file(s): ${Array.from(includedFiles).join(', ')}`);
+        this.connection.console.log(`[WorkspaceManager] ${fileUri} directly includes ${includedFiles.size} file(s): ${Array.from(includedFiles).join(', ')}`);
       }
 
       // Update reverse graph
@@ -255,130 +275,128 @@ export class WorkspaceManager {
   }
 
   /**
-   * Identify root files using the following algorithm:
-   * 0. Add explicitly configured root files from config
-   * 1. If autoDetectRoots is enabled:
-   *    a. Files with NO parent (not included by anyone) are roots
-   *    b. Files that include many others (>3) are also roots
-   *    c. If no roots found, treat each top-level file as root
+   * Identify the single root file using the following algorithm:
+   * 1. If explicitly configured in config, use that
+   * 2. If autoDetectRoot is enabled, use heuristics to find the best root:
+   *    a. Prefer files with NO parents (not included by anyone)
+   *    b. Among those, prefer the one that includes the most files
+   *    c. If multiple candidates, prefer one with "main" or "all" in the name
+   *    d. If still tied, use alphabetically first
+   * 3. If no suitable root found, return null (workspace features disabled)
    */
-  private identifyRootFiles(): void {
-    this.rootFiles.clear();
+  private identifyRootFile(): void {
+    this.rootFile = null;
 
-    // Step 0: Add explicit root files from config
-    if (this.config && this.config.rootFiles.length > 0 && this.configPath) {
+    // Step 1: Check for explicit root file from config
+    if (this.config && this.config.rootFile && this.configPath) {
       const configDir = path.dirname(this.configPath);
-      const explicitRoots = resolveRootFiles(this.config, configDir);
+      const explicitRoot = resolveRootFile(this.config, configDir);
 
-      for (const rootUri of explicitRoots) {
+      if (explicitRoot) {
         // Verify the file exists and is in our discovered files
-        if (this.journalFiles.has(rootUri)) {
-          this.rootFiles.add(rootUri);
-          this.connection.console.log(`[WorkspaceManager] Root from config: ${rootUri}`);
+        if (this.journalFiles.has(explicitRoot)) {
+          this.rootFile = explicitRoot;
+          this.connection.console.log(`[WorkspaceManager] Using explicit root from config: ${explicitRoot}`);
+          return;
         } else {
           this.connection.console.warn(
-            `[WorkspaceManager] Configured root file not found: ${rootUri}`
+            `[WorkspaceManager] Configured root file not found: ${explicitRoot}`
           );
         }
       }
     }
 
-    // Step 1: Auto-detect roots (if enabled)
-    const shouldAutoDetect = this.config?.workspace?.autoDetectRoots ?? true;
+    // Step 2: Auto-detect root (if enabled)
+    const shouldAutoDetect = this.config?.workspace?.autoDetectRoot ?? true;
 
-    if (shouldAutoDetect) {
-      // Algorithm 1: Find files with no parents
-      for (const fileUri of this.journalFiles) {
-        const parents = this.reverseGraph.get(fileUri);
-        if (!parents || parents.size === 0) {
-          this.rootFiles.add(fileUri);
-          this.connection.console.log(`[WorkspaceManager] Root identified (no parents): ${fileUri}`);
-        } else {
-          this.connection.console.log(`[WorkspaceManager] File has ${parents.size} parent(s): ${fileUri}`);
-        }
-      }
-
-      // Algorithm 2: Find files that include many others (heuristic)
-      const INCLUDE_THRESHOLD = 3;
-      for (const [fileUri, includes] of this.includeGraph) {
-        if (includes.size >= INCLUDE_THRESHOLD) {
-          this.rootFiles.add(fileUri);
-          this.connection.console.log(`[WorkspaceManager] Root identified (many includes): ${fileUri}`);
-        }
-      }
-
-      // Algorithm 3: If no roots found, treat all files as roots
-      if (this.rootFiles.size === 0) {
-        this.connection.console.warn(
-          'No root files detected, treating all journal files as roots'
-        );
-        for (const fileUri of this.journalFiles) {
-          this.rootFiles.add(fileUri);
-        }
-      }
-    } else if (this.rootFiles.size === 0) {
-      // Auto-detect disabled and no explicit roots configured
+    if (!shouldAutoDetect) {
       this.connection.console.warn(
-        'Auto-detect disabled and no root files configured, treating all journal files as roots'
+        '[WorkspaceManager] Auto-detect disabled and no valid root configured, workspace features disabled'
       );
-      for (const fileUri of this.journalFiles) {
-        this.rootFiles.add(fileUri);
+      return;
+    }
+
+    // Find all files with no parents (not included by anyone)
+    const candidateRoots: string[] = [];
+    for (const fileUri of this.journalFiles) {
+      const parents = this.reverseGraph.get(fileUri);
+      if (!parents || parents.size === 0) {
+        candidateRoots.push(fileUri);
+        this.connection.console.log(`[WorkspaceManager] Root candidate (no parents): ${fileUri}`);
       }
     }
+
+    if (candidateRoots.length === 0) {
+      this.connection.console.warn(
+        '[WorkspaceManager] No root candidates found (all files are included by others), workspace features disabled'
+      );
+      return;
+    }
+
+    if (candidateRoots.length === 1) {
+      this.rootFile = candidateRoots[0];
+      this.connection.console.log(`[WorkspaceManager] Auto-detected root: ${this.rootFile}`);
+      return;
+    }
+
+    // Multiple candidates - use heuristics to pick the best one
+    this.connection.console.log(
+      `[WorkspaceManager] Multiple root candidates (${candidateRoots.length}), using heuristics to select best`
+    );
+
+    // Score each candidate
+    const scores = candidateRoots.map(root => {
+      const includeCount = this.includeGraph.get(root)?.size || 0;
+      const basename = path.basename(toFilePath(root)).toLowerCase();
+      const hasMainInName = basename.includes('main') || basename.includes('all') || basename.includes('index');
+
+      return {
+        root,
+        includeCount,
+        hasMainInName,
+        basename
+      };
+    });
+
+    // Sort by: 1) include count (desc), 2) has "main" in name, 3) alphabetically
+    scores.sort((a, b) => {
+      if (a.includeCount !== b.includeCount) {
+        return b.includeCount - a.includeCount;
+      }
+      if (a.hasMainInName !== b.hasMainInName) {
+        return a.hasMainInName ? -1 : 1;
+      }
+      return a.basename.localeCompare(b.basename);
+    });
+
+    this.rootFile = scores[0].root;
+    this.connection.console.log(
+      `[WorkspaceManager] Selected root: ${this.rootFile} (includes: ${scores[0].includeCount}, hasMain: ${scores[0].hasMainInName})`
+    );
   }
 
   /**
    * Get the root file for a given file URI.
-   * Returns the root file that includes (transitively) this file.
+   * Returns the single root file if it transitively includes this file, or null otherwise.
    *
    * Algorithm:
-   * 1. If the file IS a root, return itself
-   * 2. Walk up the reverse graph to find roots that include this file
-   * 3. If multiple roots, prefer one from the same workspace folder
-   * 4. If no root found, return null (triggers fallback)
+   * 1. If no root file identified, return null
+   * 2. If the root file transitively includes this file (or is the file itself), return the root
+   * 3. Otherwise return null (file is not part of the workspace's include graph)
    */
   getRootForFile(uri: string): string | null {
     // If workspace hasn't finished initializing yet, return null
-    // This prevents features from trying to use workspace mode before it's ready
-    if (this.rootFiles.size === 0) {
+    if (!this.rootFile) {
       return null;
     }
 
-    // If this file is a root, return it
-    if (this.rootFiles.has(uri)) {
-      return uri;
+    // Check if the root file transitively includes this file
+    if (this.rootIncludesFile(this.rootFile, uri)) {
+      return this.rootFile;
     }
 
-    // Find all roots that transitively include this file
-    const candidateRoots = new Set<string>();
-
-    for (const root of this.rootFiles) {
-      if (this.rootIncludesFile(root, uri)) {
-        candidateRoots.add(root);
-      }
-    }
-
-    if (candidateRoots.size === 0) {
-      return null;
-    }
-
-    if (candidateRoots.size === 1) {
-      return Array.from(candidateRoots)[0];
-    }
-
-    // Multiple roots - prefer one from same workspace folder
-    const fileFolder = this.getWorkspaceFolder(uri);
-
-    for (const root of candidateRoots) {
-      const rootFolder = this.getWorkspaceFolder(root);
-      if (fileFolder === rootFolder) {
-        return root;
-      }
-    }
-
-    // If no same-folder root, return first alphabetically
-    const sorted = Array.from(candidateRoots).sort();
-    return sorted[0];
+    // File is not part of the workspace's include graph
+    return null;
   }
 
   /**
@@ -437,31 +455,35 @@ export class WorkspaceManager {
   }
 
   /**
-   * Parse the workspace from a root file URI.
+   * Parse the workspace from the root file.
    * Returns a cached ParsedDocument if available, otherwise parses and caches.
    */
-  parseWorkspace(rootUri: string, force: boolean = false): ParsedDocument {
+  parseWorkspace(force: boolean = false): ParsedDocument | null {
+    if (!this.rootFile) {
+      this.connection.console.info('[WorkspaceManager] No root file - cannot parse workspace');
+      return null;
+    }
+
     // Check cache unless force is true
-    if (!force) {
-      const cached = this.workspaceCache.get(rootUri);
-      if (cached) {
-        this.metrics.cacheHits++;
-        return cached;
-      }
+    if (!force && this.workspaceCache) {
+      this.metrics.cacheHits++;
+      this.connection.console.info(`[WorkspaceManager] Using cached workspace (root: ${path.basename(toFilePath(this.rootFile))})`);
+      return this.workspaceCache;
     }
 
     // Cache miss - need to parse
     this.metrics.cacheMisses++;
     const parseStartTime = Date.now();
+    this.connection.console.info(`[WorkspaceManager] Parsing workspace from root: ${this.rootFile}`);
 
     // Parse from root
-    const rootDoc = this.fileReader(rootUri);
+    const rootDoc = this.fileReader(this.rootFile);
     if (!rootDoc) {
-      throw new Error(`Root file not found: ${rootUri}`);
+      throw new Error(`Root file not found: ${this.rootFile}`);
     }
 
     const parsed = this.parser.parse(rootDoc, {
-      baseUri: rootUri,
+      baseUri: this.rootFile,
       fileReader: this.fileReader
     });
 
@@ -470,36 +492,35 @@ export class WorkspaceManager {
     this.metrics.totalParseTime += parseTime;
     this.metrics.parseCount++;
 
+    // Log parse completion
+    this.connection.console.info(
+      `[WorkspaceManager] Parsed workspace in ${parseTime}ms (${parsed.transactions.length} transactions, ${parsed.accounts.size} accounts)`
+    );
+
     // Log slow parses
     if (parseTime > 1000) {
       this.connection.console.warn(
-        `Slow parse detected: ${rootUri} took ${parseTime}ms`
+        `[WorkspaceManager] Slow parse detected: ${this.rootFile} took ${parseTime}ms`
       );
     }
 
     // Cache the result
-    this.workspaceCache.set(rootUri, parsed);
+    this.workspaceCache = parsed;
 
     return parsed;
   }
 
   /**
    * Invalidate the cache for a file.
-   * Clears the workspace cache for all roots that transitively include this file.
+   * Clears the workspace cache if the root file transitively includes this file.
    */
   invalidateFile(uri: string): void {
-    // Find all roots that include this file
-    const affectedRoots = new Set<string>();
-
-    for (const root of this.rootFiles) {
-      if (this.rootIncludesFile(root, uri)) {
-        affectedRoots.add(root);
-      }
-    }
-
-    // Clear cache for affected roots
-    for (const root of affectedRoots) {
-      this.workspaceCache.delete(root);
+    // If root file includes this file, clear the workspace cache
+    if (this.rootFile && this.rootIncludesFile(this.rootFile, uri)) {
+      this.connection.console.info(`[WorkspaceManager] Invalidating cache due to change in: ${uri}`);
+      this.workspaceCache = null;
+    } else {
+      this.connection.console.info(`[WorkspaceManager] File change doesn't affect workspace cache: ${uri}`);
     }
 
     // Also clear the parser's include cache
@@ -512,8 +533,8 @@ export class WorkspaceManager {
    */
   getDiagnosticInfo(): {
     totalFiles: number;
-    rootFiles: number;
-    cacheSize: number;
+    rootFile: string | null;
+    cached: boolean;
     configFile: string | null;
     performance: {
       initializationTime: number;
@@ -535,8 +556,8 @@ export class WorkspaceManager {
 
     return {
       totalFiles: this.journalFiles.size,
-      rootFiles: this.rootFiles.size,
-      cacheSize: this.workspaceCache.size,
+      rootFile: this.rootFile,
+      cached: this.workspaceCache !== null,
       configFile: this.configPath,
       performance: {
         initializationTime: this.metrics.initializationTime,
@@ -557,8 +578,9 @@ export class WorkspaceManager {
   logDiagnostics(): void {
     const info = this.getDiagnosticInfo();
     this.connection.console.log('=== WorkspaceManager Diagnostics ===');
-    this.connection.console.log(`Files: ${info.totalFiles} total, ${info.rootFiles} roots`);
-    this.connection.console.log(`Cache: ${info.cacheSize} entries`);
+    this.connection.console.log(`Files: ${info.totalFiles} total`);
+    this.connection.console.log(`Root: ${info.rootFile || 'none'}`);
+    this.connection.console.log(`Cache: ${info.cached ? 'populated' : 'empty'}`);
     this.connection.console.log(`Config: ${info.configFile || 'none'}`);
     this.connection.console.log('Performance:');
     this.connection.console.log(`  Initialization: ${info.performance.initializationTime}ms`);
@@ -573,14 +595,13 @@ export class WorkspaceManager {
    * Generate a text-based tree representation of the workspace.
    */
   getWorkspaceTree(): string {
-    const lines: string[] = [];
-    const sortedRoots = Array.from(this.rootFiles).sort();
-
-    for (const root of sortedRoots) {
-      lines.push(path.basename(toFilePath(root)));
-      this.printTree(root, '', lines, new Set([root]));
-      lines.push(''); // Empty line between trees
+    if (!this.rootFile) {
+      return 'No root file identified';
     }
+
+    const lines: string[] = [];
+    lines.push(path.basename(toFilePath(this.rootFile)));
+    this.printTree(this.rootFile, '', lines, new Set([this.rootFile]));
 
     return lines.join('\n');
   }
@@ -590,18 +611,18 @@ export class WorkspaceManager {
    * Returns an array of entries with display text and absolute file paths.
    */
   getWorkspaceTreeStructured(): Array<{ display: string; path: string; uri: string }> {
-    const entries: Array<{ display: string; path: string; uri: string }> = [];
-    const sortedRoots = Array.from(this.rootFiles).sort();
-
-    for (const root of sortedRoots) {
-      const rootPath = toFilePath(root);
-      entries.push({
-        display: path.basename(rootPath),
-        path: rootPath,
-        uri: root
-      });
-      this.collectTreeEntries(root, '', entries, new Set([root]));
+    if (!this.rootFile) {
+      return [];
     }
+
+    const entries: Array<{ display: string; path: string; uri: string }> = [];
+    const rootPath = toFilePath(this.rootFile);
+    entries.push({
+      display: path.basename(rootPath),
+      path: rootPath,
+      uri: this.rootFile
+    });
+    this.collectTreeEntries(this.rootFile, '', entries, new Set([this.rootFile]));
 
     return entries;
   }
