@@ -305,7 +305,7 @@ describe('HoverProvider', () => {
       expect(value).toContain('Code');
       expect(value).toContain('CODE123');
       expect(value).toContain('Totals');
-      expect(value).toContain('0.00 $');
+      expect(value).toContain('$0.00');
       expect(value).toContain('Postings');
       expect(value).toContain('2');
     });
@@ -324,8 +324,8 @@ describe('HoverProvider', () => {
       expect(hover).not.toBeNull();
       const value = (hover?.contents as any)?.value || '';
       expect(value).toContain('Totals');
-      expect(value).toContain('100.00 $');
-      expect(value).toContain('-90.00 €');
+      expect(value).toContain('$100.00');
+      expect(value).toContain('-€90.00');
     });
 
     test('shows pending transaction status', () => {

@@ -13,6 +13,7 @@ import {
 } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument } from '../types';
+import { formatAmount } from '../utils/amountFormatter';
 
 export class CodeActionProvider {
   /**
@@ -64,7 +65,7 @@ export class CodeActionProvider {
     // Check for split posting refactoring actions
     const postingInfo = this.getPostingAtPosition(document, range.start);
     if (postingInfo) {
-      actions.push(...this.createSplitPostingActions(document, postingInfo));
+      actions.push(...this.createSplitPostingActions(document, postingInfo, parsedDoc));
     }
 
     // Note: Rename refactoring is now handled via the LSP rename provider
@@ -605,13 +606,14 @@ export class CodeActionProvider {
    */
   private createSplitPostingActions(
     document: TextDocument,
-    postingInfo: { line: number; account: string; amount: { quantity: number; commodity: string } }
+    postingInfo: { line: number; account: string; amount: { quantity: number; commodity: string } },
+    parsedDoc: ParsedDocument
   ): CodeAction[] {
     const actions: CodeAction[] = [];
 
     // Add split actions for 2, 3, and 4 parts
     for (const parts of [2, 3, 4]) {
-      actions.push(this.createSplitPostingAction(document, postingInfo, parts));
+      actions.push(this.createSplitPostingAction(document, postingInfo, parts, parsedDoc));
     }
 
     return actions;
@@ -623,7 +625,8 @@ export class CodeActionProvider {
   private createSplitPostingAction(
     document: TextDocument,
     postingInfo: { line: number; account: string; amount: { quantity: number; commodity: string } },
-    parts: number
+    parts: number,
+    parsedDoc: ParsedDocument
   ): CodeAction {
     const splitAmounts = this.splitAmountEqually(postingInfo.amount, parts);
     const lines = document.getText().split('\n');
@@ -637,7 +640,7 @@ export class CodeActionProvider {
     const newPostings: string[] = [];
 
     // Leave the first account unchanged
-    const formattedFirstAmount = this.formatAmount(splitAmounts[0])
+    const formattedFirstAmount = formatAmount(splitAmounts[0].quantity, splitAmounts[0].commodity, parsedDoc);
     const firstPosting = `${indent}${postingInfo.account}${' '.repeat(Math.max(2, 40 - postingInfo.account.length))}${formattedFirstAmount}`;
     newPostings.push(firstPosting);
     for (let i = 1; i < parts; i++) {
@@ -646,7 +649,7 @@ export class CodeActionProvider {
       const amount = splitAmounts[i];
 
       // Format the amount
-      const formattedAmount = this.formatAmount(amount);
+      const formattedAmount = formatAmount(amount.quantity, amount.commodity, parsedDoc);
       const newPosting = `${indent}${newAccount}${' '.repeat(Math.max(2, 40 - newAccount.length))}${formattedAmount}`;
       newPostings.push(newPosting);
     }
@@ -707,25 +710,6 @@ export class CodeActionProvider {
     return result;
   }
 
-  /**
-   * Format an amount for display
-   */
-  private formatAmount(amount: { quantity: number; commodity: string }): string {
-    const absQuantity = Math.abs(amount.quantity);
-    const sign = amount.quantity < 0 ? '-' : '';
-
-    // Format with 2 decimal places
-    const formatted = absQuantity.toFixed(2);
-
-    // Common commodity symbols that go before the number
-    const symbolsBeforeNumber = ['$', '£', '€', '¥', '₹'];
-
-    if (symbolsBeforeNumber.includes(amount.commodity)) {
-      return `${sign}${amount.commodity}${formatted}`;
-    } else {
-      return `${sign}${formatted} ${amount.commodity}`;
-    }
-  }
 }
 
 export const codeActionProvider = new CodeActionProvider();

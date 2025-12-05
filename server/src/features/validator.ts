@@ -14,6 +14,8 @@ import { ParsedDocument, Transaction, Posting } from '../types';
 import { FileReader } from '../parser/index';
 import { resolveIncludePath, resolveIncludePaths } from '../utils/uri';
 import { defaultSettings } from '../server/settings';
+import { calculateTransactionBalance } from '../utils/balanceCalculator';
+import { formatAmount } from '../utils/amountFormatter';
 
 export interface ValidationResult {
   diagnostics: Diagnostic[];
@@ -97,7 +99,7 @@ export class Validator {
 
       // Check balance
       if (isEnabled('balance')) {
-        const balanceIssues = this.validateBalance(transaction, document);
+        const balanceIssues = this.validateBalance(transaction, document, parsedDoc);
         diagnostics.push(...balanceIssues);
       }
 
@@ -169,40 +171,17 @@ export class Validator {
    * Validate transaction balance
    * Transactions must balance (all amounts sum to zero per commodity)
    */
-  private validateBalance(transaction: Transaction, document: TextDocument): Diagnostic[] {
+  private validateBalance(transaction: Transaction, document: TextDocument, parsedDoc: ParsedDocument): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
-    // Group postings by commodity
-    const balances = new Map<string, number>();
+    // Calculate transaction balance by commodity
+    const balances = calculateTransactionBalance(transaction);
 
     // Count how many postings have amounts
     let postingsWithAmounts = 0;
-
     for (const posting of transaction.postings) {
       if (posting.amount) {
         postingsWithAmounts++;
-
-        // If posting has a cost, use the cost commodity for balance calculation
-        if (posting.cost) {
-          const costCommodity = posting.cost.amount.commodity || '';
-          let costValue: number;
-
-          if (posting.cost.type === 'unit') {
-            // @ unitPrice: total cost = quantity * unitPrice
-            costValue = posting.amount.quantity * posting.cost.amount.quantity;
-          } else {
-            // @@ totalPrice: use total price directly
-            costValue = posting.cost.amount.quantity;
-          }
-
-          const current = balances.get(costCommodity) || 0;
-          balances.set(costCommodity, current + costValue);
-        } else {
-          // No cost notation, use the posting's commodity
-          const commodity = posting.amount.commodity || '';
-          const current = balances.get(commodity) || 0;
-          balances.set(commodity, current + posting.amount.quantity);
-        }
       }
     }
 
@@ -211,11 +190,13 @@ export class Validator {
       for (const [commodity, balance] of balances.entries()) {
         // Allow for small floating point errors
         if (Math.abs(balance) > 0.005) {
-          const commodityStr = commodity ? ` ${commodity}` : '';
+          const formattedBalance = commodity
+            ? formatAmount(balance, commodity, parsedDoc)
+            : balance.toFixed(2);
           diagnostics.push({
             severity: DiagnosticSeverity.Error,
             range: this.getTransactionRange(transaction, document),
-            message: `Transaction does not balance: ${balance.toFixed(2)}${commodityStr} off`,
+            message: `Transaction does not balance: ${formattedBalance} off`,
             source: 'hledger'
           });
         }
@@ -463,39 +444,6 @@ export class Validator {
   }
 
   /**
-   * Format an amount with commodity according to declared format
-   */
-  private formatAmountWithCommodity(
-    quantity: number,
-    commodityName: string,
-    parsedDoc: ParsedDocument
-  ): string {
-    // Find commodity format
-    const commodity = parsedDoc.commodities.get(commodityName);
-
-    if (!commodity?.format) {
-      // No format declared, use default: amount then commodity with space
-      return commodityName ? `${quantity.toFixed(2)} ${commodityName}` : quantity.toFixed(2);
-    }
-
-    const format = commodity.format;
-    const symbol = format.symbol || commodityName;
-    const symbolOnLeft = format.symbolOnLeft ?? false;
-    const spaceBetween = format.spaceBetween ?? true;
-    const space = spaceBetween ? ' ' : '';
-
-    // Use precision from format, or default to 2
-    const precision = format.precision ?? 2;
-    const formattedNumber = quantity.toFixed(precision);
-
-    if (symbolOnLeft) {
-      return `${symbol}${space}${formattedNumber}`;
-    } else {
-      return `${formattedNumber}${space}${symbol}`;
-    }
-  }
-
-  /**
    * Validate balance assertions
    * Check if balance assertions match calculated balances
    */
@@ -536,8 +484,8 @@ export class Validator {
           // Allow for small floating point errors
           if (Math.abs(actualBalance - expectedBalance) > 0.005) {
             const range = this.findPostingRange(transaction, posting, document);
-            const expectedFormatted = this.formatAmountWithCommodity(expectedBalance, commodity, parsedDoc);
-            const actualFormatted = this.formatAmountWithCommodity(actualBalance, commodity, parsedDoc);
+            const expectedFormatted = formatAmount(expectedBalance, commodity, parsedDoc);
+            const actualFormatted = formatAmount(actualBalance, commodity, parsedDoc);
 
             diagnostics.push({
               severity: DiagnosticSeverity.Error,

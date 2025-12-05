@@ -36,7 +36,7 @@ describe('InlayHintsProvider', () => {
       });
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe('  $-50.00');
+      expect(labelToString(hints[0].label)).toBe('  -$50.00');
       expect(hints[0].kind).toBe(InlayHintKind.Parameter);
       expect(hints[0].position.line).toBe(2);
     });
@@ -78,7 +78,7 @@ describe('InlayHintsProvider', () => {
       });
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe('  $-1000.00');
+      expect(labelToString(hints[0].label)).toBe('  -$1000.00');
       expect(hints[0].position.line).toBe(2);
     });
 
@@ -98,7 +98,7 @@ describe('InlayHintsProvider', () => {
       });
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe('  $-135.00');
+      expect(labelToString(hints[0].label)).toBe('  -$135.00');
       expect(hints[0].position.line).toBe(2);
     });
 
@@ -159,7 +159,7 @@ describe('InlayHintsProvider', () => {
       // Running balance shows cumulative balance per account
       expect(labelToString(hints[0].label)).toContain('$50.00');  // expenses:food balance after this transaction
       expect(hints[0].kind).toBe(InlayHintKind.Type);
-      expect(labelToString(hints[1].label)).toContain('$-50.00'); // assets:checking balance after this transaction
+      expect(labelToString(hints[1].label)).toContain('-$50.00'); // assets:checking balance after this transaction
     });
 
     test('should show balance before comment', () => {
@@ -251,7 +251,7 @@ describe('InlayHintsProvider', () => {
 
       // First transaction: checking = $1000, equity:opening = $-1000 (inferred)
       expect(labelToString(hints[0].label)).toContain('$1000.00');
-      expect(labelToString(hints[1].label)).toContain('$-1000.00'); // equity:opening balance (inferred amount)
+      expect(labelToString(hints[1].label)).toContain('-$1000.00'); // equity:opening balance (inferred amount)
 
       // Second transaction: food = $50, checking = $950 (1000 - 50)
       expect(labelToString(hints[2].label)).toContain('$50.00');  // expenses:food first occurrence
@@ -372,7 +372,7 @@ describe('InlayHintsProvider', () => {
 
       expect(hints).toHaveLength(1);
       expect(hints[0].position.line).toBe(6);
-      expect(labelToString(hints[0].label)).toBe('  $-1000.00');
+      expect(labelToString(hints[0].label)).toBe('  -$1000.00');
     });
 
     test('should handle empty range', () => {
@@ -414,7 +414,7 @@ describe('InlayHintsProvider', () => {
       expect(hints.length).toBeGreaterThanOrEqual(2);
 
       const costHint = hints.find(h => labelToString(h.label).includes('@@'));
-      const inferredHint = hints.find(h => labelToString(h.label).includes('-1000'));
+      const inferredHint = hints.find(h => labelToString(h.label).includes('-$1000') || labelToString(h.label).includes('$-1000'));
 
       expect(costHint).toBeDefined();
       expect(inferredHint).toBeDefined();
@@ -554,7 +554,7 @@ include balance-include-other.journal
       expect(line4Hints.length).toBeGreaterThan(0);
 
       const line4Label = labelToString(line4Hints[0].label);
-      expect(line4Label).toContain('$-90.00');
+      expect(line4Label).toContain('-$90.00');
     });
   });
 });

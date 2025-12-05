@@ -1,7 +1,5 @@
 import { Location, Range, Position } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { parser } from '../parser/index';
-
 import { ParsedDocument } from '../types';
 
 export class DefinitionProvider {

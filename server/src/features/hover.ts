@@ -14,6 +14,8 @@ import { Hover, MarkupKind } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction } from '../types';
 import { isTransactionHeader } from '../utils/index';
+import { calculateTransactionBalanceSimple } from '../utils/balanceCalculator';
+import { formatAmount } from '../utils/amountFormatter';
 
 export class HoverProvider {
   /**
@@ -359,13 +361,15 @@ export class HoverProvider {
     }
 
     // Calculate totals per commodity
-    const totals = this.calculateTransactionTotals(transaction);
+    const totals = calculateTransactionBalanceSimple(transaction);
     if (Object.keys(totals).length > 0) {
       const totalLines: string[] = ['**Totals:**'];
       for (const [commodity, total] of Object.entries(totals)) {
         const sign = total >= 0 ? '+' : '';
-        const commodityStr = commodity || '(no commodity)';
-        totalLines.push(`- ${sign}${total.toFixed(2)} ${commodityStr}`);
+        const formattedAmount = commodity
+          ? formatAmount(total, commodity, parsed)
+          : total.toFixed(2);
+        totalLines.push(`- ${sign}${formattedAmount}`);
       }
       parts.push(totalLines.join('\n'));
     }
@@ -379,22 +383,6 @@ export class HoverProvider {
         value: parts.join('\n\n')
       }
     };
-  }
-
-  /**
-   * Calculate transaction totals per commodity
-   */
-  private calculateTransactionTotals(transaction: Transaction): Record<string, number> {
-    const totals: Record<string, number> = {};
-
-    for (const posting of transaction.postings) {
-      if (posting.amount) {
-        const commodity = posting.amount.commodity || '';
-        totals[commodity] = (totals[commodity] || 0) + posting.amount.quantity;
-      }
-    }
-
-    return totals;
   }
 
   /**

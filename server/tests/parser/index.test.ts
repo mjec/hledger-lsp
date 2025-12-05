@@ -1978,28 +1978,4 @@ include common.journal
     });
   });
 
-  describe('validateBalance', () => {
-    test('should validate a balanced transaction', () => {
-      const transaction = {
-        date: '2024-01-15',
-        description: 'Test',
-        payee: 'Test',
-        note: 'Test',
-        postings: [
-          {
-            account: 'expenses:food',
-            amount: expect.objectContaining({ quantity: 50, commodity: 'USD' })
-          },
-          {
-            account: 'assets:checking',
-            amount: expect.objectContaining({ quantity: -50, commodity: 'USD' })
-          }
-        ]
-      };
-
-      // Currently returns true as placeholder
-      const result = parser.validateBalance(transaction);
-      expect(typeof result).toBe('boolean');
-    });
-  });
 });

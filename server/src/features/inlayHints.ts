@@ -10,6 +10,8 @@
 import { InlayHint, InlayHintKind, InlayHintLabelPart, Position, Range, Command } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction, Posting } from '../types';
+import { formatAmount } from '../utils/amountFormatter';
+import { calculateTransactionBalance } from '../utils/balanceCalculator';
 
 export interface InlayHintsSettings {
   /** Show inferred amounts on postings without explicit amounts */
@@ -27,40 +29,6 @@ const DEFAULT_SETTINGS: Required<InlayHintsSettings> = {
 };
 
 export class InlayHintsProvider {
-  /**
-   * Format an amount with proper commodity placement
-   */
-  private formatAmount(quantity: number, commodity: string, parsed: ParsedDocument): string {
-    // Find commodity format if available
-    const commodityInfo = parsed.commodities.get(commodity);
-
-    // Determine commodity placement
-    let commodityBefore = '';
-    let commodityAfter = '';
-
-    if (commodityInfo?.format) {
-      if (commodityInfo.format.symbolOnLeft) {
-        commodityBefore = commodityInfo.format.symbol || commodity;
-      } else {
-        commodityAfter = commodityInfo.format.symbol || commodity;
-      }
-    } else if (commodity) {
-      // Default heuristic: common currencies go on left
-      const leftSymbols = ['$', '€', '£', '¥'];
-      if (leftSymbols.includes(commodity)) {
-        commodityBefore = commodity;
-      } else {
-        commodityAfter = ' ' + commodity;
-      }
-    }
-
-    // Format the number
-    const formattedNumber = quantity.toFixed(2);
-
-    // Build the formatted amount
-    return commodityBefore + formattedNumber + commodityAfter;
-  }
-
   /**
    * Provide inlay hints for a document
    */
@@ -127,37 +95,13 @@ export class InlayHintsProvider {
     }
 
     // Calculate the inferred amount(s)
-    // Group by commodity
-    const balances = new Map<string, number>();
-
-    for (const posting of transaction.postings) {
-      if (posting.amount) {
-        // Use cost commodity if cost is present
-        if (posting.cost) {
-          const costCommodity = posting.cost.amount.commodity || '';
-          let costValue: number;
-
-          if (posting.cost.type === 'unit') {
-            costValue = posting.amount.quantity * posting.cost.amount.quantity;
-          } else {
-            costValue = posting.cost.amount.quantity;
-          }
-
-          const current = balances.get(costCommodity) || 0;
-          balances.set(costCommodity, current + costValue);
-        } else {
-          const commodity = posting.amount.commodity || '';
-          const current = balances.get(commodity) || 0;
-          balances.set(commodity, current + posting.amount.quantity);
-        }
-      }
-    }
+    const balances = calculateTransactionBalance(transaction);
 
     // The inferred amount is the negation of the sum
     const inferredAmounts: string[] = [];
     for (const [commodity, balance] of balances.entries()) {
       const amount = -balance;
-      inferredAmounts.push(this.formatAmount(amount, commodity, parsed));
+      inferredAmounts.push(formatAmount(amount, commodity, parsed));
     }
 
     // Find posting(s) without amounts and add hints
@@ -378,7 +322,7 @@ export class InlayHintsProvider {
         // Format all commodity balances for this posting
         const balanceHints: string[] = [];
         for (const [commodity, balance] of balanceMap.entries()) {
-          const formattedBalance = this.formatAmount(balance, commodity, parsed);
+          const formattedBalance = formatAmount(balance, commodity, parsed);
           balanceHints.push(formattedBalance);
         }
 
@@ -439,7 +383,7 @@ export class InlayHintsProvider {
         if (costMatch) {
           const costEnd = line.indexOf(costMatch[0]) + costMatch[0].length;
 
-          const formattedCost = this.formatAmount(totalCost, posting.cost.amount.commodity || '', parsed);
+          const formattedCost = formatAmount(totalCost, posting.cost.amount.commodity || '', parsed);
 
           // For unit cost (@), show total cost equivalent (@@ notation)
           const labelPart: InlayHintLabelPart = {

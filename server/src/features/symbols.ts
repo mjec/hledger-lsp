@@ -5,6 +5,7 @@
 import { DocumentSymbol, SymbolInformation, SymbolKind, Range, Location } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction, Directive } from '../types';
+import { formatAmount } from '../utils/amountFormatter';
 
 export class DocumentSymbolProvider {
   /**
@@ -61,7 +62,9 @@ export class DocumentSymbolProvider {
           const postingLine = this.findPostingLine(lines, posting.account, line, endLine);
           if (postingLine !== -1) {
             const postingRange = Range.create(postingLine, 0, postingLine, lines[postingLine].length);
-            const amountStr = posting.amount ? ` ${posting.amount.quantity}${posting.amount.commodity}` : '';
+            const amountStr = posting.amount
+              ? ` ${formatAmount(posting.amount.quantity, posting.amount.commodity, parsedDoc)}`
+              : '';
 
             children.push({
               name: posting.account + amountStr,

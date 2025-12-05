@@ -1,5 +1,4 @@
-import { Transaction, Posting, Amount, Cost, Account, Payee, Commodity, Tag, Directive, DecimalMark, ThousandsSeparator, Format } from '../types';
-import { TextDocument } from 'vscode-languageserver-textdocument';
+import { Transaction, Posting, Amount, Account, Payee, Commodity, Tag, Directive, DecimalMark, ThousandsSeparator, Format } from '../types';
 import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment, isDirective } from '../utils/index';
 
 /**

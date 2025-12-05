@@ -59,10 +59,7 @@ connection.console.log('========== HLEDGER LSP SERVER STARTING ==========');
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
 let hasConfigurationCapability = false;
-let hasWorkspaceFolderCapability = false;
-let hasDiagnosticRelatedInformationCapability = false;
 let hasDidChangeConfigurationDynamicRegistration = false;
-let hasWorkspaceFoldersDynamicRegistration = false;
 let hasInlayHintRefreshSupport = false;
 let hasCodeLensRefreshSupport = false;
 
@@ -82,23 +79,12 @@ connection.onInitialize((params: InitializeParams) => {
   hasConfigurationCapability = !!(
     capabilities.workspace && !!capabilities.workspace.configuration
   );
-  hasWorkspaceFolderCapability = !!(
-    capabilities.workspace && !!capabilities.workspace.workspaceFolders
-  );
-  hasDiagnosticRelatedInformationCapability = !!(
-    capabilities.textDocument &&
-    capabilities.textDocument.publishDiagnostics &&
-    capabilities.textDocument.publishDiagnostics.relatedInformation
-  );
   // Check if client supports dynamic registration for didChangeConfiguration
   hasDidChangeConfigurationDynamicRegistration = !!(
     capabilities.workspace &&
     capabilities.workspace.didChangeConfiguration &&
     capabilities.workspace.didChangeConfiguration.dynamicRegistration
   );
-  // Check if client supports dynamic registration for workspace folders
-  // (Not currently used, kept for future reference)
-  hasWorkspaceFoldersDynamicRegistration = false;
 
   // Check if client supports inlay hint refresh
   hasInlayHintRefreshSupport = !!(
@@ -408,16 +394,8 @@ documents.onDidChangeContent(change => {
         connection.console.warn(`[Cascade Refresh] Cannot refresh inlay hints - client does not support refresh (${affectedDocs.length} affected docs)`);
       }
 
-      // Refresh code lenses for all affected documents
-      // This updates transaction counts, running balance lenses
-      // Note: codeLens refresh is not part of the standard LSP interface in this version
-      // It requires manual re-request from the client
-      if (affectedDocs.length > 0) {
-        // Code lens will refresh when the client next requests them
-        // We've already invalidated the workspace cache above
-      }
-    } else {
-      // No root found for the changed document, skipping cascade
+      // Note: Code lenses will refresh when the client next requests them
+      // We've already invalidated the workspace cache above, which is sufficient
     }
   }
 });

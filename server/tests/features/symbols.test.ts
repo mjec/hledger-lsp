@@ -230,9 +230,9 @@ account Assets:Bank
       expect(symbols.length).toBe(1);
       expect(symbols[0].children?.length).toBe(2);
       expect(symbols[0].children?.[0].name).toContain('Assets:Bank');
-      expect(symbols[0].children?.[0].name).toContain('100');
+      expect(symbols[0].children?.[0].name).toContain('$100');
       expect(symbols[0].children?.[1].name).toContain('Income:Salary');
-      expect(symbols[0].children?.[1].name).toContain('-100');
+      expect(symbols[0].children?.[1].name).toContain('-$100');
     });
 
     test('should handle posting without amount', () => {

@@ -186,14 +186,6 @@ export class HledgerParser {
 
     return result;
   }
-
-  /**
-   * Validate transaction balance
-   */
-  validateBalance(transaction: Transaction): boolean {
-    // TODO: Implement balance validation
-    return true;
-  }
 }
 
 export const parser = new HledgerParser();
