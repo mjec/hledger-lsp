@@ -56,7 +56,7 @@ export interface HledgerSettings {
   workspace?: {
     enabled?: boolean;
     eagerParsing?: boolean;
-    autoDetectRoots?: boolean;
+    autoDetectRoot?: boolean;
   };
 }
 
@@ -116,7 +116,7 @@ export const defaultSettings: HledgerSettings = {
   workspace: {
     enabled: true,
     eagerParsing: true,
-    autoDetectRoots: true,
+    autoDetectRoot: true,
   }
 };
 

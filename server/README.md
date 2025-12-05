@@ -174,103 +174,15 @@ language server can be used with any LSP-compatible editor.
 
 ### Neovim
 
-See [../docs/neovim-setup.md](../docs/neovim-setup.md) for complete setup instructions including LazyVim configuration, standard nvim-lspconfig setup, root directory detection, and troubleshooting.
+Use the dedicated plugin: [ptimoney/hledger-nvim](https://github.com/ptimoney/hledger-nvim)
 
-**Quick start for LazyVim users:**
+The plugin provides:
+- Automatic LSP configuration
+- Filetype detection for `.journal` and `.hledger` files
+- Workspace graph visualization (`:HledgerGraph`)
+- Easy configuration of all server settings
 
-1. Add filetype detection in `~/.config/nvim/lua/config/options.lua`:
-
-```lua
-vim.filetype.add({
-  extension = {
-    journal = "hledger",
-    hledger = "hledger",
-  },
-})
-```
-
-2. Create `~/.config/nvim/lua/plugins/hledger.lua`:
-
-```lua
-return {
-  "neovim/nvim-lspconfig",
-  ft = { "hledger", "journal" },
-  opts = {
-    servers = {
-      hledger_lsp = {
-        settings = {
-          hledgerLanguageServer = {
-            inlayHints = {
-              showInferredAmounts = true,
-              showRunningBalances = true,
-              showCostConversions = true,
-            },
-            codeLens = {
-              showRunningBalances = true,
-              showTransactionCounts = true,
-            },
-            -- See settings documentation below for all options
-          },
-        },
-      },
-    },
-    setup = {
-      hledger_lsp = function(_, opts)
-        local lspconfig = require("lspconfig")
-        local util = require("lspconfig.util")
-        local configs = require("lspconfig.configs")
-
-        if not configs.hledger_lsp then
-          configs.hledger_lsp = {
-            default_config = {
-              cmd = { "hledger-lsp", "--stdio" },
-              filetypes = { "hledger", "journal" },
-              root_dir = function(fname)
-                return util.root_pattern(".hledger-lsp.json", "main.journal", "all.journal", ".git")(fname)
-                  or vim.fs.dirname(fname)
-              end,
-              single_file_support = true,
-            },
-          }
-        end
-
-        lspconfig.hledger_lsp.setup(opts)
-
-        -- Attach to already-open buffers (fixes first file open issue)
-        vim.schedule(function()
-          for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-            if vim.api.nvim_buf_is_loaded(buf) then
-              local ft = vim.api.nvim_get_option_value("filetype", { buf = buf })
-              if ft == "hledger" or ft == "journal" then
-                local clients = vim.lsp.get_clients({ bufnr = buf, name = "hledger_lsp" })
-                if #clients == 0 then
-                  lspconfig.hledger_lsp.manager:try_add_wrapper(buf)
-                end
-              end
-            end
-          end
-        end)
-
-        return true
-      end,
-    },
-  },
-}
-```
-
-**Optional:** Enable code lens auto-refresh by adding an `on_attach` handler to the `hledger_lsp` server settings:
-
-```lua
-on_attach = function(client, bufnr)
-  if client.server_capabilities.codeLensProvider then
-    vim.lsp.codelens.refresh()
-    vim.api.nvim_create_autocmd({ "BufEnter", "CursorHold", "InsertLeave" }, {
-      buffer = bufnr,
-      callback = vim.lsp.codelens.refresh,
-    })
-  end
-end,
-```
+See the plugin repository for installation and configuration instructions.
 
 ### VS Code
 
@@ -287,28 +199,23 @@ problems to report per file
 
 ### Validation Settings
 
-All validation settings default to `true` and can be individually disabled:
+Most validation settings default to `true` and can be individually disabled:
 
-- `validation.balance`: Verify transactions balance to zero per commodity
-- `validation.missingAmounts`: Ensure at most one posting per transaction omits
-an amount
-- `validation.undeclaredAccounts`: Warn about accounts used but not declared
-- `validation.undeclaredPayees`: Warn about payees used but not declared
-- `validation.undeclaredCommodities`: Warn about commodities used but not
-declared
-- `validation.undeclaredTags`: Warn about tags used but not declared
-- `validation.dateOrdering`: Detect transactions with dates out of chronological
-order
-- `validation.balanceAssertions`: Verify balance assertions match calculated
-balances
-- `validation.emptyTransactions`: Require at least 2 postings per transaction
-- `validation.invalidDates`: Check for invalid dates (e.g., February 30, month 13)
-- `validation.futureDates`: Warn about future-dated transactions
-- `validation.emptyDescriptions`: Warn about transactions with no description
-- `validation.includeFiles`: Detect missing include files
-- `validation.circularIncludes`: Detect circular include dependencies
-- `validation.markAllUndeclaredInstances`: Mark all instances of undeclared
-resources with diagnostics, not just the first occurrence
+- `validation.balance` (default: true): Verify transactions balance to zero per commodity
+- `validation.missingAmounts` (default: true): Ensure at most one posting per transaction omits an amount
+- `validation.undeclaredAccounts` (default: true): Warn about accounts used but not declared
+- `validation.undeclaredPayees` (default: **false**): Warn about payees used but not declared
+- `validation.undeclaredCommodities` (default: true): Warn about commodities used but not declared
+- `validation.undeclaredTags` (default: true): Warn about tags used but not declared
+- `validation.dateOrdering` (default: true): Detect transactions with dates out of chronological order
+- `validation.balanceAssertions` (default: true): Verify balance assertions match calculated balances
+- `validation.emptyTransactions` (default: true): Require at least 2 postings per transaction
+- `validation.invalidDates` (default: true): Check for invalid dates (e.g., February 30, month 13)
+- `validation.futureDates` (default: true): Warn about future-dated transactions
+- `validation.emptyDescriptions` (default: true): Warn about transactions with no description
+- `validation.includeFiles` (default: true): Detect missing include files
+- `validation.circularIncludes` (default: true): Detect circular include dependencies
+- `validation.markAllUndeclaredInstances` (default: **true**): Mark all instances of undeclared resources with diagnostics, not just the first occurrence
 
 ### Severity Settings
 
@@ -416,16 +323,11 @@ target commodity for postings with @ or @@ notation
 
 ### Code Lens Settings
 
-Configure which code lenses to display (all disabled by default):
+Configure which code lenses to display (disabled by default):
 
-- `codeLens.showRunningBalances` (boolean, default: false): Show running
-balances after each transaction as code lenses
-- `codeLens.showTransactionCounts` (boolean, default: false): Show transaction
-counts for each account on transaction headers
+- `codeLens.showTransactionCounts` (boolean, default: false): Show transaction counts for each account on transaction headers
 
-**Note:** Code lens and inlay hints can both show running balances. Choose one
-or the other based on your preference. Code lenses are more prominent and
-appear on separate lines, while inlay hints are subtle and inline.
+**Note:** Running balances are now exclusively shown via inlay hints (`inlayHints.showRunningBalances`), which is a more natural place for position-sensitive information that appears inline with postings.
 
 ## Development
 
@@ -504,96 +406,7 @@ npx jest tests/parser/index.test.ts
 npx jest --testNamePattern="balance"
 ```
 
-Test files mirror the `src/` directory structure (515 test cases total):
-
-- `tests/utils/index.test.ts` - Utility function tests
-- `tests/utils/uri.test.ts` - URI encoding/decoding tests for paths with spaces
-- `tests/parser/index.test.ts` - Parser tests
-- `tests/parser/parentInclude.test.ts` - Parent directory include tests
-- `tests/parser/includeGlob.test.ts` - Glob pattern include tests
-- `tests/features/completion.test.ts` - Completion provider tests
-- `tests/features/validator.test.ts` - Validation tests
-- `tests/features/validator-includes.test.ts` - Include directive validation
-tests
-- `tests/features/formatter.test.ts` - Formatting tests (30 test cases including
-decimal alignment)
-- `tests/features/symbols.test.ts` - Symbol provider tests
-- `tests/features/codeActions.test.ts` - Code action tests (including rename
-refactoring)
-- `tests/features/hover.test.ts` - Hover provider tests
-- `tests/features/definition.test.ts` - Definition provider tests
-- `tests/features/findReferences.test.ts` - Find references tests
-- `tests/features/inlayHints.test.ts` - Inlay hints tests
-- `tests/features/semanticTokens.test.ts` - Semantic highlighting tests (20 test
-cases)
-- `tests/features/foldingRanges.test.ts` - Folding ranges tests (9 test cases)
-- `tests/features/documentLinks.test.ts` - Document links tests (9 test cases)
-- `tests/features/selectionRange.test.ts` - Selection range tests (11 test
-cases)
-- `tests/features/transactionAnalyzer.test.ts` - Transaction pattern analysis
-tests
-- `tests/features/smartCompletion.integration.test.ts` - Smart completion
-integration tests
-- `tests/integration/spaces-in-path.test.ts` - Integration tests for file paths
-with spaces
-
-## Roadmap
-
-### Completed Features
-
-- [x] Basic LSP server setup
-- [x] Project scaffolding
-- [x] Journal file parser with full hledger syntax support
-- [x] Comprehensive validation (11+ validation rules)
-- [x] Account name completion
-- [x] Payee completion
-- [x] Commodity completion
-- [x] Tag completion
-- [x] Directive completion
-- [x] Include path completion
-- [x] Configurable completion filtering (declared items only vs. all items)
-- [x] Transaction balance validation
-- [x] Balance assertions validation
-- [x] Date validation and ordering
-- [x] Undeclared items detection
-- [x] Include directive support with circular detection
-- [x] Multi-file journal support with dependency tracking
-- [x] User-configurable validation and severity levels
-- [x] Hover information
-- [x] Source location tracking
-- [x] Go to definition (accounts, payees, commodities, tags)
-- [x] Document symbols (outline view showing directives and transactions)
-- [x] Workspace symbols (project-wide search for accounts, payees, commodities,
-tags, transactions)
-- [x] Code actions and quick fixes (add declarations for undeclared items)
-- [x] Rename refactoring (rename accounts, payees, commodities, tags across all
-references)
-- [x] Formatting support (document, range, and on-type formatting)
-- [x] Enhanced formatting (amount alignment, commodity format support, precision
-preservation)
-- [x] Semantic highlighting (context-aware token highlighting with types and
-modifiers)
-
-### Recently Added
-
-- [x] Folding ranges (collapse transactions and comment blocks)
-- [x] Document links (clickable include paths)
-- [x] Selection range (smart text selection expansion)
-- [x] URI encoding/decoding support for file paths with spaces and special
-characters
-- [x] Find references (show all usages of accounts, payees, commodities, tags)
-- [x] Inlay hints (inferred amounts, running balances, cost conversions)
-- [x] Transaction pattern analysis for smart completions
-- [x] Comprehensive test coverage (515 tests)
-
-### Planned Features
-
-- [ ] Integration with hledger CLI for validation
-- [ ] Code lens (show account balances, transaction counts)
-- [ ] More sophisticated hover information (balances, commodity info)
-
-See [ROADMAP.md](ROADMAP.md) for a comprehensive list of proposed features and
-future development ideas.
+Test files mirror the `src/` directory structure (515 test cases total)
 
 ## Contributing
 

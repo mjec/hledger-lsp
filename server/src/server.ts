@@ -37,6 +37,19 @@ import { defaultFileReader, resolveIncludePath as resolveIncludePathUtil, toFile
 import { WorkspaceManager } from './server/workspace';
 import * as path from 'path';
 
+// Check for version flag
+if (process.argv.includes('--version') || process.argv.includes('-v')) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const packageJson = require('../package.json');
+    console.log(`hledger-lsp v${packageJson.version}`);
+    process.exit(0);
+  } catch (error) {
+    console.error('Failed to read version information');
+    process.exit(1);
+  }
+}
+
 // Create a connection for the server using Node's IPC as a transport
 const connection = createConnection(ProposedFeatures.all);
 
