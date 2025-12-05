@@ -1,5 +1,16 @@
 /**
  * Type definitions for hledger language structures
+ *
+ * DESIGN PATTERN:
+ * - **Entity types** (Account, Commodity, Payee, Tag) are stored in ParsedDocument Maps
+ *   and referenced by string. This avoids circular references, mirrors the text format,
+ *   and provides a single source of truth for each entity.
+ *
+ * - **Value types** (Amount, Cost, Format) are embedded directly as they don't have
+ *   independent identity - they're always owned by their parent structure.
+ *
+ * Example: Posting.account is a string that references an Account in the accounts Map,
+ *          but Posting.amount is an embedded Amount object that belongs to the posting.
  */
 
 export interface Transaction {
@@ -65,6 +76,9 @@ export interface Commodity {
   line?: number; // 0-based line number where declared/first seen
 }
 
+export type DecimalMark = '.' | ',' | null;
+export type ThousandsSeparator = '.' | ',' | ' ' | null;
+
 export interface Format {
     // symbol as declared (empty string for no-symbol commodities)
     symbol?: string;
@@ -76,10 +90,10 @@ export interface Format {
     spaceBetween?: boolean;
 
     // decimal mark used ('.' or ',')
-    decimalMark?: '.' | ',';
+    decimalMark?: DecimalMark;
 
     // thousands / grouping separator character ('.', ',', ' ' etc.), or null when none
-    thousandsSeparator?: string | null;
+    thousandsSeparator?: ThousandsSeparator;
 
     // number of decimal digits to display; 0 if decimal mark at end, null if unknown/unspecified
     precision?: number | null;
@@ -108,6 +122,3 @@ export interface ParsedDocument {
   payees: Map<string, Payee>;
   tags: Map<string, Tag>;
 }
-
-export type decimalMark = '.' | ',' | null;
-export type thousandsSeparator = '.' | ',' | ' ' | null;

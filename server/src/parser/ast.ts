@@ -1,4 +1,4 @@
-import { Transaction, Posting, Amount, Cost, Account, Payee, Commodity, Tag, Directive, decimalMark, thousandsSeparator, Format } from '../types';
+import { Transaction, Posting, Amount, Cost, Account, Payee, Commodity, Tag, Directive, DecimalMark, ThousandsSeparator, Format } from '../types';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment, isDirective } from '../utils/index';
 
@@ -295,7 +295,7 @@ export function parsePosting(line: string): Posting | null {
 /**
  * Helper to detect decimal mark and thousands separator from a number string.
  */
-function detectNumberFormat(numStr: string, defaultDecimalMark?: decimalMark): { decimalMark: decimalMark, thousandsSeparator: string | null } {
+function detectNumberFormat(numStr: string, defaultDecimalMark?: DecimalMark): { decimalMark: DecimalMark, thousandsSeparator: ThousandsSeparator } {
   let decimalMark = defaultDecimalMark;
 
   if (!decimalMark) {
@@ -341,7 +341,7 @@ function detectNumberFormat(numStr: string, defaultDecimalMark?: decimalMark): {
     if (ch < '0' || ch > '9') sepCounts[ch] = (sepCounts[ch] || 0) + 1;
   }
 
-  let thousandsSeparator: string | null = null;
+  let thousandsSeparator: ThousandsSeparator = null;
   const separators = Object.keys(sepCounts);
 
   // If we have a decimal mark, the thousands separator must be different
@@ -349,12 +349,17 @@ function detectNumberFormat(numStr: string, defaultDecimalMark?: decimalMark): {
   const potentialSeparators = separators.filter(s => s !== decimalMark);
 
   if (potentialSeparators.length === 1) {
-    thousandsSeparator = potentialSeparators[0];
+    const candidate = potentialSeparators[0];
+    // Only accept valid thousand separators: '.', ',', ' '
+    if (candidate === '.' || candidate === ',' || candidate === ' ') {
+      thousandsSeparator = candidate;
+    }
   } else if (potentialSeparators.length > 1) {
     let max = 0;
-    let pick: null | string = null;
+    let pick: ThousandsSeparator = null;
     for (const k of potentialSeparators) {
-      if (sepCounts[k] > max) {
+      // Only consider valid thousand separators
+      if ((k === '.' || k === ',' || k === ' ') && sepCounts[k] > max) {
         max = sepCounts[k];
         pick = k;
       }
@@ -402,7 +407,7 @@ function parseNumberWithFormat(numStr: string, mark: string | undefined): number
   return parseFloat(cleanStr);
 }
 
-export function parseAmount(amountStr: string, decimalMark?: decimalMark): Amount | null {
+export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amount | null {
   const trimmed = amountStr.trim();
   if (!trimmed) return null;
 
@@ -514,7 +519,7 @@ export function parseFormat(sample: string): { name: string; format?: Format } |
   let spaceBetween = false;
   if (symbolOnLeft) { const between = s.substring(0, firstDigit); spaceBetween = /\s/.test(between.replace(stripQuotes(leftRaw), '')) || /\s/.test(leftRaw.slice(-1)); }
   else { const after = s.substring(end); spaceBetween = /\s/.test(after.replace(stripQuotes(rightRaw), '')) || /\s/.test(s[end - 1]); }
-  const format: Format = { symbol: rawSymbol, symbolOnLeft, spaceBetween, decimalMark: decimalMark as any, thousandsSeparator: thousandsSeparator || null, precision };
+  const format: Format = { symbol: rawSymbol, symbolOnLeft, spaceBetween, decimalMark, thousandsSeparator, precision };
   let name = rawSymbol;
   if (rightRaw) {
     const candidate = stripQuotes(rightRaw);
