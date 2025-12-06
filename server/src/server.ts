@@ -513,7 +513,7 @@ connection.onHover((params, token) => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
 
-  const parsed = parseDocument(document);
+  const parsed = parseDocument(document, { parseMode: 'workspace' });
 
   const hover = hoverProvider.provideHover(document, params.position.line, params.position.character, parsed);
   return hover;
@@ -525,7 +525,7 @@ connection.onDefinition((params) => {
   if (!document) return null;
 
   // Parse document with includes using server's fileReader
-  const parsed = parseDocument(document);
+  const parsed = parseDocument(document, { parseMode: 'workspace' });
 
   const loc = definitionProvider.provideDefinition(document, params.position.line, params.position.character, parsed);
   return loc ? [loc] : null;
@@ -537,7 +537,7 @@ connection.onReferences((params) => {
   if (!document) return null;
 
   // Parse document with includes using server's fileReader
-  const parsed = parseDocument(document);
+  const parsed = parseDocument(document, { parseMode: 'workspace' });
 
   return findReferencesProvider.findReferences(
     document,

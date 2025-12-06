@@ -30,7 +30,26 @@ export function formatAmount(quantity: number, commodity: string, parsed: Parsed
 
     // Use precision from format, or default to 2
     const precision = format.precision ?? 2;
-    const formattedNumber = absQuantity.toFixed(precision);
+
+    // Manual formatting to respect separators
+    const decimalMark = format.decimalMark || '.';
+    const thousandsSeparator = format.thousandsSeparator; // can be null/undefined
+
+    // Get basic fixed string (e.g. "1000.00") with dot decimal
+    const baseFixed = absQuantity.toFixed(precision);
+    const [integerPart, decimalPart] = baseFixed.split('.');
+
+    let formattedInteger = integerPart;
+    if (thousandsSeparator) {
+      // split into groups of 3
+      const groups = [];
+      for (let i = integerPart.length; i > 0; i -= 3) {
+        groups.unshift(integerPart.substring(Math.max(0, i - 3), i));
+      }
+      formattedInteger = groups.join(thousandsSeparator);
+    }
+
+    const formattedNumber = decimalPart ? `${formattedInteger}${decimalMark}${decimalPart}` : formattedInteger;
 
     if (symbolOnLeft) {
       return `${sign}${symbol}${space}${formattedNumber}`;

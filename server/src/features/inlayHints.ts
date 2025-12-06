@@ -12,6 +12,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction, Posting } from '../types';
 import { formatAmount } from '../utils/amountFormatter';
 import { calculateTransactionBalance } from '../utils/balanceCalculator';
+import { toFilePath, toFileUri } from '../utils/uri';
 
 export interface InlayHintsSettings {
   /** Show inferred amounts on postings without explicit amounts */
@@ -50,7 +51,9 @@ export class InlayHintsProvider {
     // Only process transactions within the requested range
     for (const transaction of parsed.transactions) {
       // Only show inlay hints for transactions in the current document
-      if (transaction.sourceUri !== document.uri) {
+      // Normalize document URI to match internal storage format (decoded spaces, etc.)
+      const normalizedDocUri = toFileUri(toFilePath(document.uri));
+      if (transaction.sourceUri !== normalizedDocUri) {
         continue;
       }
 

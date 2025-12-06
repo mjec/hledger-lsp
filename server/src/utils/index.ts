@@ -36,7 +36,7 @@ export function isComment(line: string): boolean {
  */
 export function isDirective(line: string): boolean {
   const trimmed = line.trim();
-  const directives = ['account', 'commodity', 'payee', 'tag', 'include', 'alias', 'end','comment','decimal-mark','~','=','P'];
+  const directives = ['account', 'commodity', 'payee', 'tag', 'include', 'alias', 'end', 'comment', 'decimal-mark', '~', '=', 'P'];
   return directives.some(d => {
     if (d === 'end') {
       // 'end' can be standalone or followed by a space
@@ -52,7 +52,8 @@ export function isDirective(line: string): boolean {
 export function extractAccountFromPosting(line: string): string | null {
   const trimmed = line.trim();
   // Account name is the first token after indentation
-  const match = trimmed.match(/^([^;\s]+(?:\s+[^;\s]+)*?)(?:\s{2,}|\s+\$|\s+[0-9-]|$)/);
+  // Must be followed by 2+ spaces, a tab, or end of line (possibly with currency/amount)
+  const match = trimmed.match(/^([^;\s]+(?:\s+[^;\s]+)*?)(?:\s{2,}|\t|\s+\$|\s+[0-9-]|$)/);
   return match ? match[1].trim() : null;
 }
 

@@ -385,13 +385,16 @@ export class WorkspaceManager {
    * 3. Otherwise return null (file is not part of the workspace's include graph)
    */
   getRootForFile(uri: string): string | null {
+    // Normalize URI to ensure consistent encoding (handles VSCode %20 vs internal space)
+    const normalizedUri = toFileUri(toFilePath(uri));
+
     // If workspace hasn't finished initializing yet, return null
     if (!this.rootFile) {
       return null;
     }
 
     // Check if the root file transitively includes this file
-    if (this.rootIncludesFile(this.rootFile, uri)) {
+    if (this.rootIncludesFile(this.rootFile, normalizedUri)) {
       return this.rootFile;
     }
 
@@ -438,7 +441,9 @@ export class WorkspaceManager {
    * and allows the LSP to work with files opened outside the workspace.
    */
   private getWorkspaceFolder(uri: string): string | null {
-    const filePath = toFilePath(uri);
+    // Normalize URI to ensure consistent matching
+    const normalizedUri = toFileUri(toFilePath(uri));
+    const filePath = toFilePath(normalizedUri);
 
     for (const folder of this.workspaceFolders) {
       const folderPath = toFilePath(folder);
@@ -515,16 +520,19 @@ export class WorkspaceManager {
    * Clears the workspace cache if the root file transitively includes this file.
    */
   invalidateFile(uri: string): void {
+    // Normalize URI to ensure consistent encoding
+    const normalizedUri = toFileUri(toFilePath(uri));
+
     // If root file includes this file, clear the workspace cache
-    if (this.rootFile && this.rootIncludesFile(this.rootFile, uri)) {
-      this.connection.console.info(`[WorkspaceManager] Invalidating cache due to change in: ${uri}`);
+    if (this.rootFile && this.rootIncludesFile(this.rootFile, normalizedUri)) {
+      this.connection.console.info(`[WorkspaceManager] Invalidating cache due to change in: ${normalizedUri}`);
       this.workspaceCache = null;
     } else {
-      this.connection.console.info(`[WorkspaceManager] File change doesn't affect workspace cache: ${uri}`);
+      this.connection.console.info(`[WorkspaceManager] File change doesn't affect workspace cache: ${normalizedUri}`);
     }
 
     // Also clear the parser's include cache
-    this.parser.clearCache(uri);
+    this.parser.clearCache(normalizedUri);
   }
 
   /**

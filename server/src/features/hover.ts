@@ -13,9 +13,10 @@
 import { Hover, MarkupKind } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction } from '../types';
-import { isTransactionHeader } from '../utils/index';
+import { isTransactionHeader, isPosting, extractAccountFromPosting, getIndentationLevel } from '../utils/index';
 import { calculateTransactionBalanceSimple } from '../utils/balanceCalculator';
 import { formatAmount } from '../utils/amountFormatter';
+import { toFilePath, toFileUri } from '../utils/uri';
 
 export class HoverProvider {
   /**
@@ -31,15 +32,6 @@ export class HoverProvider {
       end: { line, character: Number.MAX_SAFE_INTEGER }
     });
 
-    // Get token at cursor position
-    const token = this.getTokenAtPosition(fullLine, character);
-    if (!token) return null;
-
-    // Check for date first (highest priority)
-    if (this.isDate(token)) {
-      return this.provideDateHover(token);
-    }
-
     // Check for tag (in comments) before other checks
     if (fullLine.includes(';') || fullLine.includes('#')) {
       // Check if cursor is after the comment marker
@@ -52,14 +44,17 @@ export class HoverProvider {
 
       if (character > commentStart) {
         // If token contains ':', extract just the tag name part
-        let tagName = token;
-        if (token.includes(':')) {
-          tagName = token.substring(0, token.indexOf(':'));
-        }
+        const token = this.getTokenAtPosition(fullLine, character);
+        if (token) {
+          let tagName = token;
+          if (token.includes(':')) {
+            tagName = token.substring(0, token.indexOf(':'));
+          }
 
-        // Check if this is a tag (tag name followed by colon in the line)
-        if (tagName && fullLine.includes(`${tagName}:`)) {
-          return this.provideTagHover(tagName, parsed);
+          // Check if this is a tag (tag name followed by colon in the line)
+          if (tagName && fullLine.includes(`${tagName}:`)) {
+            return this.provideTagHover(tagName, parsed);
+          }
         }
 
         // If in comment but not a tag, return null
@@ -67,7 +62,35 @@ export class HoverProvider {
       }
     }
 
-    // Check for account (contains ':')
+    // Check if we are on a posting line (account) - Robust check for accounts with spaces
+    // This takes priority over generic token scanning for account, 
+    // because extractAccountFromPosting handles "Expenses:Credit Card" correctly
+    // whereas getTokenAtPosition breaks on spaces.
+    if (isPosting(fullLine)) {
+      const accountName = extractAccountFromPosting(fullLine);
+      if (accountName) {
+        const indentation = getIndentationLevel(fullLine);
+        const start = indentation;
+        const end = start + accountName.length;
+
+        // Check if cursor is within the account name
+        if (character >= start && character <= end) {
+          return this.provideAccountHover(accountName, parsed);
+        }
+      }
+    }
+
+    // Fallback to token matching for other items
+    // Get token at cursor position
+    const token = this.getTokenAtPosition(fullLine, character);
+    if (!token) return null;
+
+    // Check for date first (highest priority)
+    if (this.isDate(token)) {
+      return this.provideDateHover(token);
+    }
+
+    // Check for account (contains ':') - Legacy check, mostly covered above but good fallback
     if (token.includes(':')) {
       return this.provideAccountHover(token, parsed);
     }
@@ -87,7 +110,7 @@ export class HoverProvider {
     // Check if we're on a transaction header (lowest priority)
     const trimmedLine = fullLine.trim();
     if (isTransactionHeader(trimmedLine)) {
-      return this.provideTransactionHover(fullLine, line, parsed);
+      return this.provideTransactionHover(fullLine, line, parsed, document.uri);
     }
 
     return null;
@@ -341,9 +364,23 @@ export class HoverProvider {
   /**
    * Provide hover for transaction headers
    */
-  private provideTransactionHover(line: string, lineNumber: number, parsed: ParsedDocument): Hover | null {
+  private provideTransactionHover(line: string, lineNumber: number, parsed: ParsedDocument, documentUri: string): Hover | null {
     // Find the transaction at this line
-    const transaction = parsed.transactions.find(t => t.line === lineNumber);
+    // Must match both line number AND source URI (normalized) to avoid collisions in workspace mode
+    const normalizedDocUri = toFileUri(toFilePath(documentUri));
+
+    const transaction = parsed.transactions.find(t => {
+      if (t.line !== lineNumber) return false;
+
+      // If transaction has sourceUri, check it. If not, assume it matches (std parser behavior?)
+      // Actually, parseTransactionHeader adds sourceUri.
+      if (t.sourceUri) {
+        const normalizedSource = toFileUri(toFilePath(t.sourceUri));
+        return normalizedSource === normalizedDocUri;
+      }
+      return true;
+    });
+
     if (!transaction) return null;
 
     const parts: string[] = [`**Transaction**\n\n\`${transaction.description}\``];

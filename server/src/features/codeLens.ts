@@ -11,6 +11,7 @@
 import { CodeLens, Position, Range } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction } from '../types';
+import { toFilePath, toFileUri } from '../utils/uri';
 
 export interface CodeLensSettings {
   /** Show transaction count for each account */
@@ -88,7 +89,9 @@ export class CodeLensProvider {
       const transaction = parsed.transactions[txIndex];
 
       // Only show code lenses for transactions in the current document
-      if (transaction.sourceUri !== document.uri) {
+      // Normalize document URI to match internal storage format
+      const normalizedDocUri = toFileUri(toFilePath(document.uri));
+      if (transaction.sourceUri !== normalizedDocUri) {
         continue;
       }
 

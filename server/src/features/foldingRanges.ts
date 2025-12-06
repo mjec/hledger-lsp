@@ -10,6 +10,7 @@ import { FoldingRange, FoldingRangeKind } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument } from '../types';
 import { isTransactionHeader, isPosting, isComment } from '../utils/index';
+import { toFilePath, toFileUri } from '../utils/uri';
 
 export class FoldingRangesProvider {
   /**
@@ -39,7 +40,9 @@ export class FoldingRangesProvider {
       if (transaction.line === undefined) continue;
 
       // Only fold transactions from the current document (skip if from workspace parsing)
-      if (transaction.sourceUri !== document.uri) {
+      // Normalize document URI to match internal storage format
+      const normalizedDocUri = toFileUri(toFilePath(document.uri));
+      if (transaction.sourceUri !== normalizedDocUri) {
         continue;
       }
 

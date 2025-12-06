@@ -15,6 +15,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Position, Range, TextEdit } from 'vscode-languageserver-protocol';
 import * as fs from 'fs';
 import * as path from 'path';
+import { toFilePath } from '../utils/uri';
 import { ParsedDocument } from '../types';
 import { transactionAnalyzer } from './transactionAnalyzer';
 
@@ -216,9 +217,7 @@ export class CompletionProvider {
   private getIncludePathCompletions(documentUri: string, partialPath: string): CompletionItem[] {
     try {
       // Convert URI to file path
-      const currentFilePath = documentUri.startsWith('file://')
-        ? documentUri.substring(7)
-        : documentUri;
+      const currentFilePath = toFilePath(documentUri);
 
       const currentDir = path.dirname(currentFilePath);
 

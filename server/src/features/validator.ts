@@ -12,7 +12,7 @@ import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction, Posting } from '../types';
 import { FileReader } from '../parser/index';
-import { resolveIncludePath, resolveIncludePaths } from '../utils/uri';
+import { resolveIncludePath, resolveIncludePaths, toFilePath, toFileUri } from '../utils/uri';
 import { defaultSettings } from '../server/settings';
 import { calculateTransactionBalance } from '../utils/balanceCalculator';
 import { formatAmount } from '../utils/amountFormatter';
@@ -89,11 +89,14 @@ export class Validator {
       return defaultSettings.validation?.[key] ?? true;
     };
 
+    // Normalize document URI for consistent comparison
+    const normalizedDocUri = toFileUri(toFilePath(document.uri));
+
     // Validate each transaction
     for (const transaction of parsedDoc.transactions) {
       // Only validate transactions in the current document
       // (workspace parsing may include transactions from other files)
-      if (transaction.sourceUri !== document.uri) {
+      if (transaction.sourceUri !== normalizedDocUri) {
         continue;
       }
 
@@ -242,6 +245,9 @@ export class Validator {
   ): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
+    // Normalize document URI for consistent comparison
+    const normalizedDocUri = toFileUri(toFilePath(document.uri));
+
     // Helper to convert severity string to DiagnosticSeverity
     const getSeverity = (severityStr?: string): DiagnosticSeverity => {
       switch (severityStr) {
@@ -270,7 +276,7 @@ export class Validator {
         // Iterate through transactions to find account usage locations
         for (const transaction of parsedDoc.transactions) {
           // Only process transactions from the current document
-          if (transaction.sourceUri && transaction.sourceUri !== document.uri) {
+          if (transaction.sourceUri && transaction.sourceUri !== normalizedDocUri) {
             continue;
           }
 
@@ -327,7 +333,7 @@ export class Validator {
         // Iterate through transactions to find payee usage locations
         for (const transaction of parsedDoc.transactions) {
           // Only process transactions from the current document
-          if (transaction.sourceUri && transaction.sourceUri !== document.uri) {
+          if (transaction.sourceUri && transaction.sourceUri !== normalizedDocUri) {
             continue;
           }
 
@@ -373,7 +379,7 @@ export class Validator {
         // Iterate through transactions to find commodity usage locations
         for (const transaction of parsedDoc.transactions) {
           // Only process transactions from the current document
-          if (transaction.sourceUri && transaction.sourceUri !== document.uri) {
+          if (transaction.sourceUri && transaction.sourceUri !== normalizedDocUri) {
             continue;
           }
 
@@ -492,7 +498,7 @@ export class Validator {
         // Iterate through transactions to find tag usage locations
         for (const transaction of parsedDoc.transactions) {
           // Only process transactions from the current document
-          if (transaction.sourceUri && transaction.sourceUri !== document.uri) {
+          if (transaction.sourceUri && transaction.sourceUri !== normalizedDocUri) {
             continue;
           }
 
@@ -628,7 +634,8 @@ export class Validator {
     const diagnostics: Diagnostic[] = [];
 
     // Only validate transactions in the current document
-    const documentTransactions = transactions.filter(t => t.sourceUri === document.uri);
+    const normalizedDocUri = toFileUri(toFilePath(document.uri));
+    const documentTransactions = transactions.filter(t => t.sourceUri === normalizedDocUri);
 
     for (let i = 1; i < documentTransactions.length; i++) {
       const prevDate = this.parseDate(documentTransactions[i - 1].date);
@@ -680,7 +687,8 @@ export class Validator {
         }
 
         // Check assertion - but only create diagnostics for assertions in the current document
-        if (posting.assertion && transaction.sourceUri === document.uri) {
+        const normalizedDocUri = toFileUri(toFilePath(document.uri));
+        if (posting.assertion && transaction.sourceUri === normalizedDocUri) {
           const accountBalances = balances.get(posting.account);
           const commodity = posting.assertion.commodity || '';
           const expectedBalance = posting.assertion.quantity;
@@ -837,8 +845,8 @@ export class Validator {
     // Check if the date components match the parsed date
     // This catches cases like Feb 30 which get corrected to Mar 2
     if (parsedDate.getFullYear() !== year ||
-        parsedDate.getMonth() + 1 !== month ||
-        parsedDate.getDate() !== day) {
+      parsedDate.getMonth() + 1 !== month ||
+      parsedDate.getDate() !== day) {
       const range = this.getTransactionRange(transaction, document);
       diagnostics.push({
         severity: DiagnosticSeverity.Error,

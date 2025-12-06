@@ -6,6 +6,7 @@ import { DocumentSymbol, SymbolInformation, SymbolKind, Range, Location } from '
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction, Directive } from '../types';
 import { formatAmount } from '../utils/amountFormatter';
+import { toFilePath, toFileUri } from '../utils/uri';
 
 export class DocumentSymbolProvider {
   /**
@@ -16,10 +17,13 @@ export class DocumentSymbolProvider {
     const symbols: DocumentSymbol[] = [];
     const lines = document.getText().split('\n');
 
+    // Normalize document URI for consistent comparison
+    const normalizedDocUri = toFileUri(toFilePath(document.uri));
+
     // Add directive symbols
     for (const directive of parsedDoc.directives) {
       // Only include directives from the current document
-      if (directive.sourceUri && directive.sourceUri !== document.uri) {
+      if (directive.sourceUri && directive.sourceUri !== normalizedDocUri) {
         continue;
       }
 
@@ -41,7 +45,7 @@ export class DocumentSymbolProvider {
     // Add transaction symbols
     for (const transaction of parsedDoc.transactions) {
       // Only include transactions from the current document
-      if (transaction.sourceUri && transaction.sourceUri !== document.uri) {
+      if (transaction.sourceUri && transaction.sourceUri !== normalizedDocUri) {
         continue;
       }
 
@@ -53,7 +57,7 @@ export class DocumentSymbolProvider {
         const selectionRange = Range.create(line, 0, line, lines[line].length);
 
         const statusIcon = transaction.status === 'cleared' ? '* ' :
-                          transaction.status === 'pending' ? '! ' : '';
+          transaction.status === 'pending' ? '! ' : '';
         const name = `${transaction.date} ${statusIcon}${transaction.description}`;
 
         // Create child symbols for postings
@@ -108,7 +112,7 @@ export class DocumentSymbolProvider {
   private findTransactionLine(lines: string[], transaction: Transaction): number {
     const datePattern = transaction.date.replace(/\//g, '\\/');
     const statusChar = transaction.status === 'cleared' ? '\\*' :
-                      transaction.status === 'pending' ? '!' : '';
+      transaction.status === 'pending' ? '!' : '';
     const codeStr = transaction.code ? `\\(${this.escapeRegex(transaction.code)}\\)\\s*` : '';
     const descPattern = this.escapeRegex(transaction.description);
 
@@ -271,7 +275,7 @@ export class WorkspaceSymbolProvider {
         const location = Location.create(uri, Range.create(line, 0, line, 0));
 
         const statusIcon = transaction.status === 'cleared' ? '* ' :
-                          transaction.status === 'pending' ? '! ' : '';
+          transaction.status === 'pending' ? '! ' : '';
 
         symbols.push({
           name: `${transaction.date} ${statusIcon}${transaction.description}`,
