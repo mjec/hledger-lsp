@@ -1,23 +1,11 @@
 {
-  "name": "hledger-lsp-workspace",
-  "version": "0.1.4",
+  "name": "hledger-lsp",
+  "version": "0.1.7",
   "private": true,
-  "workspaces": [
-    "server",
-    "vscode-client"
-  ],
   "scripts": {
-    "bootstrap": "npm install",
-    "build": "npm run -w server build && npm run -w vscode-client build",
-    "build:server": "npm run -w server build",
-    "build:client": "npm run -w vscode-client build",
-    "lint": "npm run -w server lint",
-    "test": "NODE_OPTIONS='--no-warnings' jest",
-    "test:watch": "NODE_OPTIONS='--no-warnings' jest --watch"
-  },
-  "devDependencies": {
-    "@types/jest": "^30.0.0",
-    "jest": "^30.2.0",
-    "ts-jest": "^29.4.5"
+    "build": "cd server && npm run build",
+    "lint": "cd server && npm run lint",
+    "test": "cd server && npm test",
+    "test:watch": "cd server && npm run test:watch"
   }
 }

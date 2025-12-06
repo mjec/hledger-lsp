@@ -3,6 +3,38 @@
 A Language Server Protocol (LSP) implementation for
 [hledger](https://hledger.org/), a plain text accounting tool.
 
+## IDE Integration
+
+This language server can be used with any LSP-compatible editor. Official extensions:
+
+### VS Code
+
+**Extension**: [hledger-tools](https://marketplace.visualstudio.com/items?itemName=patrickt.hledger-tools)
+
+Install from the VS Code Marketplace or Extensions view. The extension provides all LSP features with zero configuration.
+
+- **Repository**: [ptimoney/hledger-vscode](https://github.com/ptimoney/hledger-vscode)
+- **Issues**: [Report extension issues](https://github.com/ptimoney/hledger-vscode/issues)
+
+### Neovim
+
+**Plugin**: [ptimoney/hledger-nvim](https://github.com/ptimoney/hledger-nvim)
+
+Provides automatic LSP configuration, filetype detection, and workspace visualization.
+
+### Other Editors
+
+The server can be used with any LSP client. Example configuration:
+
+```json
+{
+  "command": "hledger-lsp",
+  "args": ["--stdio"],
+  "filetypes": ["hledger", "journal"],
+  "rootPatterns": [".hledger-lsp.json", ".git"]
+}
+```
+
 ## Features
 
 This language server provides comprehensive IDE support for hledger journal
