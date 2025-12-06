@@ -509,13 +509,14 @@ connection.onCompletionResolve(
 );
 
 // Provide hover information
-connection.onHover((params, token) => {
+connection.onHover(async (params, token) => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
 
   const parsed = parseDocument(document, { parseMode: 'workspace' });
+  const settings = await getDocumentSettings(params.textDocument.uri);
 
-  const hover = hoverProvider.provideHover(document, params.position.line, params.position.character, parsed);
+  const hover = hoverProvider.provideHover(document, params.position.line, params.position.character, parsed, settings);
   return hover;
 });
 
@@ -691,7 +692,7 @@ connection.languages.inlayHint.on(async (params) => {
       document,
       params.range,
       parsed,
-      inlayHintsSettings
+      settings
     );
   } catch (error) {
     connection.console.error(`Error providing inlay hints: ${error}`);

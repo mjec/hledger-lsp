@@ -484,9 +484,34 @@ export class SemanticTokensProvider {
     startOffset: number,
     builder: SemanticTokensBuilder
   ): void {
+    // Match sign before commodity with space: - $ 100.00 or + EUR 1000
+    let match = amountStr.match(/^([-+])\s*([^\d\s;+-]+)\s+(\d[\d,.'\s]*(?:[.,]\d+)?)/);
+    if (match) {
+      const [, sign, commodity, number] = match;
+      const commodityStart = startOffset + amountStr.indexOf(commodity);
+      const numberStart = startOffset + amountStr.indexOf(number);
+
+      builder.push(lineIndex, commodityStart, commodity.length, TokenType.enum, 0);
+      builder.push(lineIndex, numberStart, number.trim().length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
+      return;
+    }
+
+    // Match sign before commodity without space: -$100.00 or +€50.50
+    match = amountStr.match(/^([-+])([^\d\s;+-]+)(\d[\d,.'\s]*(?:[.,]\d+)?)/);
+    if (match) {
+      const [, sign, commodity, number] = match;
+      const signStart = startOffset;
+      const commodityStart = signStart + sign.length;
+      const numberStart = commodityStart + commodity.length;
+
+      builder.push(lineIndex, commodityStart, commodity.length, TokenType.enum, 0);
+      builder.push(lineIndex, numberStart, number.trim().length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
+      return;
+    }
+
     // Match commodity-first with space: $ 100.00 or EUR 1 000 000,00
     // Number pattern allows digits, commas, dots, apostrophes, and spaces within the number
-    let match = amountStr.match(/^([^\d\s;+-]+)\s+([-+]?\d[\d,.'\s]*(?:[.,]\d+)?)/);
+    match = amountStr.match(/^([^\d\s;+-]+)\s+([-+]?\d[\d,.'\s]*(?:[.,]\d+)?)/);
     if (match) {
       const [, commodity, number] = match;
       const commodityStart = startOffset + amountStr.indexOf(commodity);

@@ -12,7 +12,21 @@ import { ParsedDocument } from '../types';
  * @param parsed - ParsedDocument to look up commodity format information
  * @returns Formatted amount string (e.g., "$50.00", "50.00 USD")
  */
-export function formatAmount(quantity: number, commodity: string, parsed: ParsedDocument): string {
+import { HledgerSettings } from '../server/settings';
+
+// Type alias to avoid circular dependency issues if HledgerSettings imports from elsewhere
+type FormattingOptions = HledgerSettings['formatting'];
+
+/**
+ * Format an amount with proper commodity placement based on commodity format info
+ *
+ * @param quantity - The numeric amount
+ * @param commodity - The commodity symbol/name
+ * @param parsed - ParsedDocument to look up commodity format information
+ * @param options - Formatting options (e.g. sign position)
+ * @returns Formatted amount string (e.g., "$50.00", "50.00 USD")
+ */
+export function formatAmount(quantity: number, commodity: string, parsed: ParsedDocument, options?: FormattingOptions): string {
   // Handle negative amounts by extracting the sign
   const absQuantity = Math.abs(quantity);
   const sign = quantity < 0 ? '-' : '';
@@ -52,6 +66,15 @@ export function formatAmount(quantity: number, commodity: string, parsed: Parsed
     const formattedNumber = decimalPart ? `${formattedInteger}${decimalMark}${decimalPart}` : formattedInteger;
 
     if (symbolOnLeft) {
+      if (quantity < 0) {
+        // Handle negative sign position
+        const signPos = options?.signPosition || 'after-symbol';
+        if (signPos === 'before-symbol') { // -$100
+          return `${sign}${symbol}${space}${formattedNumber}`;
+        } else { // $-100 (default)
+          return `${symbol}${sign}${space}${formattedNumber}`;
+        }
+      }
       return `${sign}${symbol}${space}${formattedNumber}`;
     } else {
       return `${sign}${formattedNumber}${space}${symbol}`;
@@ -60,9 +83,18 @@ export function formatAmount(quantity: number, commodity: string, parsed: Parsed
     // No format declared, use default heuristic
     // Common currencies go on left without space, others go on right with space
     const leftSymbols = ['$', '€', '£', '¥'];
-    const formattedNumber = absQuantity.toFixed(2);
+    const precision = 2; // Default precision
+    const formattedNumber = absQuantity.toFixed(precision);
 
     if (leftSymbols.includes(commodity)) {
+      if (quantity < 0) {
+        const signPos = options?.signPosition || 'after-symbol';
+        if (signPos === 'before-symbol') {
+          return sign + commodity + formattedNumber;
+        } else {
+          return commodity + sign + formattedNumber;
+        }
+      }
       return sign + commodity + formattedNumber;
     } else {
       return sign + formattedNumber + ' ' + commodity;

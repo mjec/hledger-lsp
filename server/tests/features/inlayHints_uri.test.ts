@@ -43,11 +43,18 @@ describe('InlayHintsProvider URI Encoding', () => {
 
         const range = Range.create(0, 0, 3, 0);
 
-        const hints = provider.provideInlayHints(doc, range, parsed, {
-            showInferredAmounts: true,
-            showRunningBalances: false,
-            showCostConversions: false
-        });
+        const hints = provider.provideInlayHints(
+            doc,
+            range,
+            parsed,
+            {
+                inlayHints: {
+                    showInferredAmounts: true,
+                    showRunningBalances: false,
+                    showCostConversions: false
+                }
+            } as any
+        );
 
         // Before fix: mismatch causes 0 hints
         // After fix: should match and return 1 hint

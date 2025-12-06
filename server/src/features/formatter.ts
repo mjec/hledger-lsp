@@ -23,11 +23,14 @@ export interface FormattingOptions {
   decimalAlignColumn?: number;
   /** Target column for assertion decimal alignment (default: 70) */
   assertionDecimalAlignColumn?: number;
+  /** Placement of negative sign for prefix commodities (default: 'after-symbol') */
+  signPosition?: 'before-symbol' | 'after-symbol';
 }
 
 interface amountLayout {
   commodityBefore: string;
   isNegative: boolean;
+  negativeSignBefore: boolean;  // true if sign should be before commodity
   amountIntegerString: string;
   amountDecimalString: string;
   demicalMark: string;
@@ -49,7 +52,8 @@ const DEFAULT_OPTIONS: Required<FormattingOptions> = {
   maxAmountWidth: 12,
   minSpacing: 2,
   decimalAlignColumn: 52,
-  assertionDecimalAlignColumn: 70
+  assertionDecimalAlignColumn: 70,
+  signPosition: 'after-symbol'
 };
 
 
@@ -235,9 +239,19 @@ export class FormattingProvider {
       if (posting.amount) {
         const lengthAtPaddingLocation = line.length;
         const layout = postingLayout.amountLayout!;
-        line += layout.commodityBefore.padStart(commodityBeforeColumnWidth, ' ');
+
+        // Handle sign position based on layout.negativeSignBefore
+        if (layout.negativeSignBefore) {
+          // Format as: -$100  (sign before commodity)
+          line += layout.isNegative ? '-'.padStart(negativeSignColumnWidth, ' ') : ' '.repeat(negativeSignColumnWidth);
+          line += layout.commodityBefore.padStart(commodityBeforeColumnWidth, ' ');
+        } else {
+          // Format as: $-100  (commodity before sign, default)
+          line += layout.commodityBefore.padStart(commodityBeforeColumnWidth, ' ');
+          line += layout.isNegative ? '-'.padStart(negativeSignColumnWidth, ' ') : ' '.repeat(negativeSignColumnWidth);
+        }
+
         line += ' '.repeat(spaceBetweenCommodityBeforeAndAmount);
-        line += layout.isNegative ? '-'.padStart(negativeSignColumnWidth, ' ') : ' '.repeat(negativeSignColumnWidth);
         line += layout.amountIntegerString.padStart(amountIntegerColumnWidth, ' ');
         const lengthAtDecimalLocation = line.length;
         const targetDecimalColumn = options.decimalAlignColumn;
@@ -269,9 +283,17 @@ export class FormattingProvider {
       if (posting.cost) {
         const layout = postingLayout.costLayout!;
         line += posting.cost.type === 'unit' ? ' @'.padEnd(costColumnWidth, ' ') : ' @@'.padEnd(costColumnWidth, ' ');
-        line += layout.commodityBefore.padStart(costCommodityBeforeColumnWidth, ' ');
+
+        // Handle sign position for cost
+        if (layout.negativeSignBefore) {
+          line += layout.isNegative ? '-'.padStart(costNegativeSignColumnWidth, ' ') : ' '.repeat(costNegativeSignColumnWidth);
+          line += layout.commodityBefore.padStart(costCommodityBeforeColumnWidth, ' ');
+        } else {
+          line += layout.commodityBefore.padStart(costCommodityBeforeColumnWidth, ' ');
+          line += layout.isNegative ? '-'.padStart(costNegativeSignColumnWidth, ' ') : ' '.repeat(costNegativeSignColumnWidth);
+        }
+
         line += ' '.repeat(spaceBetweenCostCommodityBeforeAndAmount);
-        line += layout.isNegative ? '-'.padStart(costNegativeSignColumnWidth, ' ') : ' '.repeat(costNegativeSignColumnWidth);
         line += layout.amountIntegerString.padStart(costAmountIntegerColumnWidth, ' ');
         if (layout.demicalMark) {
           line += layout.demicalMark.padEnd(costAmountDecimalMarkColumnWidth, ' ');
@@ -297,9 +319,17 @@ export class FormattingProvider {
       if (posting.assertion) {
         const layout = postingLayout.assertionLayout!;
         line += ' ='.padEnd(assertionColumnWidth, ' ');
-        line += layout.commodityBefore.padStart(assertionCommodityBeforeColumnWidth, ' ');
+
+        // Handle sign position for assertion
+        if (layout.negativeSignBefore) {
+          line += layout.isNegative ? '-'.padStart(assertionNegativeSignColumnWidth, ' ') : ' '.repeat(assertionNegativeSignColumnWidth);
+          line += layout.commodityBefore.padStart(assertionCommodityBeforeColumnWidth, ' ');
+        } else {
+          line += layout.commodityBefore.padStart(assertionCommodityBeforeColumnWidth, ' ');
+          line += layout.isNegative ? '-'.padStart(assertionNegativeSignColumnWidth, ' ') : ' '.repeat(assertionNegativeSignColumnWidth);
+        }
+
         line += ' '.repeat(spaceBetweenAssertionCommodityBeforeAndAmount);
-        line += layout.isNegative ? '-'.padStart(assertionNegativeSignColumnWidth, ' ') : ' '.repeat(assertionNegativeSignColumnWidth);
         line += layout.amountIntegerString.padStart(assertionAmountIntegerColumnWidth, ' ');
         if (layout.demicalMark) {
           line += layout.demicalMark.padEnd(assertionAmountDecimalMarkColumnWidth, ' ');
@@ -381,9 +411,16 @@ export class FormattingProvider {
       targetPrecision = actualPrecision;
     }
 
+    // Determine if negative sign should be before commodity symbol
+    // This only applies when commodity is on left
+
+    const symbolOnLeft = format.symbolOnLeft || false;
+    const negativeSignBefore = symbolOnLeft && options.signPosition === 'before-symbol';
+
     return {
       commodityBefore: format.symbolOnLeft ? format.symbol || '' : '',
       isNegative: amount.quantity < 0,
+      negativeSignBefore,
       amountIntegerString: this.formatIntegerAmount(amount, format),
       amountDecimalString: this.formatDecimalAmount(amount, format, targetPrecision),
       demicalMark: targetPrecision && targetPrecision > 0 ? (format.decimalMark || '.') : '',

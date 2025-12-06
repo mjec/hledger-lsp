@@ -44,6 +44,7 @@ export interface HledgerSettings {
     minSpacing?: number;
     decimalAlignColumn?: number;
     assertionDecimalAlignColumn?: number;
+    signPosition?: 'before-symbol' | 'after-symbol';
   };
   inlayHints?: {
     showInferredAmounts?: boolean;
@@ -104,6 +105,7 @@ export const defaultSettings: HledgerSettings = {
     minSpacing: 2,
     decimalAlignColumn: 52,
     assertionDecimalAlignColumn: 70,
+    signPosition: 'after-symbol',
   },
   inlayHints: {
     showInferredAmounts: false,

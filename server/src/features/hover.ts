@@ -18,11 +18,13 @@ import { calculateTransactionBalanceSimple } from '../utils/balanceCalculator';
 import { formatAmount } from '../utils/amountFormatter';
 import { toFilePath, toFileUri } from '../utils/uri';
 
+import { HledgerSettings } from '../server/settings';
+
 export class HoverProvider {
   /**
    * Provide hover information at the given document position
    */
-  provideHover(document: TextDocument, line: number, character: number, parsed?: ParsedDocument): Hover | null {
+  provideHover(document: TextDocument, line: number, character: number, parsed?: ParsedDocument, settings?: HledgerSettings): Hover | null {
     if (!parsed) {
       return this.provideBasicHover(document, line, character);
     }
@@ -110,7 +112,7 @@ export class HoverProvider {
     // Check if we're on a transaction header (lowest priority)
     const trimmedLine = fullLine.trim();
     if (isTransactionHeader(trimmedLine)) {
-      return this.provideTransactionHover(fullLine, line, parsed, document.uri);
+      return this.provideTransactionHover(fullLine, line, parsed, document.uri, settings);
     }
 
     return null;
@@ -364,7 +366,7 @@ export class HoverProvider {
   /**
    * Provide hover for transaction headers
    */
-  private provideTransactionHover(line: string, lineNumber: number, parsed: ParsedDocument, documentUri: string): Hover | null {
+  private provideTransactionHover(line: string, lineNumber: number, parsed: ParsedDocument, documentUri: string, settings?: HledgerSettings): Hover | null {
     // Find the transaction at this line
     // Must match both line number AND source URI (normalized) to avoid collisions in workspace mode
     const normalizedDocUri = toFileUri(toFilePath(documentUri));
@@ -404,7 +406,7 @@ export class HoverProvider {
       for (const [commodity, total] of Object.entries(totals)) {
         const sign = total >= 0 ? '+' : '';
         const formattedAmount = commodity
-          ? formatAmount(total, commodity, parsed)
+          ? formatAmount(total, commodity, parsed, settings?.formatting)
           : total.toFixed(2);
         totalLines.push(`- ${sign}${formattedAmount}`);
       }

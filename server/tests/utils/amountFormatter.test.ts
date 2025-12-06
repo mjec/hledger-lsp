@@ -71,7 +71,7 @@ describe('formatAmount', () => {
 
     describe('Negative Amounts', () => {
         test('should place sign correctly for symbol on left', () => {
-            expect(formatAmount(-50, 'USD', mockParsedDocument)).toBe('-$50.00');
+            expect(formatAmount(-50, 'USD', mockParsedDocument)).toBe('$-50.00');
         });
 
         test('should place sign correctly for symbol on right', () => {
@@ -87,7 +87,7 @@ describe('formatAmount', () => {
                 payees: new Map(),
                 tags: new Map(),
             };
-            expect(formatAmount(-50, '$', emptyParsedDocument)).toBe('-$50.00');
+            expect(formatAmount(-50, '$', emptyParsedDocument)).toBe('$-50.00');
         });
 
         test('should place sign correctly for heuristics (right symbol)', () => {

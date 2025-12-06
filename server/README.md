@@ -309,6 +309,11 @@ account names and amounts
 for aligning decimal points in amounts
 - `formatting.assertionDecimalAlignColumn` (number, default: 70): Target column
 position for aligning decimal points in balance assertions
+- `formatting.signPosition` (string, default: "after-symbol"): Where to place the
+negative sign for prefix commodities. Options: `"after-symbol"` (e.g., `$-100.00`)
+or `"before-symbol"` (e.g., `-$100.00`). This affects how amounts are displayed in
+hover information, inlay hints, and other LSP features. Does not affect postfix
+commodities (e.g., `-100.00 EUR`), which always show the sign before the number.
 
 ### Inlay Hints Settings
 

@@ -164,7 +164,7 @@ describe('Split Posting Code Actions', () => {
       const edits = splitAction!.edit!.changes![document.uri];
       const newText = edits[0].newText;
 
-      expect(newText).toContain('-$25.00');
+      expect(newText).toContain('$-25.00');
     });
 
     it('should correctly split -$100 into 3 parts', () => {
@@ -189,11 +189,11 @@ describe('Split Posting Code Actions', () => {
       const newText = edits[0].newText;
 
       // Should be -33.33, -33.33, -33.34 (not -33.34, -33.34, -33.32)
-      const amounts = newText.match(/-\$\d+\.\d+/g) || [];
+      const amounts = newText.match(/\$-\d+\.\d+/g) || [];
       expect(amounts).toHaveLength(3);
-      expect(amounts[0]).toBe('-$33.33');
-      expect(amounts[1]).toBe('-$33.33');
-      expect(amounts[2]).toBe('-$33.34');
+      expect(amounts[0]).toBe('$-33.33');
+      expect(amounts[1]).toBe('$-33.33');
+      expect(amounts[2]).toBe('$-33.34');
 
       // Verify they sum to -100.00
       const sum = amounts.reduce((acc, amt) => {

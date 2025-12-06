@@ -29,6 +29,8 @@ const DEFAULT_SETTINGS: Required<InlayHintsSettings> = {
   showCostConversions: false
 };
 
+import { HledgerSettings } from '../server/settings';
+
 export class InlayHintsProvider {
   /**
    * Provide inlay hints for a document
@@ -37,9 +39,9 @@ export class InlayHintsProvider {
     document: TextDocument,
     range: Range,
     parsed: ParsedDocument,
-    settings?: InlayHintsSettings
+    settings?: HledgerSettings
   ): InlayHint[] {
-    const config = { ...DEFAULT_SETTINGS, ...settings };
+    const config = { ...DEFAULT_SETTINGS, ...settings?.inlayHints };
     const hints: InlayHint[] = [];
 
     // If showing running balances, we need to process all transactions to accumulate balances
@@ -66,17 +68,17 @@ export class InlayHintsProvider {
 
       // Inferred amount hints
       if (config.showInferredAmounts) {
-        hints.push(...this.getInferredAmountHints(document, transaction, parsed));
+        hints.push(...this.getInferredAmountHints(document, transaction, parsed, settings));
       }
 
       // Running balance hints
       if (config.showRunningBalances) {
-        hints.push(...this.getRunningBalanceHintsWithState(document, transaction, parsed, runningBalances));
+        hints.push(...this.getRunningBalanceHintsWithState(document, transaction, parsed, runningBalances, settings));
       }
 
       // Cost conversion hints
       if (config.showCostConversions) {
-        hints.push(...this.getCostConversionHints(document, transaction, parsed));
+        hints.push(...this.getCostConversionHints(document, transaction, parsed, settings));
       }
     }
 
@@ -86,7 +88,7 @@ export class InlayHintsProvider {
   /**
    * Get hints for inferred amounts (postings without explicit amounts)
    */
-  private getInferredAmountHints(document: TextDocument, transaction: Transaction, parsed: ParsedDocument): InlayHint[] {
+  private getInferredAmountHints(document: TextDocument, transaction: Transaction, parsed: ParsedDocument, settings?: HledgerSettings): InlayHint[] {
     const hints: InlayHint[] = [];
 
     // Calculate which posting(s) have inferred amounts
@@ -104,7 +106,7 @@ export class InlayHintsProvider {
     const inferredAmounts: string[] = [];
     for (const [commodity, balance] of balances.entries()) {
       const amount = -balance;
-      inferredAmounts.push(formatAmount(amount, commodity, parsed));
+      inferredAmounts.push(formatAmount(amount, commodity, parsed, settings?.formatting));
     }
 
     // Find posting(s) without amounts and add hints
@@ -285,7 +287,8 @@ export class InlayHintsProvider {
     document: TextDocument,
     transaction: Transaction,
     parsed: ParsedDocument,
-    runningBalances: Map<number, Map<number, Map<string, number>>>
+    runningBalances: Map<number, Map<number, Map<string, number>>>,
+    settings?: HledgerSettings
   ): InlayHint[] {
     const hints: InlayHint[] = [];
 
@@ -325,7 +328,7 @@ export class InlayHintsProvider {
         // Format all commodity balances for this posting
         const balanceHints: string[] = [];
         for (const [commodity, balance] of balanceMap.entries()) {
-          const formattedBalance = formatAmount(balance, commodity, parsed);
+          const formattedBalance = formatAmount(balance, commodity, parsed, settings?.formatting);
           balanceHints.push(formattedBalance);
         }
 
@@ -334,7 +337,7 @@ export class InlayHintsProvider {
         // Create clickable label part with command to insert balance assertion
         // Format as actual balance assertion syntax: " = $amount"
         const labelPart: InlayHintLabelPart = {
-          value: ` = ${balanceText}`,
+          value: ` = ${balanceText} `,
           command: {
             title: 'Insert balance assertion',
             command: 'hledger.insertBalanceAssertion',
@@ -363,7 +366,7 @@ export class InlayHintsProvider {
   /**
    * Get hints for cost conversions
    */
-  private getCostConversionHints(document: TextDocument, transaction: Transaction, parsed: ParsedDocument): InlayHint[] {
+  private getCostConversionHints(document: TextDocument, transaction: Transaction, parsed: ParsedDocument, settings?: HledgerSettings): InlayHint[] {
     const hints: InlayHint[] = [];
 
     const txLine = transaction.line ?? 0;
@@ -390,7 +393,7 @@ export class InlayHintsProvider {
 
           // For unit cost (@), show total cost equivalent (@@ notation)
           const labelPart: InlayHintLabelPart = {
-            value: ` @@ ${formattedCost}`,
+            value: ` @@${formattedCost} `,
             command: {
               title: 'Convert to total cost',
               command: 'hledger.convertToTotalCost',

@@ -417,8 +417,8 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amoun
 
   const patterns = [
     {
-      // Symbol on left, negative
-      pattern: /^-([^\d\s-]+)\s*([-]?\d[\d.,\s]*)$/,
+      // Symbol on left, negative (e.g. -$100 or - $100)
+      pattern: /^-\s*([^\d\s-]+)\s*([-]?\d[\d.,\s]*)$/,
       handler: (m: RegExpMatchArray) => {
         const rawAmount = m[2];
         const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);

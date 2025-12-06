@@ -30,13 +30,15 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: true,
-        showRunningBalances: false,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: true,
+          showRunningBalances: false,
+          showCostConversions: false
+        }
+      } as any);
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe('  -$50.00');
+      expect(labelToString(hints[0].label)).toBe('  $-50.00');
       expect(hints[0].kind).toBe(InlayHintKind.Parameter);
       expect(hints[0].position.line).toBe(2);
     });
@@ -52,10 +54,12 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 3, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: true,
-        showRunningBalances: false,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: true,
+          showRunningBalances: false,
+          showCostConversions: false
+        }
+      } as any);
 
       expect(hints).toHaveLength(1);
       expect(labelToString(hints[0].label)).toBe('  $95.00');
@@ -72,13 +76,15 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: true,
-        showRunningBalances: false,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: true,
+          showRunningBalances: false,
+          showCostConversions: false
+        }
+      } as any);
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe('  -$1000.00');
+      expect(labelToString(hints[0].label)).toBe('  $-1000.00');
       expect(hints[0].position.line).toBe(2);
     });
 
@@ -92,13 +98,15 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: true,
-        showRunningBalances: false,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: true,
+          showRunningBalances: false,
+          showCostConversions: false
+        }
+      } as any);
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe('  -$135.00');
+      expect(labelToString(hints[0].label)).toBe('  $-135.00');
       expect(hints[0].position.line).toBe(2);
     });
 
@@ -112,10 +120,12 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: true,
-        showRunningBalances: false,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: true,
+          showRunningBalances: false,
+          showCostConversions: false
+        }
+      } as any);
 
       expect(hints).toHaveLength(0);
     });
@@ -130,10 +140,12 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: false,
-        showRunningBalances: false,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: false,
+          showRunningBalances: false,
+          showCostConversions: false
+        }
+      } as any);
 
       expect(hints).toHaveLength(0);
     });
@@ -150,16 +162,18 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: false,
-        showRunningBalances: true,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: false,
+          showRunningBalances: true,
+          showCostConversions: false
+        }
+      } as any);
 
       expect(hints).toHaveLength(2);
       // Running balance shows cumulative balance per account
       expect(labelToString(hints[0].label)).toContain('$50.00');  // expenses:food balance after this transaction
       expect(hints[0].kind).toBe(InlayHintKind.Type);
-      expect(labelToString(hints[1].label)).toContain('-$50.00'); // assets:checking balance after this transaction
+      expect(labelToString(hints[1].label)).toContain('$-50.00'); // assets:checking balance after this transaction
     });
 
     test('should show balance before comment', () => {
@@ -172,10 +186,12 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: false,
-        showRunningBalances: true,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: false,
+          showRunningBalances: true,
+          showCostConversions: false
+        }
+      } as any);
 
       expect(hints).toHaveLength(2);
       // Balance hint should appear at or before the comment
@@ -194,10 +210,12 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: false,
-        showRunningBalances: false,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: false,
+          showRunningBalances: false,
+          showCostConversions: false
+        }
+      } as any);
 
       expect(hints).toHaveLength(0);
     });
@@ -212,10 +230,12 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: false,
-        showRunningBalances: true,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: false,
+          showRunningBalances: true,
+          showCostConversions: false
+        }
+      } as any);
 
       // Should only show hint for expenses:cash, not for assets:checking (has assertion)
       expect(hints).toHaveLength(1);
@@ -241,17 +261,19 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 12, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: false,
-        showRunningBalances: true,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: false,
+          showRunningBalances: true,
+          showCostConversions: false
+        }
+      } as any);
 
       // Should have 6 hints (including equity:opening which now shows balance even with inferred amount)
       expect(hints).toHaveLength(6);
 
       // First transaction: checking = $1000, equity:opening = $-1000 (inferred)
       expect(labelToString(hints[0].label)).toContain('$1000.00');
-      expect(labelToString(hints[1].label)).toContain('-$1000.00'); // equity:opening balance (inferred amount)
+      expect(labelToString(hints[1].label)).toContain('$-1000.00'); // equity:opening balance (inferred amount)
 
       // Second transaction: food = $50, checking = $950 (1000 - 50)
       expect(labelToString(hints[2].label)).toContain('$50.00');  // expenses:food first occurrence
@@ -274,13 +296,15 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: false,
-        showRunningBalances: false,
-        showCostConversions: true
-      });
+        inlayHints: {
+          showInferredAmounts: false,
+          showRunningBalances: false,
+          showCostConversions: true
+        }
+      } as any);
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe(' @@ $1000.00');
+      expect(labelToString(hints[0].label)).toBe(' @@$1000.00 ');
       expect(hints[0].kind).toBe(InlayHintKind.Type);
       expect(hints[0].position.line).toBe(1);
     });
@@ -295,10 +319,12 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: false,
-        showRunningBalances: false,
-        showCostConversions: true
-      });
+        inlayHints: {
+          showInferredAmounts: false,
+          showRunningBalances: false,
+          showCostConversions: true
+        }
+      } as any);
 
       // Total cost (@@ notation) is already explicit, so no hint should be shown
       expect(hints).toHaveLength(0);
@@ -315,14 +341,16 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 3, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: false,
-        showRunningBalances: false,
-        showCostConversions: true
-      });
+        inlayHints: {
+          showInferredAmounts: false,
+          showRunningBalances: false,
+          showCostConversions: true
+        }
+      } as any);
 
       expect(hints).toHaveLength(2);
-      expect(labelToString(hints[0].label)).toBe(' @@ $1000.00');
-      expect(labelToString(hints[1].label)).toBe(' @@ $25000.00');
+      expect(labelToString(hints[0].label)).toBe(' @@$1000.00 ');
+      expect(labelToString(hints[1].label)).toBe(' @@$25000.00 ');
     });
 
     test('should not show hints when showCostConversions is false', () => {
@@ -335,10 +363,12 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: false,
-        showRunningBalances: false,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: false,
+          showRunningBalances: false,
+          showCostConversions: false
+        }
+      } as any);
 
       expect(hints).toHaveLength(0);
     });
@@ -365,14 +395,16 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(4, 0, 6, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: true,
-        showRunningBalances: false,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: true,
+          showRunningBalances: false,
+          showCostConversions: false
+        }
+      } as any);
 
       expect(hints).toHaveLength(1);
       expect(hints[0].position.line).toBe(6);
-      expect(labelToString(hints[0].label)).toBe('  -$1000.00');
+      expect(labelToString(hints[0].label)).toBe('  $-1000.00');
     });
 
     test('should handle empty range', () => {
@@ -385,10 +417,12 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(10, 0, 20, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: true,
-        showRunningBalances: false,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: true,
+          showRunningBalances: false,
+          showCostConversions: false
+        }
+      } as any);
 
       expect(hints).toHaveLength(0);
     });
@@ -405,10 +439,12 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: true,
-        showRunningBalances: true,
-        showCostConversions: true
-      });
+        inlayHints: {
+          showInferredAmounts: true,
+          showRunningBalances: true,
+          showCostConversions: true
+        }
+      } as any);
 
       // Should have: 1 cost conversion (@@), 1 running balance (stock), 1 inferred amount (checking)
       expect(hints.length).toBeGreaterThanOrEqual(2);
@@ -459,10 +495,12 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: true,
-        showRunningBalances: false,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: true,
+          showRunningBalances: false,
+          showCostConversions: false
+        }
+      } as any);
 
       expect(hints).toHaveLength(1);
       expect(labelToString(hints[0].label)).toBe('  -50.00');
@@ -478,10 +516,12 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: false,
-        showRunningBalances: false,
-        showCostConversions: true
-      });
+        inlayHints: {
+          showInferredAmounts: false,
+          showRunningBalances: false,
+          showCostConversions: true
+        }
+      } as any);
 
       // Inferred costs don't have explicit @ notation in text,
       // so no cost conversion hints should be shown
@@ -498,10 +538,12 @@ describe('InlayHintsProvider', () => {
       const range = Range.create(0, 0, 2, 0);
 
       const hints = provider.provideInlayHints(doc, range, parsed, {
-        showInferredAmounts: false,
-        showRunningBalances: false,
-        showCostConversions: true
-      });
+        inlayHints: {
+          showInferredAmounts: false,
+          showRunningBalances: false,
+          showCostConversions: true
+        }
+      } as any);
 
       expect(hints).toHaveLength(1);
       expect(labelToString(hints[0].label)).toContain('$');
@@ -543,10 +585,12 @@ include balance-include-other.journal
       const range = Range.create(0, 0, 100, 0);
 
       const hints = provider.provideInlayHints(baseDoc, range, parsed, {
-        showInferredAmounts: false,
-        showRunningBalances: true,
-        showCostConversions: false
-      });
+        inlayHints: {
+          showInferredAmounts: false,
+          showRunningBalances: true,
+          showCostConversions: false
+        }
+      } as any);
 
       // Should have running balance hints for postings in the base file
       // assets:checking at line 4 should show accumulated balance: -50 (from include) + -40 (this transaction) = -90
@@ -554,7 +598,7 @@ include balance-include-other.journal
       expect(line4Hints.length).toBeGreaterThan(0);
 
       const line4Label = labelToString(line4Hints[0].label);
-      expect(line4Label).toContain('-$90.00');
+      expect(line4Label).toContain('$-90.00');
     });
   });
 });

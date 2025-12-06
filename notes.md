@@ -1,2 +1,2 @@
- - Personal Finances includes tests
-- Autocompleteig partially typed accounts
+Folding in the graph explorer
+Formatter inserting costs rather than using inlay hints
