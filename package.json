@@ -1,11 +1,58 @@
 {
   "name": "hledger-lsp",
   "version": "0.1.7",
-  "private": true,
+  "description": "Language Server Protocol implementation for hledger plain text accounting",
+  "main": "./out/server.js",
+  "bin": {
+    "hledger-lsp": "./out/server.js"
+  },
+  "files": [
+    "out/**/*",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "cd server && npm run build",
-    "lint": "cd server && npm run lint",
-    "test": "cd server && npm test",
-    "test:watch": "cd server && npm run test:watch"
+    "build": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "lint": "eslint src --ext ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:verbose": "jest --verbose",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "hledger",
+    "lsp",
+    "language-server",
+    "accounting"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ptimoney/hledger-lsp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ptimoney/hledger-lsp/issues"
+  },
+  "homepage": "https://github.com/ptimoney/hledger-lsp#readme",
+  "author": "Patrick Timoney",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "vscode-languageserver": "^9.0.1",
+    "fast-glob": "^3.2.12",
+    "vscode-languageserver-textdocument": "^1.0.12"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.10.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.3",
+    "@typescript-eslint/parser": "^8.46.3",
+    "eslint": "^9.39.1",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.5",
+    "typescript": "^5.9.3"
   }
 }

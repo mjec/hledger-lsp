@@ -1,11 +1,18 @@
-/**
- * Monorepo Jest configuration
- * Runs package-level Jest configs for the server and the vscode-client packages.
- */
+/** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
-  // Delegate to package-level configs so each package can control its own ts-jest settings
-  projects: [
-    '<rootDir>/server/jest.config.js',
-    '<rootDir>/vscode-client/jest.config.js'
-  ]
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  roots: ['<rootDir>/src', '<rootDir>/tests'],
+  testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.d.ts',
+    '!src/**/__tests__/**',
+  ],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov', 'html'],
+  moduleFileExtensions: ['ts', 'js', 'json'],
+  transform: {
+    '^.+\\.ts$': 'ts-jest',
+  },
 };
