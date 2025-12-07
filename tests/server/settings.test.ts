@@ -20,7 +20,7 @@ describe('Settings', () => {
     });
 
     test('should have undeclaredTags validation enabled by default', () => {
-      expect(defaultSettings.validation?.undeclaredTags).toBe(true);
+      expect(defaultSettings.validation?.undeclaredTags).toBe(false);
     });
 
     test('should have all other validations enabled by default', () => {

@@ -459,7 +459,13 @@ account expenses:food
     assets:checking  $-100.00`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
       const parsedDoc = parser.parse(doc);
-      const result = validator.validate(doc, parsedDoc);
+      const result = validator.validate(doc, parsedDoc, {
+        settings: {
+          validation: {
+            undeclaredTags: true
+          }
+        }
+      });
 
       const tagWarnings = result.diagnostics.filter(d => d.message.includes('Tag') && d.message.includes('not declared'));
       expect(tagWarnings.length).toBeGreaterThan(0);
@@ -473,7 +479,13 @@ account expenses:food
     assets:checking  $-100.00`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
       const parsedDoc = parser.parse(doc);
-      const result = validator.validate(doc, parsedDoc);
+      const result = validator.validate(doc, parsedDoc, {
+        settings: {
+          validation: {
+            undeclaredTags: true
+          }
+        }
+      });
 
       const tagWarnings = result.diagnostics.filter(d => d.message.includes('Tag') && d.message.includes('not declared'));
       expect(tagWarnings.length).toBeGreaterThan(0);

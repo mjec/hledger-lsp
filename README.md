@@ -1,5 +1,44 @@
 # hledger Language Server
 
+<!--toc:start-->
+- [hledger Language Server](#hledger-language-server)
+  - [Installation](#installation)
+  - [IDE Integration](#ide-integration)
+    - [VS Code](#vs-code)
+    - [Neovim](#neovim)
+    - [Other Editors](#other-editors)
+  - [Features](#features)
+    - [Code Completion](#code-completion)
+    - [Hover](#hover)
+    - [Validation](#validation)
+    - [Include Directive Support](#include-directive-support)
+    - [Navigation](#navigation)
+    - [Code Actions and Quick Fixes](#code-actions-and-quick-fixes)
+    - [Formatting](#formatting)
+    - [Semantic Highlighting](#semantic-highlighting)
+    - [Inlay Hints](#inlay-hints)
+    - [Code Lens](#code-lens)
+    - [Editor Integration](#editor-integration)
+  - [Configuration](#configuration)
+    - [General Settings](#general-settings)
+    - [Validation Settings](#validation-settings)
+    - [Severity Settings](#severity-settings)
+    - [Include Settings](#include-settings)
+    - [Workspace Settings](#workspace-settings)
+    - [Completion Settings](#completion-settings)
+    - [Formatting Settings](#formatting-settings)
+    - [Inlay Hints Settings](#inlay-hints-settings)
+    - [Code Lens Settings](#code-lens-settings)
+  - [Development](#development)
+    - [Prerequisites](#prerequisites)
+    - [Building from Source](#building-from-source)
+    - [Project Structure](#project-structure)
+    - [Development Commands](#development-commands)
+  - [Contributing](#contributing)
+  - [License](#license)
+  - [Links](#links)
+<!--toc:end-->
+
 A Language Server Protocol (LSP) implementation for
 [hledger](https://hledger.org/), a plain text accounting tool.
 
@@ -20,10 +59,8 @@ This language server can be used with any LSP-compatible editor. Official extens
 
 **Extension**: [hledger-tools](https://marketplace.visualstudio.com/items?itemName=patrickt.hledger-tools)
 
-Install from the VS Code Marketplace or Extensions view. The extension provides all LSP features with zero configuration.
-
-- **Repository**: [ptimoney/hledger-vscode](https://github.com/ptimoney/hledger-vscode)
-- **Issues**: [Report extension issues](https://github.com/ptimoney/hledger-vscode/issues)
+Install from the VS Code Marketplace or Extensions view. The extension provides
+all LSP features with zero configuration.
 
 ### Neovim
 
@@ -112,7 +149,7 @@ and tags
 - **Find references** - Show all usages of accounts, payees, commodities, or
 tags across the document
 
-### Code Actions & Quick Fixes
+### Code Actions and Quick Fixes
 
 - **Add declarations** - Automatically add account, payee, commodity, or tag
 declarations for undeclared items
@@ -208,20 +245,31 @@ problems to report per file
 Most validation settings default to `true` and can be individually disabled:
 
 - `validation.balance` (default: true): Verify transactions balance to zero per commodity
-- `validation.missingAmounts` (default: true): Ensure at most one posting per transaction omits an amount
-- `validation.undeclaredAccounts` (default: true): Warn about accounts used but not declared
-- `validation.undeclaredPayees` (default: **false**): Warn about payees used but not declared
-- `validation.undeclaredCommodities` (default: true): Warn about commodities used but not declared
-- `validation.undeclaredTags` (default: true): Warn about tags used but not declared
-- `validation.dateOrdering` (default: true): Detect transactions with dates out of chronological order
-- `validation.balanceAssertions` (default: true): Verify balance assertions match calculated balances
-- `validation.emptyTransactions` (default: true): Require at least 2 postings per transaction
-- `validation.invalidDates` (default: true): Check for invalid dates (e.g., February 30, month 13)
+- `validation.missingAmounts` (default: true): Ensure at most one posting per
+transaction omits an amount
+- `validation.undeclaredAccounts` (default: true): Warn about accounts used but
+not declared
+- `validation.undeclaredPayees` (default: **false**): Warn about payees used but
+not declared
+- `validation.undeclaredCommodities` (default: true): Warn about commodities
+used but not declared
+- `validation.undeclaredTags` (default: **false**): Warn about tags used but not
+declared
+- `validation.dateOrdering` (default: true): Detect transactions with dates out
+of chronological order
+- `validation.balanceAssertions` (default: true): Verify balance assertions
+match calculated balances
+- `validation.emptyTransactions` (default: true): Require at least 2 postings
+per transaction
+- `validation.invalidDates` (default: true): Check for invalid dates (e.g.,
+February 30, month 13)
 - `validation.futureDates` (default: true): Warn about future-dated transactions
-- `validation.emptyDescriptions` (default: true): Warn about transactions with no description
+- `validation.emptyDescriptions` (default: true): Warn about transactions with
+no description
 - `validation.includeFiles` (default: true): Detect missing include files
 - `validation.circularIncludes` (default: true): Detect circular include dependencies
-- `validation.markAllUndeclaredInstances` (default: **true**): Mark all instances of undeclared resources with diagnostics, not just the first occurrence
+- `validation.markAllUndeclaredInstances` (default: true): Mark all
+instances of undeclared resources with diagnostics, not just the first occurrence
 
 ### Severity Settings
 
@@ -242,15 +290,25 @@ infinite recursion
 
 ### Workspace Settings
 
-Enable workspace-aware parsing for features that need global context (running balances, completion, validation):
+Enable workspace-aware parsing for features that need global context (running
+balances, completion, validation):
 
-- `workspace.enabled` (boolean, default: true): Enable workspace-aware parsing. When enabled, the server discovers all journal files in your workspace, builds an include graph, and identifies a single root file. This allows features to access workspace-wide state even when working with "leaf" files that don't include other files.
-- `workspace.eagerParsing` (boolean, default: true): Parse all discovered files eagerly on startup. If disabled, files are parsed on-demand.
-- `workspace.autoDetectRoot` (boolean, default: true): Automatically detect the root file using heuristics (prefers files with no parents that include many others, with names like "main", "all", or "index"). If disabled, only an explicitly configured root file is used (see Configuration File Support below).
+- `workspace.enabled` (boolean, default: true): Enable workspace-aware parsing.
+When enabled, the server discovers all journal files in your workspace, builds
+an include graph, and identifies a single root file. This allows features to
+access workspace-wide state even when working with "leaf" files that don't
+include other files.
+- `workspace.eagerParsing` (boolean, default: true): Parse all discovered files
+eagerly on startup. If disabled, files are parsed on-demand.
+- `workspace.autoDetectRoot` (boolean, default: true): Automatically detect the
+root file using heuristics (prefers files with no parents that include many
+others, with names like "main", "all", or "index"). If disabled, only an
+explicitly configured root file is used (see Configuration File Support below).
 
 **Configuration File Support:**
 
-You can create a `.hledger-lsp.json` file in your workspace to explicitly configure workspace behavior:
+You can create a `.hledger-lsp.json` file in your workspace to explicitly
+configure workspace behavior:
 
 ```json
 {
@@ -266,16 +324,26 @@ You can create a `.hledger-lsp.json` file in your workspace to explicitly config
 ```
 
 Settings:
+
 - `rootFile` (string): Explicit root file path (relative to config file location)
-- `include` (array of glob patterns): File discovery patterns (default: `["**/*.journal", "**/*.hledger"]`)
-- `exclude` (array of glob patterns): Files to exclude (default: `["**/node_modules/**", "**/.git/**", "**/.*"]`)
+- `include` (array of glob patterns): File discovery patterns
+(default: `["**/*.journal", "**/*.hledger"]`)
+- `exclude` (array of glob patterns): Files to exclude
+(default: `["**/node_modules/**", "**/.git/**", "**/.*"]`)
 - `workspace` (object): Same workspace settings as above
 
-**Important**: The `.hledger-lsp.json` file is ONLY for workspace structure configuration (which files to discover, which are roots, etc.). LSP feature settings like inlay hints, code lens, validation rules, and formatting preferences should be configured in your editor/IDE settings (VS Code `settings.json`, Neovim LSP config, etc.).
+**Important**: The `.hledger-lsp.json` file is ONLY for workspace structure
+configuration (which files to discover, which are roots, etc.).
+LSP feature settings like inlay hints, code lens, validation rules,
+and formatting preferences should be configured in your editor/IDE
+settings (VS Code `settings.json`, Neovim LSP config, etc.).
 
-The configuration file will be automatically discovered by walking up the directory tree from your journal files. Settings from VS Code/editor configuration override settings from the config file.
+The configuration file will be automatically discovered by walking up the
+directory tree from your journal files. Settings from VS Code/editor
+configuration override settings from the config file.
 
 **Performance Tips:**
+
 - For large workspaces (>100 files), use `exclude` patterns to skip unnecessary files
 - Disable `eagerParsing` if initialization is slow
 - Check LSP server logs for performance warnings and metrics
@@ -323,22 +391,23 @@ commodities (e.g., `-100.00 EUR`), which always show the sign before the number.
 
 ### Inlay Hints Settings
 
-Configure which inline hints to display (all disabled by default):
+Configure which inline hints to display (running balances is disabled by default
+as it can make the file busy):
 
-- `inlayHints.showInferredAmounts` (boolean, default: false): Show calculated
+- `inlayHints.showInferredAmounts` (boolean, default: true): Show calculated
 amounts for postings that omit explicit amounts
 - `inlayHints.showRunningBalances` (boolean, default: false): Display running
 balance after each posting
-- `inlayHints.showCostConversions` (boolean, default: false): Show total cost in
+- `inlayHints.showCostConversions` (boolean, default: true): Show total cost in
 target commodity for postings with @ or @@ notation
 
 ### Code Lens Settings
 
-Configure which code lenses to display (disabled by default):
+Configure which code lenses to display (disabled by default, largely a holding
+for future features):
 
-- `codeLens.showTransactionCounts` (boolean, default: false): Show transaction counts for each account on transaction headers
-
-**Note:** Running balances are now exclusively shown via inlay hints (`inlayHints.showRunningBalances`), which is a more natural place for position-sensitive information that appears inline with postings.
+- `codeLens.showTransactionCounts` (boolean, default: false): Show transaction
+counts for each account on transaction headers
 
 ## Development
 

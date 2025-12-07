@@ -70,7 +70,7 @@ export const defaultSettings: HledgerSettings = {
     undeclaredAccounts: true,
     undeclaredPayees: false,
     undeclaredCommodities: true,
-    undeclaredTags: true,
+    undeclaredTags: false,
     dateOrdering: true,
     balanceAssertions: true,
     emptyTransactions: true,
@@ -108,9 +108,9 @@ export const defaultSettings: HledgerSettings = {
     signPosition: 'after-symbol',
   },
   inlayHints: {
-    showInferredAmounts: false,
+    showInferredAmounts: true,
     showRunningBalances: false,
-    showCostConversions: false,
+    showCostConversions: true,
   },
   codeLens: {
     showTransactionCounts: false,
