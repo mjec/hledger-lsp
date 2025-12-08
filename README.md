@@ -53,11 +53,12 @@ language server can be used with any LSP-compatible editor.
 
 ## IDE Integration
 
-This language server can be used with any LSP-compatible editor. Official extensions:
+This language server can be used with any LSP-compatible editor. Currently available extensions:
 
 ### VS Code
 
-**Extension**: [hledger-tools](https://marketplace.visualstudio.com/items?itemName=patrickt.hledger-tools)
+**Extension**: [hledger-lsp](https://marketplace.visualstudio.com/items?itemName=patrickt.hledger-lsp)
+**GitHub**: [patrickt/hledger-lsp](https://github.com/patrickt/hledger-lsp)
 
 Install from the VS Code Marketplace or Extensions view. The extension provides
 all LSP features with zero configuration.
