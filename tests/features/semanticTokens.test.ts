@@ -99,7 +99,7 @@ describe('SemanticTokensProvider', () => {
       const tokens = decodeTokens(data);
 
       // Find date token
-      const dateToken = tokens.find(t => t.tokenType === 'type');
+      const dateToken = tokens.find(t => t.tokenType === 'keyword');
       expect(dateToken).toBeDefined();
       expect(dateToken!.line).toBe(0);
       expect(dateToken!.char).toBe(0);
@@ -187,7 +187,7 @@ describe('SemanticTokensProvider', () => {
       const tokens = decodeTokens(data);
 
       // Find commodity token
-      const commodityToken = tokens.find(t => t.tokenType === 'enum');
+      const commodityToken = tokens.find(t => t.tokenType === 'variable');
       expect(commodityToken).toBeDefined();
       expect(commodityToken!.line).toBe(1);
 
@@ -209,7 +209,7 @@ describe('SemanticTokensProvider', () => {
       const tokens = decodeTokens(data);
 
       // Find commodity token
-      const commodityToken = tokens.find(t => t.tokenType === 'enum');
+      const commodityToken = tokens.find(t => t.tokenType === 'variable');
       expect(commodityToken).toBeDefined();
       expect(commodityToken!.line).toBe(1);
 
@@ -304,7 +304,7 @@ describe('SemanticTokensProvider', () => {
       expect(keywordToken).toBeDefined();
 
       // Find commodity declaration token
-      const commodityToken = tokens.find(t => t.tokenType === 'enum' && t.modifiers.includes('declaration'));
+      const commodityToken = tokens.find(t => t.tokenType === 'variable' && t.modifiers.includes('declaration'));
       expect(commodityToken).toBeDefined();
     });
 
@@ -347,9 +347,9 @@ tag project
       expect(tokens.some(t => t.tokenType === 'keyword')).toBe(true);
       expect(tokens.some(t => t.tokenType === 'namespace')).toBe(true);
       expect(tokens.some(t => t.tokenType === 'class')).toBe(true);
-      expect(tokens.some(t => t.tokenType === 'enum')).toBe(true);
+      expect(tokens.some(t => t.tokenType === 'variable')).toBe(true);
       expect(tokens.some(t => t.tokenType === 'property')).toBe(true);
-      expect(tokens.some(t => t.tokenType === 'type')).toBe(true);
+      expect(tokens.some(t => t.tokenType === 'keyword')).toBe(true);
       expect(tokens.some(t => t.tokenType === 'number')).toBe(true);
       expect(tokens.some(t => t.tokenType === 'comment')).toBe(true);
     });
@@ -415,7 +415,7 @@ tag project
       const line0Tokens = tokens.filter(t => t.line === 0);
 
       // Should have date token
-      const dateToken = line0Tokens.find(t => t.tokenType === 'type');
+      const dateToken = line0Tokens.find(t => t.tokenType === 'keyword');
       expect(dateToken).toBeDefined();
       expect(dateToken!.char).toBe(0);
       expect(dateToken!.length).toBe(10);
@@ -465,7 +465,7 @@ tag project
       expect(operatorTokens.length).toBeGreaterThan(0);
 
       // Should have commodity tokens for both EUR and USD
-      const commodityTokens = tokens.filter(t => t.tokenType === 'enum' && t.line === 1);
+      const commodityTokens = tokens.filter(t => t.tokenType === 'variable' && t.line === 1);
       expect(commodityTokens.length).toBe(2);
 
       // Should have number tokens for both amounts
@@ -488,7 +488,7 @@ tag project
       expect(operatorTokens.length).toBeGreaterThan(0);
 
       // Should have commodity tokens for both EUR and USD
-      const commodityTokens = tokens.filter(t => t.tokenType === 'enum' && t.line === 1);
+      const commodityTokens = tokens.filter(t => t.tokenType === 'variable' && t.line === 1);
       expect(commodityTokens.length).toBe(2);
 
       // Should have number tokens for both amounts
@@ -511,7 +511,7 @@ tag project
       expect(operatorTokens.length).toBe(2); // @ and =
 
       // Should have commodity tokens (€ appears twice, $ once)
-      const commodityTokens = tokens.filter(t => t.tokenType === 'enum' && t.line === 1);
+      const commodityTokens = tokens.filter(t => t.tokenType === 'variable' && t.line === 1);
       expect(commodityTokens.length).toBe(3);
 
       // Should have number tokens (100, 1.35, 100)
@@ -533,7 +533,7 @@ tag project
       const line1Tokens = tokens.filter(t => t.line === 1);
 
       // Should have commodity token (EUR)
-      const commodityTokens1 = line1Tokens.filter(t => t.tokenType === 'enum');
+      const commodityTokens1 = line1Tokens.filter(t => t.tokenType === 'variable');
       expect(commodityTokens1.length).toBe(1);
       expect(commodityTokens1[0].length).toBe(3); // EUR
 
@@ -546,7 +546,7 @@ tag project
       const line2Tokens = tokens.filter(t => t.line === 2);
 
       // Should have commodity token (EUR)
-      const commodityTokens2 = line2Tokens.filter(t => t.tokenType === 'enum');
+      const commodityTokens2 = line2Tokens.filter(t => t.tokenType === 'variable');
       expect(commodityTokens2.length).toBe(1);
       expect(commodityTokens2[0].length).toBe(3); // EUR
 
@@ -567,7 +567,7 @@ tag project
       const line1Tokens = tokens.filter(t => t.line === 1);
 
       // Should have commodity token (CHF)
-      const commodityTokens = line1Tokens.filter(t => t.tokenType === 'enum');
+      const commodityTokens = line1Tokens.filter(t => t.tokenType === 'variable');
       expect(commodityTokens.length).toBe(1);
       expect(commodityTokens[0].length).toBe(3);
 

@@ -5,18 +5,30 @@ import { ParsedDocument } from '../types';
 /**
  * Semantic token types for hledger syntax.
  * These map to standard LSP semantic token types where possible.
+ * 
+ * Ordered to maximize color differentiation across different themes:
+ * - namespace: Account names (cyan/blue - hierarchical structure)
+ * - keyword: Dates (orange/brown - temporal markers, distinct from accounts)
+ * - class: Payees (cyan/blue - object-like descriptions)
+ * - variable: Commodities/currencies (green/purple - varies by theme, distinct)
+ * - property: Tags (red/magenta - metadata markers)
+ * - type: Directives (cyan - declaration keywords)
+ * - number: Amounts (green - numeric values)
+ * - string: Transaction codes (red/string color - codes)
+ * - comment: Comments (gray - non-code text)
+ * - operator: Status indicators (red/orange - operators)
  */
 export enum TokenType {
   namespace = 0,    // Account names (hierarchical)
-  type = 1,         // Dates
-  class = 2,        // Payees
-  enum = 3,         // Commodities/currencies
-  property = 4,     // Tags
-  keyword = 5,      // Directives (account, commodity, payee, etc.)
-  number = 6,       // Amounts
-  string = 7,       // Transaction codes
-  comment = 8,      // Comments
-  operator = 9,     // Status indicators (*, !)
+  keyword = 1,      // Dates (orange/brown - temporal markers, good contrast)
+  class = 2,        // Payees (cyan/blue)
+  variable = 3,     // Commodities/currencies (green/purple - distinct from accounts)
+  property = 4,     // Tags (red/magenta)
+  type = 5,         // Directives (cyan)
+  number = 6,       // Amounts (green)
+  string = 7,       // Transaction codes (red)
+  comment = 8,      // Comments (gray)
+  operator = 9,     // Status indicators (red/orange)
 }
 
 /**
@@ -34,11 +46,11 @@ export enum TokenModifier {
  */
 export const tokenTypes: string[] = [
   'namespace',  // 0
-  'type',       // 1
+  'keyword',    // 1
   'class',      // 2
-  'enum',       // 3
+  'variable',   // 3
   'property',   // 4
-  'keyword',    // 5
+  'type',       // 5
   'number',     // 6
   'string',     // 7
   'comment',    // 8
@@ -241,7 +253,7 @@ export class SemanticTokensProvider {
                 tokenType = TokenType.class;
                 break;
               case 'commodity':
-                tokenType = TokenType.enum;
+                tokenType = TokenType.variable;
                 break;
               case 'tag':
                 tokenType = TokenType.property;
@@ -305,7 +317,7 @@ export class SemanticTokensProvider {
       lineIndex,
       0,
       date.length,
-      TokenType.type,
+      TokenType.keyword,
       encodeModifiers([TokenModifier.readonly])
     );
 
@@ -491,7 +503,7 @@ export class SemanticTokensProvider {
       const commodityStart = startOffset + amountStr.indexOf(commodity);
       const numberStart = startOffset + amountStr.indexOf(number);
 
-      builder.push(lineIndex, commodityStart, commodity.length, TokenType.enum, 0);
+      builder.push(lineIndex, commodityStart, commodity.length, TokenType.variable, 0);
       builder.push(lineIndex, numberStart, number.trim().length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
       return;
     }
@@ -504,7 +516,7 @@ export class SemanticTokensProvider {
       const commodityStart = signStart + sign.length;
       const numberStart = commodityStart + commodity.length;
 
-      builder.push(lineIndex, commodityStart, commodity.length, TokenType.enum, 0);
+      builder.push(lineIndex, commodityStart, commodity.length, TokenType.variable, 0);
       builder.push(lineIndex, numberStart, number.trim().length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
       return;
     }
@@ -517,7 +529,7 @@ export class SemanticTokensProvider {
       const commodityStart = startOffset + amountStr.indexOf(commodity);
       const numberStart = startOffset + amountStr.indexOf(number);
 
-      builder.push(lineIndex, commodityStart, commodity.length, TokenType.enum, 0);
+      builder.push(lineIndex, commodityStart, commodity.length, TokenType.variable, 0);
       builder.push(lineIndex, numberStart, number.trim().length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
       return;
     }
@@ -529,7 +541,7 @@ export class SemanticTokensProvider {
       const commodityStart = startOffset + amountStr.indexOf(commodity);
       const numberStart = commodityStart + commodity.length;
 
-      builder.push(lineIndex, commodityStart, commodity.length, TokenType.enum, 0);
+      builder.push(lineIndex, commodityStart, commodity.length, TokenType.variable, 0);
       builder.push(lineIndex, numberStart, number.trim().length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
       return;
     }
@@ -542,7 +554,7 @@ export class SemanticTokensProvider {
       const commodityStart = startOffset + amountStr.indexOf(commodity, number.length);
 
       builder.push(lineIndex, numberStart, number.trim().length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
-      builder.push(lineIndex, commodityStart, commodity.length, TokenType.enum, 0);
+      builder.push(lineIndex, commodityStart, commodity.length, TokenType.variable, 0);
       return;
     }
 
@@ -554,7 +566,7 @@ export class SemanticTokensProvider {
       const commodityStart = numberStart + number.length;
 
       builder.push(lineIndex, numberStart, number.trim().length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
-      builder.push(lineIndex, commodityStart, commodity.length, TokenType.enum, 0);
+      builder.push(lineIndex, commodityStart, commodity.length, TokenType.variable, 0);
       return;
     }
 
