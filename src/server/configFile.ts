@@ -115,8 +115,9 @@ export function discoverConfigFile(startUri: string, workspaceRoot?: string): st
     }
 
     // Stop at filesystem root
+    // This check works on both Unix (/) and Windows (C:\)
     const parentDir = path.dirname(currentDir);
-    if (parentDir === currentDir) {
+    if (parentDir === currentDir || currentDir === path.parse(currentDir).root) {
       break;
     }
 

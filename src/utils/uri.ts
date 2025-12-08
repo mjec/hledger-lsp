@@ -7,10 +7,12 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 /**
  * Convert a file:// URI to a filesystem path
  * Properly decodes URI-encoded characters (e.g., %20 → space)
+ * Handles both Unix (file:///home/...) and Windows (file:///C:/...) formats
  */
 export function toFilePath(uri: string): string {
   if (uri.startsWith('file://')) {
-    const encodedPath = uri.substring(7);
+    let encodedPath = uri.substring(7);
+
     // Decode each path component separately to handle encoded characters
     const parts = encodedPath.split('/');
     const decoded = parts.map(part => {
@@ -20,7 +22,16 @@ export function toFilePath(uri: string): string {
         // If decoding fails, return the part as-is
         return part;
       }
-    }).join('/');
+    }).join(path.sep); // Use platform-specific separator
+
+    // On Windows, file:// URIs have format: file:///C:/path
+    // The leading slash before the drive letter should be removed
+    // On Unix: file:///home -> /home (keep leading slash)
+    // On Windows: file:///C:/path -> C:\path (remove leading slash)
+    if (process.platform === 'win32' && decoded.match(/^[\\\/][A-Za-z]:/)) {
+      return decoded.substring(1);
+    }
+
     return decoded;
   }
   return uri;
@@ -54,13 +65,29 @@ function encodePathComponent(component: string): string {
 /**
  * Ensure a path is represented as a file:// URI
  * Properly encodes special characters (e.g., space → %20)
+ * Handles both Unix and Windows filesystem paths
  */
-export function toFileUri(path: string): string {
-  if (path.startsWith('file://')) return path;
+export function toFileUri(fsPath: string): string {
+  if (fsPath.startsWith('file://')) return fsPath;
+
+  // Normalize path separators to forward slashes for URI
+  // This handles Windows paths that may use backslashes
+  const normalized = fsPath.split(path.sep).join('/');
 
   // Encode each path component separately to preserve slashes
-  const parts = path.split('/');
+  const parts = normalized.split('/');
   const encoded = parts.map(part => encodePathComponent(part)).join('/');
+
+  // Ensure proper format:
+  // Windows: file:///C:/Users/... (3 slashes total)
+  // Unix: file:///home/... (3 slashes total)
+  // The encoded path should already have leading slash for Unix or drive letter for Windows
+  if (encoded.startsWith('/') || /^[A-Za-z]:/.test(encoded)) {
+    // Remove any leading slashes and add exactly 3
+    return `file:///${encoded.replace(/^\/+/, '')}`;
+  }
+
+  // Relative path - prepend with two slashes
   return `file://${encoded}`;
 }
 
@@ -84,7 +111,7 @@ export function defaultFileReader(uri: string): TextDocument | null {
  * Resolve include paths relative to a base URI.
  * Behavior:
  * - If includePath starts with 'file://': treat as absolute URI
- * - If includePath starts with '/': treat as absolute filesystem path
+ * - If includePath is an absolute path (Unix: /..., Windows: C:\...): treat as absolute filesystem path
  * - If includePath starts with '~': expand tilde to home directory
  * - Otherwise, treat as relative to the directory of baseUri
  */
@@ -112,9 +139,10 @@ export function resolveIncludePath(includePath: string, baseUri: string): string
     const resolved = path.resolve(home, rest);
     return toFileUri(resolved);
   }
-  // If includePath starts with '/', treat it as an absolute filesystem path
-  // (matching hledger behaviour: leading slash means system-root absolute path)
-  if (includePath.startsWith('/')) {
+
+  // Check if it's an absolute path (works for both Unix and Windows)
+  // Unix: /home/... Windows: C:\... or C:/...
+  if (path.isAbsolute(includePath)) {
     const resolved = path.resolve(includePath);
     return toFileUri(resolved);
   }
@@ -142,10 +170,27 @@ export function resolveIncludePaths(includePath: string, baseUri: string): strin
   let cwd: string;
   let pattern = includePath;
 
-  if (includePath.startsWith('/')) {
-    // absolute pattern: remove leading slash and search from filesystem root
-    cwd = '/';
-    pattern = includePath.slice(1);
+  // Check for absolute paths (Unix: /..., Windows: C:\... or C:/...)
+  if (path.isAbsolute(includePath)) {
+    // On Windows, extract the drive root and use it as cwd
+    // On Unix, use the filesystem root
+    if (process.platform === 'win32') {
+      // Extract drive letter (e.g., "C:") from paths like "C:\foo\*.journal" or "C:/foo/*.journal"
+      const driveMatch = includePath.match(/^([A-Za-z]:)/);
+      if (driveMatch) {
+        cwd = driveMatch[1] + path.sep; // e.g., "C:\"
+        // Remove drive and leading separators from pattern
+        pattern = includePath.slice(driveMatch[1].length).replace(/^[\\\/]+/, '');
+      } else {
+        // Fallback: use current drive
+        cwd = path.parse(process.cwd()).root;
+        pattern = includePath.replace(/^[\\\/]+/, '');
+      }
+    } else {
+      // Unix: use root directory
+      cwd = '/';
+      pattern = includePath.replace(/^\/+/, '');
+    }
   } else if (includePath.startsWith('~')) {
     const home = os.homedir();
     if (includePath === '~') {

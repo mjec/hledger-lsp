@@ -17,6 +17,7 @@ import { isTransactionHeader, isPosting, extractAccountFromPosting, getIndentati
 import { calculateTransactionBalanceSimple } from '../utils/balanceCalculator';
 import { formatAmount } from '../utils/amountFormatter';
 import { toFilePath, toFileUri } from '../utils/uri';
+import * as path from 'path';
 
 import { HledgerSettings } from '../server/settings';
 
@@ -198,7 +199,8 @@ export class HoverProvider {
     if (account.declared) {
       parts.push(`**Status:** Declared`);
       if (account.sourceUri) {
-        const fileName = account.sourceUri.split('/').pop() || account.sourceUri;
+        const filePath = toFilePath(account.sourceUri);
+        const fileName = path.basename(filePath);
         const lineNum = (account.line ?? 0) + 1;
         parts.push(`**Location:** ${fileName}:${lineNum}`);
       }
@@ -230,7 +232,8 @@ export class HoverProvider {
     if (commodity.declared) {
       parts.push(`**Status:** Declared`);
       if (commodity.sourceUri) {
-        const fileName = commodity.sourceUri.split('/').pop() || commodity.sourceUri;
+        const filePath = toFilePath(commodity.sourceUri);
+        const fileName = path.basename(filePath);
         const lineNum = (commodity.line ?? 0) + 1;
         parts.push(`**Location:** ${fileName}:${lineNum}`);
       }
@@ -287,7 +290,8 @@ export class HoverProvider {
     if (payee.declared) {
       parts.push(`**Status:** Declared`);
       if (payee.sourceUri) {
-        const fileName = payee.sourceUri.split('/').pop() || payee.sourceUri;
+        const filePath = toFilePath(payee.sourceUri);
+        const fileName = path.basename(filePath);
         const lineNum = (payee.line ?? 0) + 1;
         parts.push(`**Location:** ${fileName}:${lineNum}`);
       }
@@ -330,7 +334,8 @@ export class HoverProvider {
     if (tag.declared) {
       parts.push(`**Status:** Declared`);
       if (tag.sourceUri) {
-        const fileName = tag.sourceUri.split('/').pop() || tag.sourceUri;
+        const filePath = toFilePath(tag.sourceUri);
+        const fileName = path.basename(filePath);
         const lineNum = (tag.line ?? 0) + 1;
         parts.push(`**Location:** ${fileName}:${lineNum}`);
       }
