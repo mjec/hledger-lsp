@@ -5,6 +5,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { toFileUri } from '../../src/utils/uri';
 import {
   HledgerLspConfig,
   discoverConfigFile,
@@ -223,20 +224,24 @@ describe('ConfigFile', () => {
       const config: HledgerLspConfig = {
         rootFile: 'main.journal'
       };
-      const configDir = '/home/user/ledger';
+      // Use platform-appropriate path
+      const configDir = process.platform === 'win32' ? 'C:\\home\\user\\ledger' : '/home/user/ledger';
+      const expected = toFileUri(path.join(configDir, 'main.journal'));
 
       const resolved = resolveRootFile(config, configDir);
-      expect(resolved).toBe('file:///home/user/ledger/main.journal');
+      expect(resolved).toBe(expected);
     });
 
     it('should resolve relative path in subdirectory', () => {
       const config: HledgerLspConfig = {
         rootFile: 'sub/budget.journal'
       };
-      const configDir = '/home/user/ledger';
+      // Use platform-appropriate path
+      const configDir = process.platform === 'win32' ? 'C:\\home\\user\\ledger' : '/home/user/ledger';
+      const expected = toFileUri(path.join(configDir, 'sub', 'budget.journal'));
 
       const resolved = resolveRootFile(config, configDir);
-      expect(resolved).toBe('file:///home/user/ledger/sub/budget.journal');
+      expect(resolved).toBe(expected);
     });
 
     it('should handle absolute path', () => {

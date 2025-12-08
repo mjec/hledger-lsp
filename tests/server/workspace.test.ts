@@ -2,6 +2,7 @@ import { WorkspaceManager } from '../../src/server/workspace';
 import { HledgerParser, FileReader } from '../../src/parser';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Connection } from 'vscode-languageserver/node';
+import * as path from 'path';
 
 // Mock the Connection interface
 const mockConnection = {
@@ -346,23 +347,30 @@ include 2024/*.journal`
     });
 
     test('should use explicit root from config', async () => {
-      mockDiscoverConfigFile.mockReturnValue('/workspace1/.hledger-lsp.json');
+      // Use platform-appropriate paths
+      const { toFileUri } = require('../../src/utils/uri');
+      const workspaceDir = process.platform === 'win32' ? 'C:\\workspace1' : '/workspace1';
+      const configPath = path.join(workspaceDir, '.hledger-lsp.json');
+      const workspaceUri = toFileUri(workspaceDir);
+      const expectedRoot = toFileUri(path.join(workspaceDir, 'expenses.journal'));
+
+      mockDiscoverConfigFile.mockReturnValue(configPath);
       mockLoadConfigFile.mockReturnValue({
         config: { rootFile: 'expenses.journal' }, // Explicitly pick a child as root
-        configPath: '/workspace1/.hledger-lsp.json',
-        configDir: '/workspace1',
+        configPath: configPath,
+        configDir: workspaceDir,
         warnings: []
       });
 
       await manager.initialize(
-        ['file:///workspace1'],
+        [workspaceUri],
         parser,
         fileReader,
         mockConnection
       );
 
       const diagnostics = manager.getDiagnosticInfo();
-      expect(diagnostics.rootFile).toBe('file:///workspace1/expenses.journal');
+      expect(diagnostics.rootFile).toBe(expectedRoot);
       expect(mockConnection.console.log).toHaveBeenCalledWith(expect.stringContaining('Using explicit root'));
     });
 

@@ -85,6 +85,11 @@ describe('URI utilities', () => {
     });
 
     test('resolves absolute path', () => {
+      // Skip on Windows - Unix absolute paths don't make sense there
+      if (process.platform === 'win32') {
+        return;
+      }
+
       const baseUri = 'file:///home/user/Cloud%20Storage/main.journal';
       const includePath = '/etc/declarations.journal';
       const resolved = resolveIncludePath(includePath, baseUri);
