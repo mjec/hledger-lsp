@@ -15,24 +15,33 @@ export function toFilePath(uri: string): string {
 
     // Decode each path component separately to handle encoded characters
     const parts = encodedPath.split('/');
-    const decoded = parts.map(part => {
+    const decodedParts = parts.map(part => {
       try {
         return decodeURIComponent(part);
       } catch {
         // If decoding fails, return the part as-is
         return part;
       }
-    }).join(path.sep); // Use platform-specific separator
+    });
 
-    // On Windows, file:// URIs have format: file:///C:/path
-    // The leading slash before the drive letter should be removed
-    // On Unix: file:///home -> /home (keep leading slash)
-    // On Windows: file:///C:/path -> C:\path (remove leading slash)
-    if (process.platform === 'win32' && decoded.match(/^[\\\/][A-Za-z]:/)) {
-      return decoded.substring(1);
+    // On Windows, check if this is a Windows path (has drive letter)
+    // If so, convert to backslashes. Otherwise, keep forward slashes (for Unix-style test paths)
+    if (process.platform === 'win32') {
+      // Check if second part (after leading empty string) is a drive letter
+      const hasDriveLetter = decodedParts.length > 1 && /^[A-Za-z]:$/.test(decodedParts[1]);
+
+      if (hasDriveLetter) {
+        // Windows path with drive letter: file:///C:/Users/... -> C:\Users\...
+        const decoded = decodedParts.join(path.sep);
+        return decoded.substring(1); // Remove leading separator
+      } else {
+        // Unix-style path on Windows (e.g., from tests): keep forward slashes
+        return decodedParts.join('/');
+      }
     }
 
-    return decoded;
+    // Unix: always use forward slashes
+    return decodedParts.join('/');
   }
   return uri;
 }
@@ -172,24 +181,32 @@ export function resolveIncludePaths(includePath: string, baseUri: string): strin
 
   // Check for absolute paths (Unix: /..., Windows: C:\... or C:/...)
   if (path.isAbsolute(includePath)) {
-    // On Windows, extract the drive root and use it as cwd
-    // On Unix, use the filesystem root
-    if (process.platform === 'win32') {
-      // Extract drive letter (e.g., "C:") from paths like "C:\foo\*.journal" or "C:/foo/*.journal"
-      const driveMatch = includePath.match(/^([A-Za-z]:)/);
-      if (driveMatch) {
-        cwd = driveMatch[1] + path.sep; // e.g., "C:\"
-        // Remove drive and leading separators from pattern
-        pattern = includePath.slice(driveMatch[1].length).replace(/^[\\\/]+/, '');
-      } else {
-        // Fallback: use current drive
-        cwd = path.parse(process.cwd()).root;
-        pattern = includePath.replace(/^[\\\/]+/, '');
-      }
+    // For absolute paths with glob patterns, use the directory part as cwd
+    // and the basename as the pattern (fast-glob works better this way)
+    const normalizedPath = path.normalize(includePath);
+    const dir = path.dirname(normalizedPath);
+    const base = path.basename(normalizedPath);
+
+    // If the basename has glob characters, use it as pattern
+    // Otherwise, the whole path should be treated as a single file (already handled by non-glob case above)
+    if (/[*?\[\]{}]/.test(base)) {
+      cwd = dir;
+      pattern = base;
     } else {
-      // Unix: use root directory
-      cwd = '/';
-      pattern = includePath.replace(/^\/+/, '');
+      // Full path with glob in directory parts - keep the full pattern
+      if (process.platform === 'win32') {
+        const driveMatch = includePath.match(/^([A-Za-z]:)/);
+        if (driveMatch) {
+          cwd = driveMatch[1] + path.sep;
+          pattern = includePath.slice(driveMatch[1].length).replace(/^[\\\/]+/, '');
+        } else {
+          cwd = path.parse(process.cwd()).root;
+          pattern = includePath.replace(/^[\\\/]+/, '');
+        }
+      } else {
+        cwd = '/';
+        pattern = includePath.replace(/^\/+/, '');
+      }
     }
   } else if (includePath.startsWith('~')) {
     const home = os.homedir();
@@ -213,8 +230,11 @@ export function resolveIncludePaths(includePath: string, baseUri: string): strin
   const entries = fg.sync(pattern, { cwd, onlyFiles: true, absolute: true, dot: false });
 
   // Exclude the including file itself if present
-  const includingFile = toFilePath(baseUri);
-  const filtered = entries.filter(p => p !== includingFile).map(p => toFileUri(p));
+  // Normalize paths for comparison (handle case sensitivity and separators on Windows)
+  const includingFile = path.normalize(toFilePath(baseUri));
+  const filtered = entries
+    .filter(p => path.normalize(p) !== includingFile)
+    .map(p => toFileUri(p));
 
   filtered.sort();
   return filtered;

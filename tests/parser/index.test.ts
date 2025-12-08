@@ -827,6 +827,11 @@ tag category ; type of expense`;
     });
 
     test('should resolve absolute include paths (starting with /)', () => {
+      // Skip on Windows - absolute paths starting with / are Unix-specific
+      if (process.platform === 'win32') {
+        return;
+      }
+
       const mainContent = `include /common.journal
 
 2024-01-15 * Main
@@ -872,7 +877,8 @@ tag category ; type of expense`;
       const mainDoc = TextDocument.create('file:///home/user/main.journal', 'hledger', 1, mainContent);
       // Expand ~ to the current user's home directory
       const homedir = require('os').homedir();
-      const includedUri = `file://${homedir}/common.journal`;
+      const { toFileUri } = require('../../src/utils/uri');
+      const includedUri = toFileUri(require('path').join(homedir, 'common.journal'));
       const includedDoc = TextDocument.create(includedUri, 'hledger', 1, includedContent);
 
       const fileReader = (uri: string) => {
