@@ -161,6 +161,14 @@ connection.onInitialize((params: InitializeParams) => {
     }
   };
 
+  // Log the semantic token legend being registered so clients/inspectors can verify
+  // which token types/modifiers the server reports at runtime.
+  try {
+    connection.console.info(`Semantic tokens legend: ${JSON.stringify({ tokenTypes, tokenModifiers })}`);
+  } catch (e) {
+    connection.console.warn('Failed to log semantic tokens legend');
+  }
+
   // Note: Workspace folders support removed to avoid warnings with clients
   // that don't support dynamic registration (like Neovim)
 
