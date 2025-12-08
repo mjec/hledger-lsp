@@ -41,7 +41,6 @@ describe('HoverProvider Last Posting', () => {
         // Basic: "**Account**\n\n`Expenses:Food`"
         // Full: has usage count
 
-        console.log('Hover contents:', contents);
         expect(contents).toContain('**Usage:**');
         expect(contents).toContain('**Status:** Undeclared');
     });

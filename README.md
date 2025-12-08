@@ -58,7 +58,8 @@ This language server can be used with any LSP-compatible editor. Currently avail
 ### VS Code
 
 **Extension**: [hledger-lsp](https://marketplace.visualstudio.com/items?itemName=patrickt.hledger-lsp)
-**GitHub**: [patrickt/hledger-lsp](https://github.com/patrickt/hledger-lsp)
+
+**GitHub**: [patrickt/hledger-lsp](https://github.com/ptimoney/hledger-vscode)
 
 Install from the VS Code Marketplace or Extensions view. The extension provides
 all LSP features with zero configuration.
