@@ -481,6 +481,62 @@ npx jest tests/parser/index.test.ts
 npx jest --testNamePattern="balance"
 ```
 
+### Developing with the VS Code extension
+
+When working on the language server and the VS Code extension together you have two convenient workflows:
+
+- Preferred: sibling local build
+
+  If you have the `hledger-vscode` extension checked out next to this repo (as siblings), the extension will prefer a local built server at `../hledger-lsp/out/server.js`.
+
+  Steps:
+
+  ```bash
+  # In this repo (language server)
+  cd /path/to/hledger-lsp
+  npm install
+  npm run compile    # produces out/server.js
+
+  # In the extension repo (open this folder in VS Code)
+  cd /path/to/hledger-vscode
+  npm install
+  npm run compile
+  ```
+
+  Then open the `hledger-vscode` folder in VS Code and press F5 to launch the Extension Development Host. The extension will detect the local `out/server.js` and use it when starting the language client.
+
+- Alternative: `npm link`
+
+  If you prefer to keep the projects separate or want the extension to pick up a locally-installed (linked) package, use `npm link`:
+
+  ```bash
+  # In language server repo
+  cd /path/to/hledger-lsp
+  npm link
+
+  # In extension repo
+  cd /path/to/hledger-vscode
+  npm link hledger-lsp
+  npm install
+  npm run compile
+  ```
+
+  This makes `require.resolve('hledger-lsp/out/server.js')` resolve to your local linked package.
+
+Notes and tips
+
+- After building the server and extension, use **Developer: Reload Window** in the extension host or the `hledgerLanguageServer.reload` command (provided by the extension) to restart the language client so changes propagate.
+- The server now logs the semantic token legend on initialize. Open **View → Output** and select the `hledger Language Server` output channel to see messages such as:
+
+  Semantic tokens legend: {"tokenTypes":["namespace","keyword","class","variable","property","type","number","string","comment","operator"],"tokenModifiers":["declaration","readonly","deprecated"]}
+
+- Running tests:
+  - Server tests (in `hledger-lsp`): `npm test` (or `npx jest <path>`)
+  - Extension tests (in `hledger-vscode`): `npm test` — these use mocked `vscode` and `vscode-languageclient` modules so they don't require a real server binary.
+
+If you want an explicit server path override, set up a quick environment variable in your debug launch configuration or use `npm link` as described above.
+
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
