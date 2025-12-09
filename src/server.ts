@@ -73,6 +73,16 @@ connection.onInitialize((params: InitializeParams) => {
   connection.console.log(`rootPath: ${params.rootPath}`);
   connection.console.log(`workspaceFolders: ${JSON.stringify(params.workspaceFolders)}`);
 
+  // Get version from package.json
+  let version = 'unknown';
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const packageJson = require('../package.json');
+    version = packageJson.version;
+  } catch (error) {
+    connection.console.warn('Failed to read version from package.json');
+  }
+
   const capabilities = params.capabilities;
 
   // Does the client support the `workspace/configuration` request?
@@ -110,6 +120,10 @@ connection.onInitialize((params: InitializeParams) => {
   }
 
   const result: InitializeResult = {
+    serverInfo: {
+      name: 'hledger-lsp',
+      version: version
+    },
     capabilities: {
       textDocumentSync: TextDocumentSyncKind.Incremental,
       // Tell the client that this server supports code completion
