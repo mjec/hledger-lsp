@@ -1,7 +1,7 @@
 import { InlayHintsProvider } from '../../src/features/inlayHints';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Range } from 'vscode-languageserver';
-import { ParsedDocument, Transaction } from '../../src/types';
+import { ParsedDocument } from '../../src/types';
 
 describe('InlayHintsProvider URI Encoding', () => {
     let provider: InlayHintsProvider;
