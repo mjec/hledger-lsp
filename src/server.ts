@@ -853,6 +853,11 @@ connection.onExecuteCommand(async (params) => {
         }]
       }
     });
+
+    // Trigger inlay hint refresh to clear the hint after insertion
+    await connection.languages.inlayHint.refresh().catch((err) => {
+      // Ignore errors if client doesn't support refresh
+    });
   } else if (params.command === 'hledger.insertInferredAmount') {
     const [uri, line, account, amountText] = params.arguments as [string, number, string, string];
     const document = documents.get(uri);
@@ -890,6 +895,11 @@ connection.onExecuteCommand(async (params) => {
           newText: insertText
         }]
       }
+    });
+
+    // Trigger inlay hint refresh to clear the hint after insertion
+    await connection.languages.inlayHint.refresh().catch((err) => {
+      // Ignore errors if client doesn't support refresh
     });
   } else if (params.command === 'hledger.convertToTotalCost') {
     const [uri, line, account, totalCostText] = params.arguments as [string, number, string, string];
@@ -929,6 +939,11 @@ connection.onExecuteCommand(async (params) => {
           newText: newText
         }]
       }
+    });
+
+    // Trigger inlay hint refresh to clear the hint after conversion
+    await connection.languages.inlayHint.refresh().catch((err) => {
+      // Ignore errors if client doesn't support refresh
     });
   } else if (params.command === 'hledger.refreshInlayHints') {
     // Manually refresh inlay hints
