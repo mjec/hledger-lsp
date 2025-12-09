@@ -1,0 +1,16 @@
+account assets:cash
+account expenses:food
+account equity:opening
+
+2025-01-01 opening
+    assets:cash                                  100
+    equity:opening                              -100
+
+2025-01-02 spend
+    expenses:food                                 10
+    assets:cash
+
+2025-01-03 spend 2
+    expenses:food                                 20
+    assets:cash                                  -20 = 70
+

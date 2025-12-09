@@ -531,8 +531,10 @@ payee Grocery Store;main grocery store
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
 
-      // First posting should have inferred cost
-      expect(lines[1]).toContain('€ 100 @@ $135');
+      // Inferred costs should NOT appear in formatted output (they don't exist in source)
+      // The formatter only formats what's explicitly in the source
+      expect(lines[1]).toContain('€ 100');
+      expect(lines[1]).not.toContain('@@'); // No cost notation since it was inferred
     });
 
     it('should format transaction with cost and comment', () => {

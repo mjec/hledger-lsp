@@ -41,11 +41,13 @@ export interface Amount {
   quantity: number;
   commodity: string;
   format?: Format;
+  inferred?: boolean;  // true if this amount was inferred during parsing
 }
 
 export interface Cost {
   type: 'unit' | 'total';  // @ (unit price) or @@ (total price)
   amount: Amount;
+  inferred?: boolean;  // true if this cost was inferred during parsing
 }
 
 export interface Account {

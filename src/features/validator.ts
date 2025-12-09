@@ -180,16 +180,17 @@ export class Validator {
     // Calculate transaction balance by commodity
     const balances = calculateTransactionBalance(transaction);
 
-    // Count how many postings have amounts
-    let postingsWithAmounts = 0;
+    // Count how many postings have explicit (non-inferred) amounts
+    let postingsWithExplicitAmounts = 0;
     for (const posting of transaction.postings) {
-      if (posting.amount) {
-        postingsWithAmounts++;
+      if (posting.amount && !posting.amount.inferred) {
+        postingsWithExplicitAmounts++;
       }
     }
 
-    // If all postings have amounts, check if they balance
-    if (postingsWithAmounts === transaction.postings.length) {
+    // If all postings have explicit amounts, check if they balance
+    // (skip checking for transactions with inferred amounts)
+    if (postingsWithExplicitAmounts === transaction.postings.length) {
       for (const [commodity, balance] of balances.entries()) {
         // Allow for small floating point errors
         if (Math.abs(balance) > 0.005) {

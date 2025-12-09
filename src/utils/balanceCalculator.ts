@@ -49,16 +49,17 @@ export function calculateTransactionBalance(transaction: Transaction): Map<strin
  * Calculate transaction balance grouped by commodity (simple version, no cost handling)
  *
  * This version doesn't handle cost conversions and is useful when you only need
- * the balance in the original posting commodities.
+ * the balance in the original posting commodities. Excludes inferred amounts.
  *
  * @param transaction - The transaction to calculate balance for
- * @returns Record of commodity to total amount
+ * @returns Record of commodity to total amount (excluding inferred amounts)
  */
 export function calculateTransactionBalanceSimple(transaction: Transaction): Record<string, number> {
   const totals: Record<string, number> = {};
 
   for (const posting of transaction.postings) {
-    if (posting.amount) {
+    // Only include explicit (non-inferred) amounts for display purposes
+    if (posting.amount && !posting.amount.inferred) {
       const commodity = posting.amount.commodity || '';
       totals[commodity] = (totals[commodity] || 0) + posting.amount.quantity;
     }

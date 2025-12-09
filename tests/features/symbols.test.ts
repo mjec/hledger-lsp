@@ -103,7 +103,9 @@ tag priority
       expect(symbols[0].children?.length).toBe(2);
       expect(symbols[0].children?.[0].name).toContain('Expenses:Groceries');
       expect(symbols[0].children?.[0].name).toContain('50');
-      expect(symbols[0].children?.[1].name).toBe('Assets:Checking');
+      // Posting without amount now has inferred amount in symbol name
+      expect(symbols[0].children?.[1].name).toContain('Assets:Checking');
+      expect(symbols[0].children?.[1].name).toContain('-50.00');
 
       // Second transaction (with cleared status)
       expect(symbols[1].name).toBe('2023-01-16 * Coffee Shop');
@@ -248,7 +250,9 @@ account Assets:Bank
       expect(symbols[0].children?.length).toBe(2);
       expect(symbols[0].children?.[0].name).toContain('Assets:Bank');
       expect(symbols[0].children?.[0].name).toContain('50');
-      expect(symbols[0].children?.[1].name).toBe('Expenses:Test');
+      // Posting without amount now has inferred amount in symbol name
+      expect(symbols[0].children?.[1].name).toContain('Expenses:Test');
+      expect(symbols[0].children?.[1].name).toContain('-50.00'); // Inferred amount
       expect(symbols[0].children?.[1].name).not.toContain('undefined');
     });
   });

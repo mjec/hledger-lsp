@@ -86,35 +86,17 @@ export class InlayHintsProvider {
   }
 
   /**
-   * Get hints for inferred amounts (postings without explicit amounts)
+   * Get hints for inferred amounts (postings with amounts marked as inferred)
    */
   private getInferredAmountHints(document: TextDocument, transaction: Transaction, parsed: ParsedDocument, settings?: HledgerSettings): InlayHint[] {
     const hints: InlayHint[] = [];
 
-    // Calculate which posting(s) have inferred amounts
-    const postingsWithAmounts = transaction.postings.filter(p => p.amount);
-
-    // If all postings have amounts, nothing to infer
-    if (postingsWithAmounts.length === transaction.postings.length) {
-      return hints;
-    }
-
-    // Calculate the inferred amount(s)
-    const balances = calculateTransactionBalance(transaction);
-
-    // The inferred amount is the negation of the sum
-    const inferredAmounts: string[] = [];
-    for (const [commodity, balance] of balances.entries()) {
-      const amount = -balance;
-      inferredAmounts.push(formatAmount(amount, commodity, parsed, settings?.formatting));
-    }
-
-    // Find posting(s) without amounts and add hints
     const txLine = transaction.line ?? 0;
     let postingIndex = 0;
 
     for (const posting of transaction.postings) {
-      if (!posting.amount) {
+      // Show hint only for inferred amounts
+      if (posting.amount && posting.amount.inferred) {
         const lineNum = txLine + 1 + postingIndex;  // +1 for header, then posting index
         const line = document.getText({
           start: { line: lineNum, character: 0 },
@@ -124,7 +106,12 @@ export class InlayHintsProvider {
         // Find end of account name
         const accountEnd = line.indexOf(posting.account) + posting.account.length;
 
-        const amountText = inferredAmounts.join(', ');
+        const amountText = formatAmount(
+          posting.amount.quantity,
+          posting.amount.commodity,
+          parsed,
+          settings?.formatting
+        );
 
         // Create clickable label part with command to insert the amount
         const labelPart: InlayHintLabelPart = {
@@ -156,48 +143,19 @@ export class InlayHintsProvider {
   }
 
   /**
-   * Calculate inferred amounts for a transaction
+   * Get inferred amounts for a transaction from the AST.
    * Returns a map of posting index to inferred amounts (commodity -> quantity)
+   * This is no longer calculated - it uses the amounts already inferred during parsing.
    */
-  private calculateInferredAmounts(transaction: Transaction): Map<number, Map<string, number>> {
+  private getInferredAmountsFromAST(transaction: Transaction): Map<number, Map<string, number>> {
     const result = new Map<number, Map<string, number>>();
 
-    // Calculate balance per commodity from explicit amounts
-    const balances = new Map<string, number>();
-
-    for (const posting of transaction.postings) {
-      if (posting.amount) {
-        // Use cost commodity if cost is present
-        if (posting.cost) {
-          const costCommodity = posting.cost.amount.commodity || '';
-          let costValue: number;
-
-          if (posting.cost.type === 'unit') {
-            costValue = posting.amount.quantity * posting.cost.amount.quantity;
-          } else {
-            costValue = posting.cost.amount.quantity;
-          }
-
-          const current = balances.get(costCommodity) || 0;
-          balances.set(costCommodity, current + costValue);
-        } else {
-          const commodity = posting.amount.commodity || '';
-          const current = balances.get(commodity) || 0;
-          balances.set(commodity, current + posting.amount.quantity);
-        }
-      }
-    }
-
-    // The inferred amount is the negation of the sum
-    const inferredAmounts = new Map<string, number>();
-    for (const [commodity, balance] of balances.entries()) {
-      inferredAmounts.set(commodity, -balance);
-    }
-
-    // Assign inferred amounts to postings without explicit amounts
+    // Extract inferred amounts directly from the AST
     for (let i = 0; i < transaction.postings.length; i++) {
-      if (!transaction.postings[i].amount) {
-        result.set(i, new Map(inferredAmounts));
+      const posting = transaction.postings[i];
+      if (posting.amount && posting.amount.inferred) {
+        const commodity = posting.amount.commodity || '';
+        result.set(i, new Map([[commodity, posting.amount.quantity]]));
       }
     }
 
@@ -232,8 +190,8 @@ export class InlayHintsProvider {
       const txIndex = sortedToOriginalIndex.get(sortedIdx)!;
       const postingBalances = new Map<number, Map<string, number>>();
 
-      // Calculate inferred amounts for this transaction
-      const inferredAmounts = this.calculateInferredAmounts(transaction);
+      // Get inferred amounts from the AST (already calculated during parsing)
+      const inferredAmounts = this.getInferredAmountsFromAST(transaction);
 
       for (let postingIndex = 0; postingIndex < transaction.postings.length; postingIndex++) {
         const posting = transaction.postings[postingIndex];

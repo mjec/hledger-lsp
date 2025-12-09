@@ -30,7 +30,10 @@ describe('InlayHintsProvider URI Encoding', () => {
                 description: 'Test',
                 payee: 'Test',
                 note: '',
-                postings: [{ account: 'expenses:food', amount: { quantity: 10, commodity: '$' } }, { account: 'assets:cash' }],
+                postings: [
+                    { account: 'expenses:food', amount: { quantity: 10, commodity: '$' } },
+                    { account: 'assets:cash', amount: { quantity: -10, commodity: '$', inferred: true } }
+                ],
                 sourceUri: decodedUri, // internal parser uses decoded/clean URI
                 line: 0
             }],

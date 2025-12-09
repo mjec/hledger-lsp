@@ -1421,7 +1421,12 @@ include common.journal
         const result = ast.parseTransaction(lines, 0);
 
         expect(result).not.toBeNull();
-        expect(result?.postings[1].amount).toBeUndefined();
+        // Amount should be inferred during parsing
+        expect(result?.postings[1].amount).toEqual({
+          quantity: -50,
+          commodity: '$',
+          inferred: true
+        });
       });
     });
 
@@ -1441,7 +1446,8 @@ include common.journal
         expect(result?.postings[0].amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
         expect(result?.postings[0].cost).toEqual({
           type: 'total',
-          amount: expect.objectContaining({ quantity: 135, commodity: '$' })
+          amount: expect.objectContaining({ quantity: 135, commodity: '$' }),
+          inferred: true
         });
 
         // Second posting should not have cost
@@ -1463,7 +1469,8 @@ include common.journal
         expect(result?.postings[0].amount).toEqual(expect.objectContaining({ quantity: -135, commodity: '$' }));
         expect(result?.postings[0].cost).toEqual({
           type: 'total',
-          amount: expect.objectContaining({ quantity: -100, commodity: '€' })
+          amount: expect.objectContaining({ quantity: -100, commodity: '€' }),
+          inferred: true
         });
       });
 
@@ -1481,7 +1488,8 @@ include common.journal
         // First posting should have inferred cost (sum of all dollar postings, negated)
         expect(result?.postings[0].cost).toEqual({
           type: 'total',
-          amount: expect.objectContaining({ quantity: 135, commodity: '$' })  // -(-100 + -35) = 135
+          amount: expect.objectContaining({ quantity: 135, commodity: '$' }),  // -(-100 + -35) = 135
+          inferred: true
         });
       });
 
@@ -1557,7 +1565,8 @@ include common.journal
         expect(result).not.toBeNull();
         expect(result?.postings[0].cost).toEqual({
           type: 'total',
-          amount: expect.objectContaining({ quantity: 1505.50, commodity: '$' })
+          amount: expect.objectContaining({ quantity: 1505.50, commodity: '$' }),
+          inferred: true
         });
       });
 
@@ -1572,7 +1581,8 @@ include common.journal
         expect(result).not.toBeNull();
         expect(result?.postings[0].cost).toEqual({
           type: 'total',
-          amount: expect.objectContaining({ quantity: -135, commodity: '$' })
+          amount: expect.objectContaining({ quantity: -135, commodity: '$' }),
+          inferred: true
         });
       });
     });

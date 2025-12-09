@@ -66,6 +66,9 @@ export function parseTransaction(lines: string[], startLine: number): Transactio
   // Infer costs for two-commodity transactions
   inferCosts(transaction);
 
+  // Infer amounts for postings without explicit amounts
+  inferAmounts(transaction);
+
   return transaction;
 }
 
@@ -130,8 +133,96 @@ export function inferCosts(transaction: Transaction): void {
   // Add inferred total cost to first posting
   transaction.postings[0].cost = {
     type: 'total',
-    amount: costAmount
+    amount: costAmount,
+    inferred: true
   };
+}
+
+/**
+ * Infer amounts for postings without explicit amounts.
+ *
+ * According to hledger rules:
+ * - At most one posting may omit an amount
+ * - The inferred amount is whatever makes the transaction balance to zero
+ * - Cost conversions are considered when calculating the balance
+ */
+export function inferAmounts(transaction: Transaction): void {
+  // Find postings without amounts
+  const postingsWithoutAmounts: number[] = [];
+  for (let i = 0; i < transaction.postings.length; i++) {
+    if (!transaction.postings[i].amount) {
+      postingsWithoutAmounts.push(i);
+    }
+  }
+
+  // Can only infer if exactly one posting is missing an amount
+  if (postingsWithoutAmounts.length !== 1) {
+    return;
+  }
+
+  const targetIndex = postingsWithoutAmounts[0];
+
+  // Calculate balance from all explicit amounts
+  const balances = new Map<string, number>();
+
+  for (let i = 0; i < transaction.postings.length; i++) {
+    if (i === targetIndex) continue; // Skip the posting we're inferring
+
+    const posting = transaction.postings[i];
+    if (!posting.amount) continue;
+
+    // If posting has a cost, use the cost commodity for balance calculation
+    if (posting.cost) {
+      const costCommodity = posting.cost.amount.commodity || '';
+      let costValue: number;
+
+      if (posting.cost.type === 'unit') {
+        // @ unitPrice: total cost = quantity * unitPrice
+        costValue = posting.amount.quantity * posting.cost.amount.quantity;
+      } else {
+        // @@ totalPrice: use total price directly
+        costValue = posting.cost.amount.quantity;
+      }
+
+      const current = balances.get(costCommodity) || 0;
+      balances.set(costCommodity, current + costValue);
+    } else {
+      // No cost notation, use the posting's commodity
+      const commodity = posting.amount.commodity || '';
+      const current = balances.get(commodity) || 0;
+      balances.set(commodity, current + posting.amount.quantity);
+    }
+  }
+
+  // The inferred amount is the negation of the sum (to make transaction balance to zero)
+  // For multi-commodity transactions, we can only store one commodity in the amount field
+  // For proper validation, we need a different approach, but for now we'll store the first commodity
+  // and let the validator handle multi-commodity balance checking
+  if (balances.size === 1) {
+    // Single commodity - straightforward inference
+    const entry = balances.entries().next().value;
+    if (entry) {
+      const [commodity, balance] = entry;
+      transaction.postings[targetIndex].amount = {
+        quantity: -balance,
+        commodity: commodity,
+        inferred: true
+      };
+    }
+  } else if (balances.size > 1) {
+    // Multi-commodity - store first commodity for now
+    // Note: Real hledger would require explicit amounts for all commodities
+    // or use balance assertions. This is a simplification.
+    const entry = balances.entries().next().value;
+    if (entry) {
+      const [commodity, balance] = entry;
+      transaction.postings[targetIndex].amount = {
+        quantity: -balance,
+        commodity: commodity,
+        inferred: true
+      };
+    }
+  }
 }
 
 function parseDate(line: string): { date: string, rest: string } | null {

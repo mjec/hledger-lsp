@@ -183,7 +183,8 @@ export class FormattingProvider {
       indentColumnWidth = Math.max(indentColumnWidth, options.indentation);
       accountColumnWidth = Math.max(accountColumnWidth, posting.account.length);
 
-      if (posting.amount) {
+      // Skip layouting inferred amounts since they don't exist in the source
+      if (posting.amount && !posting.amount.inferred) {
         const layout = this.layoutAmount(posting.amount, parsed, options);
         postingLayout.amountLayout = layout;
         commodityBeforeColumnWidth = Math.max(commodityBeforeColumnWidth, layout.commodityBefore.length);
@@ -196,7 +197,8 @@ export class FormattingProvider {
         commodityAfterColumnWidth = Math.max(commodityAfterColumnWidth, layout.commodityAfter.length);
       }
 
-      if (posting.cost) {
+      // Skip layouting inferred costs since they don't exist in the source
+      if (posting.cost && !posting.cost.inferred) {
         const layout = this.layoutAmount(posting.cost.amount, parsed, options);
         postingLayout.costLayout = layout;
         costColumnWidth = Math.max(costColumnWidth, posting.cost.type === 'unit' ? 3 : 4);
@@ -236,7 +238,8 @@ export class FormattingProvider {
       line += ' '.repeat(options.minSpacing);
 
 
-      if (posting.amount) {
+      // Skip formatting inferred amounts since they don't exist in the source
+      if (posting.amount && !posting.amount.inferred) {
         const lengthAtPaddingLocation = line.length;
         const layout = postingLayout.amountLayout!;
 
@@ -280,7 +283,8 @@ export class FormattingProvider {
         ); // space for missing amount
       }
 
-      if (posting.cost) {
+      // Skip formatting inferred costs since they don't exist in the source
+      if (posting.cost && !posting.cost.inferred) {
         const layout = postingLayout.costLayout!;
         line += posting.cost.type === 'unit' ? ' @'.padEnd(costColumnWidth, ' ') : ' @@'.padEnd(costColumnWidth, ' ');
 
