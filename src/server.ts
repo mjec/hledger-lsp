@@ -363,6 +363,8 @@ documents.onDidClose(e => {
 
 // The content of a text document has changed
 documents.onDidChangeContent(change => {
+  connection.console.info(`[Document Change] ${change.document.uri} (version: ${change.document.version})`);
+
   // Clear parser cache since a file changed
   // This ensures we re-parse files with fresh data
   sharedParser.clearCache();
@@ -385,14 +387,22 @@ documents.onDidChangeContent(change => {
     }
   }
 
+  // Refresh inlay hints after any document change
+  // This ensures positions update correctly when lines are added/removed
+  // and that workspace-wide state (running balances, etc.) stays in sync
+  if (hasInlayHintRefreshSupport) {
+    connection.console.log(`[Inlay Hints] Refreshing after document change: ${change.document.uri}`);
+    connection.languages.inlayHint.refresh();
+  }
+
   // In workspace mode, changes to one file affect all files in the workspace
   // (e.g., running balances, transaction counts, completions)
-  // Refresh workspace-wide features for all open documents
+  // Re-validate other open documents that share the same root
   if (workspaceManager) {
     const changedRoot = workspaceManager.getRootForFile(change.document.uri);
 
     if (changedRoot) {
-      // Find all open documents that share the same root
+      // Find all open documents that share the same root (excluding the current one, which was already validated)
       const allDocs = documents.all();
 
       const affectedDocs = allDocs.filter(doc => {
@@ -403,20 +413,15 @@ documents.onDidChangeContent(change => {
       });
 
       // Re-validate affected documents (updates diagnostics)
-      for (const doc of affectedDocs) {
-        validateTextDocument(doc);
+      if (affectedDocs.length > 0) {
+        connection.console.log(`[Cascade Validation] Revalidating ${affectedDocs.length} affected document(s)`);
+        for (const doc of affectedDocs) {
+          validateTextDocument(doc);
+        }
       }
 
-      // Refresh inlay hints for all affected documents
-      // This updates running balances, inferred amounts, etc.
-      if (hasInlayHintRefreshSupport && affectedDocs.length > 0) {
-        connection.console.log(`[Cascade Refresh] Refreshing inlay hints for ${affectedDocs.length} affected document(s)`);
-        connection.languages.inlayHint.refresh();
-      } else if (affectedDocs.length > 0) {
-        connection.console.warn(`[Cascade Refresh] Cannot refresh inlay hints - client does not support refresh (${affectedDocs.length} affected docs)`);
-      }
-
-      // Note: Code lenses will refresh when the client next requests them
+      // Note: Inlay hints refresh above already covers all documents
+      // Code lenses will refresh when the client next requests them
       // We've already invalidated the workspace cache above, which is sufficient
     }
   }
@@ -446,13 +451,31 @@ connection.onDidChangeWatchedFiles(async (params) => {
 // Create a file reader that uses in-memory documents when available
 // This ensures we see unsaved changes in the editor
 const fileReader: FileReader = (uri: string) => {
-  // First, check if we have this document open in memory
-  const openDoc = documents.get(uri);
+  // Try to find document with exact URI
+  let openDoc = documents.get(uri);
   if (openDoc) {
+    connection.console.info(`[FileReader] Using in-memory document: ${uri} (version: ${openDoc.version})`);
     return openDoc;
   }
 
+  // VS Code may send encoded URIs (%40 for @, %28%29 for parentheses)
+  // but workspace manager normalizes (decodes) them
+  // Try both directions: decode the URI, and also try encoding it
+
+  // Try decoded version
+  const decodedUri = toFileUri(toFilePath(uri));
+  if (decodedUri !== uri) {
+    openDoc = documents.get(decodedUri);
+    if (openDoc) {
+      connection.console.info(`[FileReader] Using in-memory document (decoded): ${decodedUri} (version: ${openDoc.version})`);
+      return openDoc;
+    }
+  }
+  // At this point we couldn't find an in-memory doc using normalized URI.
+  // Fall back to reading from disk.
+
   // Fall back to reading from disk
+  connection.console.info(`[FileReader] Reading from disk: ${uri}`);
   return defaultFileReader(uri);
 };
 
@@ -701,6 +724,8 @@ connection.languages.inlayHint.on(async (params) => {
     const document = documents.get(params.textDocument.uri);
     if (!document) return [];
 
+    connection.console.info(`[Inlay Hints] Request for ${params.textDocument.uri} (doc version: ${document.version}, range: ${params.range.start.line}-${params.range.end.line})`);
+
     // Get settings for inlay hints
     const settings = await getDocumentSettings(params.textDocument.uri);
     const inlayHintsSettings = settings?.inlayHints || undefined;
@@ -710,12 +735,15 @@ connection.languages.inlayHint.on(async (params) => {
     const parseMode = inlayHintsSettings?.showRunningBalances ? 'workspace' : 'document';
     const parsed = parseDocument(document, { parseMode });
 
-    return inlayHintsProvider.provideInlayHints(
+    const hints = inlayHintsProvider.provideInlayHints(
       document,
       params.range,
       parsed,
       settings
     );
+
+    connection.console.info(`[Inlay Hints] Returning ${hints.length} hints for range ${params.range.start.line}-${params.range.end.line}`);
+    return hints;
   } catch (error) {
     connection.console.error(`Error providing inlay hints: ${error}`);
     return [];

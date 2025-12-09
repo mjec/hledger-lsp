@@ -12,7 +12,7 @@
 import { ParsedDocument, Transaction, Account, Directive, Posting, Amount, Payee, Commodity, Tag } from '../types';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment, isDirective } from '../utils/index';
-import { resolveIncludePath as resolveIncludePathUtil, resolveIncludePaths } from '../utils/uri';
+import { resolveIncludePath as resolveIncludePathUtil, resolveIncludePaths, toFilePath, toFileUri } from '../utils/uri';
 import * as ast from './ast';
 import { includeManager } from './includes';
 
@@ -103,7 +103,8 @@ export class HledgerParser {
       if (isDirective(line)) {
         const directive = ast.parseDirective(line);
         if (directive) {
-          directive.sourceUri = document.uri;
+          const normalizedUri = toFileUri(toFilePath(document.uri));
+          directive.sourceUri = normalizedUri;
           directive.line = i;
           directives.push(directive);
 
@@ -129,17 +130,20 @@ export class HledgerParser {
       if (isTransactionHeader(line)) {
         const transaction = ast.parseTransaction(lines, i);
         if (transaction) {
-          transaction.sourceUri = document.uri;
+          const normalizedUri = toFileUri(toFilePath(document.uri));
+          transaction.sourceUri = normalizedUri;
           transactions.push(transaction);
 
           // Extract metadata from the transaction
           // Add payee
           if (transaction.payee) {
-            ast.addPayee(payees, transaction.payee, false, document.uri, i);
+            const normalizedUri = toFileUri(toFilePath(document.uri));
+            ast.addPayee(payees, transaction.payee, false, normalizedUri, i);
           }
 
           // Extract accounts, commodities, and tags from postings
-          ast.processTransaction(transaction, accounts, commodities, tags, document.uri);
+          const normalizedUriForProcess = toFileUri(toFilePath(document.uri));
+          ast.processTransaction(transaction, accounts, commodities, tags, normalizedUriForProcess);
         }
 
         // Skip past the transaction lines to find where it ends

@@ -1,12 +1,12 @@
 include sub.journal
 
 2024-01-15 Groceries
-    expenses:food                              $  50.00
-    assets:checking                            $ -50.00
+    expenses:food                               $ 50.00
+    assets:checking
 
 
 2024-01-20 Gas
-    expenses:auto                              $  40.00
-    assets:checking                            $ -40
+    expenses:auto                               $ 40.00
+    assets:checking
 
 
