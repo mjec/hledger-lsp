@@ -3,112 +3,37 @@ import * as path from 'path';
 import * as os from 'os';
 import fg from 'fast-glob';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { URI } from 'vscode-uri';
 
 /**
  * Convert a file:// URI to a filesystem path
  * Properly decodes URI-encoded characters (e.g., %20 → space)
  * Handles both Unix (file:///home/...) and Windows (file:///C:/...) formats
  */
-export function toFilePath(uri: string): string {
-  if (uri.startsWith('file://')) {
-    let encodedPath = uri.substring(7);
-
-    // Decode each path component separately to handle encoded characters
-    const parts = encodedPath.split('/');
-    const decodedParts = parts.map(part => {
-      try {
-        return decodeURIComponent(part);
-      } catch {
-        // If decoding fails, return the part as-is
-        return part;
-      }
-    });
-
-    // On Windows, check if this is a Windows path (has drive letter)
-    // If so, convert to backslashes. Otherwise, keep forward slashes (for Unix-style test paths)
-    if (process.platform === 'win32') {
-      // Check if second part (after leading empty string) is a drive letter
-      const hasDriveLetter = decodedParts.length > 1 && /^[A-Za-z]:$/.test(decodedParts[1]);
-
-      if (hasDriveLetter) {
-        // Windows path with drive letter: file:///C:/Users/... -> C:\Users\...
-        const decoded = decodedParts.join(path.sep);
-        return decoded.substring(1); // Remove leading separator
-      } else {
-        // Unix-style path on Windows (e.g., from tests): keep forward slashes
-        return decodedParts.join('/');
-      }
-    }
-
-    // Unix: always use forward slashes
-    return decodedParts.join('/');
-  }
-  return uri;
+export function toFilePath(uri: URI): string {
+  return uri.fsPath;
 }
 
-/**
- * Encode a path component for use in a file:// URI
- * Encodes characters that are not allowed in URI paths according to RFC 3986
- * Allowed unencoded: unreserved (A-Za-z0-9-._~) + sub-delims (!$&'()*+,;=) + : @
- */
-function encodePathComponent(component: string): string {
-  // Characters that should NOT be encoded in file URI paths (per RFC 3986)
-  // unreserved: A-Z a-z 0-9 - . _ ~
-  // sub-delims: ! $ & ' ( ) * + , ; =
-  // also allowed in paths: : @
-  const allowedChars = /[A-Za-z0-9\-._~!$&'()*+,;=:@]/;
-
-  let result = '';
-  for (let i = 0; i < component.length; i++) {
-    const char = component[i];
-    if (allowedChars.test(char)) {
-      result += char;
-    } else {
-      // Encode this character
-      result += '%' + char.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0');
-    }
-  }
-  return result;
-}
 
 /**
  * Ensure a path is represented as a file:// URI
  * Properly encodes special characters (e.g., space → %20)
  * Handles both Unix and Windows filesystem paths
  */
-export function toFileUri(fsPath: string): string {
-  if (fsPath.startsWith('file://')) return fsPath;
-
-  // Normalize path separators to forward slashes for URI
-  // This handles Windows paths that may use backslashes
-  const normalized = fsPath.split(path.sep).join('/');
-
-  // Encode each path component separately to preserve slashes
-  const parts = normalized.split('/');
-  const encoded = parts.map(part => encodePathComponent(part)).join('/');
-
-  // Ensure proper format:
-  // Windows: file:///C:/Users/... (3 slashes total)
-  // Unix: file:///home/... (3 slashes total)
-  // The encoded path should already have leading slash for Unix or drive letter for Windows
-  if (encoded.startsWith('/') || /^[A-Za-z]:/.test(encoded)) {
-    // Remove any leading slashes and add exactly 3
-    return `file:///${encoded.replace(/^\/+/, '')}`;
-  }
-
-  // Relative path - prepend with two slashes
-  return `file://${encoded}`;
+export function toFileUri(fsPath: string): URI {
+  return URI.file(fsPath);
 }
+
 
 /**
  * Default fileReader implementation used by parser/server
  */
-export function defaultFileReader(uri: string): TextDocument | null {
+export function defaultFileReader(uri: URI): TextDocument | null {
   try {
     const filePath = toFilePath(uri);
     if (fs.existsSync(filePath)) {
       const content = fs.readFileSync(filePath, 'utf-8');
-      return TextDocument.create(uri, 'hledger', 1, content);
+      return TextDocument.create(uri.toString(), 'hledger', 1, content);
     }
     return null;
   } catch (error) {
@@ -124,11 +49,11 @@ export function defaultFileReader(uri: string): TextDocument | null {
  * - If includePath starts with '~': expand tilde to home directory
  * - Otherwise, treat as relative to the directory of baseUri
  */
-export function resolveIncludePath(includePath: string, baseUri: string): string {
+export function resolveIncludePath(includePath: string, baseUri: URI): URI {
   // Handle file:// URI (e.g. file:///home/user/main.journal)
   if (includePath.startsWith('file://')) {
     // Already a file URI, return as-is
-    return includePath;
+    return URI.parse(includePath);
   }
 
   // Expand tilde to home directory (e.g. ~/main.journal)
@@ -146,14 +71,14 @@ export function resolveIncludePath(includePath: string, baseUri: string): string
       rest = includePath.slice(1);
     }
     const resolved = path.resolve(home, rest);
-    return toFileUri(resolved);
+    return URI.file(resolved);
   }
 
   // Check if it's an absolute path (works for both Unix and Windows)
   // Unix: /home/... Windows: C:\... or C:/...
   if (path.isAbsolute(includePath)) {
     const resolved = path.resolve(includePath);
-    return toFileUri(resolved);
+    return URI.file(resolved);
   }
 
   // Relative to the including file
@@ -169,7 +94,7 @@ export function resolveIncludePath(includePath: string, baseUri: string): string
  * and to return absolute file paths. The pattern is interpreted relative to
  * the including file's directory when not absolute.
  */
-export function resolveIncludePaths(includePath: string, baseUri: string): string[] {
+export function resolveIncludePaths(includePath: string, baseUri: URI): URI[] {
   // If not a glob, reuse resolveIncludePath for single-path cases
   if (!/[*?\[\]{}]/.test(includePath)) {
     return [resolveIncludePath(includePath, baseUri)];

@@ -13,6 +13,9 @@
  *          but Posting.amount is an embedded Amount object that belongs to the posting.
  */
 
+import { TextDocument } from "vscode-languageserver-textdocument";
+import { URI } from "vscode-uri";
+
 export interface Transaction {
   date: string;
   effectiveDate?: string;
@@ -24,7 +27,7 @@ export interface Transaction {
   comment?: string;
   postings: Posting[];
   tags?: Record<string, string>;
-  sourceUri?: string; // Which file this transaction came from
+  sourceUri?: URI; // Which file this transaction came from
   line?: number; // 0-based line number where transaction starts
 }
 
@@ -35,6 +38,7 @@ export interface Posting {
   assertion?: Amount;
   comment?: string;
   tags?: Record<string, string>;
+  line?: number; // 0-based line number where this posting appears
 }
 
 export interface Amount {
@@ -56,21 +60,21 @@ export interface Account {
   type?: 'asset' | 'liability' | 'expense' | 'income' | 'equity';
   parent?: string;
   children?: string[];
-  sourceUri?: string; // Which file this account was declared/first used in
+  sourceUri?: URI; // Which file this account was declared/first used in
   line?: number; // 0-based line number where this account was declared/first seen
 }
 
 export interface Payee {
   name: string;
   declared: boolean; // true if from 'payee' directive
-  sourceUri?: string; // Which file this payee was declared/first used in
+  sourceUri?: URI; // Which file this payee was declared/first used in
   line?: number; // 0-based line number where declared/first seen
 }
 
 export interface Commodity {
   name: string;
   declared: boolean; // true if from 'commodity' directive
-  sourceUri?: string; // Which file this commodity was declared/first used in
+  sourceUri?: URI; // Which file this commodity was declared/first used in
 
   // Optional display/format info parsed from a commodity directive sample/format
   // See commodity directive documentation: we capture symbol placement, separators, precision and grouping.
@@ -82,29 +86,29 @@ export type DecimalMark = '.' | ',' | null;
 export type ThousandsSeparator = '.' | ',' | ' ' | null;
 
 export interface Format {
-    // symbol as declared (empty string for no-symbol commodities)
-    symbol?: string;
+  // symbol as declared (empty string for no-symbol commodities)
+  symbol?: string;
 
-    // true if symbol appears on the left of the number (e.g. $100)
-    symbolOnLeft?: boolean;
+  // true if symbol appears on the left of the number (e.g. $100)
+  symbolOnLeft?: boolean;
 
-    // whether there is a space between symbol and number (e.g. "$ 1000" vs "$1000")
-    spaceBetween?: boolean;
+  // whether there is a space between symbol and number (e.g. "$ 1000" vs "$1000")
+  spaceBetween?: boolean;
 
-    // decimal mark used ('.' or ',')
-    decimalMark?: DecimalMark;
+  // decimal mark used ('.' or ',')
+  decimalMark?: DecimalMark;
 
-    // thousands / grouping separator character ('.', ',', ' ' etc.), or null when none
-    thousandsSeparator?: ThousandsSeparator;
+  // thousands / grouping separator character ('.', ',', ' ' etc.), or null when none
+  thousandsSeparator?: ThousandsSeparator;
 
-    // number of decimal digits to display; 0 if decimal mark at end, null if unknown/unspecified
-    precision?: number | null;
-  };
+  // number of decimal digits to display; 0 if decimal mark at end, null if unknown/unspecified
+  precision?: number | null;
+};
 
 export interface Tag {
   name: string;
   declared: boolean; // true if from 'tag' directive
-  sourceUri?: string; // Which file this tag was declared/first used in
+  sourceUri?: URI; // Which file this tag was declared/first used in
   line?: number; // 0-based line number where declared/first seen
 }
 
@@ -112,7 +116,7 @@ export interface Directive {
   type: 'account' | 'commodity' | 'payee' | 'tag' | 'include' | 'alias';
   value: string;
   comment?: string;
-  sourceUri?: string; // Which file this directive came from
+  sourceUri?: URI; // Which file this directive came from
   line?: number; // 0-based line number of the directive
 }
 
@@ -124,3 +128,5 @@ export interface ParsedDocument {
   payees: Map<string, Payee>;
   tags: Map<string, Tag>;
 }
+
+export type FileReader = (uri: URI) => TextDocument | null;

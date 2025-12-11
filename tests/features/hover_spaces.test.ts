@@ -1,4 +1,5 @@
 
+import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { HoverProvider } from '../../src/features/hover';
 import { HledgerParser } from '../../src/parser/index';
@@ -20,7 +21,7 @@ describe('HoverProvider Accounts with Spaces', () => {
     Expenses:Credit Card
 `;
         const document = TextDocument.create('file:///spaces.journal', 'hledger', 1, text);
-        const parsed = parser.parse(document, { baseUri: 'file:///spaces.journal', fileReader: defaultFileReader });
+        const parsed = parser.parse(document, { baseUri: URI.parse('file:///spaces.journal'), fileReader: defaultFileReader });
 
         expect(parsed.accounts.has('Expenses:Credit Card')).toBe(true);
         expect(parsed.accounts.has('Assets:Bank Account')).toBe(true);
@@ -44,7 +45,7 @@ describe('HoverProvider Accounts with Spaces', () => {
     Expenses:Credit Card    10 USD
 `;
         const document = TextDocument.create('file:///spaces2.journal', 'hledger', 1, text);
-        const parsed = parser.parse(document, { baseUri: 'file:///spaces2.journal', fileReader: defaultFileReader });
+        const parsed = parser.parse(document, { baseUri: URI.parse('file:///spaces2.journal'), fileReader: defaultFileReader });
 
         // Hover over "Expenses"
         const hover = hoverProvider.provideHover(document, 2, 6, parsed);

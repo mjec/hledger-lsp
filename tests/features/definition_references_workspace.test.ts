@@ -1,5 +1,6 @@
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { URI } from 'vscode-uri';
 import { DefinitionProvider } from '../../src/features/definition';
 import { FindReferencesProvider } from '../../src/features/findReferences';
 import { ParsedDocument } from '../../src/types';
@@ -18,10 +19,11 @@ describe('Definition & References Workspace Context', () => {
 
     it('Definition should return location from workspace parsed data', () => {
         const accountName = 'Expenses:Food';
+        const accountsUri = URI.parse('file:///home/user/accounts.journal');
         const parsedDocWorkspace: ParsedDocument = {
             transactions: [],
             accounts: new Map([
-                [accountName, { name: accountName, declared: true, sourceUri: 'file:///home/user/accounts.journal', line: 5 }]
+                [accountName, { name: accountName, declared: true, sourceUri: accountsUri, line: 5 }]
             ]),
             commodities: new Map(),
             payees: new Map(),

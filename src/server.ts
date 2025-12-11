@@ -15,6 +15,8 @@ import {
   SemanticTokensLegend
 } from 'vscode-languageserver/node';
 
+import { URI } from 'vscode-uri';
+
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
 import { completionProvider } from './features/completion';
@@ -31,11 +33,13 @@ import { validator } from './features/validator';
 import { foldingRangesProvider } from './features/foldingRanges';
 import { documentLinksProvider } from './features/documentLinks';
 import { selectionRangeProvider } from './features/selectionRange';
-import { HledgerParser, FileReader } from './parser/index';
+import { HledgerParser } from './parser/index';
 import { HledgerSettings, defaultSettings, getDocumentSettings as getDocumentSettingsModule, clearDocumentSettings, clearAllDocumentSettings } from './server/settings';
 import { defaultFileReader, resolveIncludePath as resolveIncludePathUtil, toFilePath, toFileUri } from './utils/uri';
+import { updateDependencies, clearDependencies, getDependents } from './server/deps';
 import { WorkspaceManager } from './server/workspace';
 import * as path from 'path';
+import { FileReader } from './types';
 
 // Check for version flag
 if (process.argv.includes('--version') || process.argv.includes('-v')) {
@@ -53,7 +57,15 @@ if (process.argv.includes('--version') || process.argv.includes('-v')) {
 // Create a connection for the server using Node's IPC as a transport
 const connection = createConnection(ProposedFeatures.all);
 
-connection.console.log('========== HLEDGER LSP SERVER STARTING ==========');
+connection.console.log('*========= HLEDGER LSP SERVER STARTING ==========');
+// Diagnostic: print runtime filename and argv to verify which file is loaded by the EDH
+try {
+  // __filename points at the compiled JS file when running under Node
+  connection.console.log(`SERVER RUNTIME __filename: ${__filename}`);
+  connection.console.log(`SERVER PROCESS ARGV: ${process.argv.join(' ')}`);
+} catch (e) {
+  // ignore in environments where __filename isn't available
+}
 
 // Create a simple text document manager
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
@@ -64,7 +76,7 @@ let hasInlayHintRefreshSupport = false;
 let hasCodeLensRefreshSupport = false;
 
 // Workspace state
-let workspaceFolders: string[] = [];
+let workspaceFolders: URI[] = [];
 let workspaceManager: WorkspaceManager | null = null;
 
 connection.onInitialize((params: InitializeParams) => {
@@ -111,12 +123,14 @@ connection.onInitialize((params: InitializeParams) => {
 
   connection.console.log(`Inlay hint refresh support: ${hasInlayHintRefreshSupport}`);
   connection.console.log(`Code lens refresh support: ${hasCodeLensRefreshSupport}`);
+  connection.console.log(`Dynamic registration for didChangeConfiguration support: ${hasDidChangeConfigurationDynamicRegistration}`);
+  connection.console.log(`Configuration capability: ${hasConfigurationCapability}`)
 
   // Store workspace folders
   if (params.workspaceFolders && params.workspaceFolders.length > 0) {
-    workspaceFolders = params.workspaceFolders.map(folder => folder.uri);
+    workspaceFolders = params.workspaceFolders.map(folder => URI.parse(folder.uri));
   } else if (params.rootUri) {
-    workspaceFolders = [params.rootUri];
+    workspaceFolders = [URI.parse(params.rootUri)];
   }
 
   const result: InitializeResult = {
@@ -126,7 +140,6 @@ connection.onInitialize((params: InitializeParams) => {
     },
     capabilities: {
       textDocumentSync: TextDocumentSyncKind.Incremental,
-      // Tell the client that this server supports code completion
       completionProvider: {
         resolveProvider: true,
         triggerCharacters: [':', ' ']
@@ -175,17 +188,6 @@ connection.onInitialize((params: InitializeParams) => {
     }
   };
 
-  // Log the semantic token legend being registered so clients/inspectors can verify
-  // which token types/modifiers the server reports at runtime.
-  try {
-    connection.console.info(`Semantic tokens legend: ${JSON.stringify({ tokenTypes, tokenModifiers })}`);
-  } catch (e) {
-    connection.console.warn('Failed to log semantic tokens legend');
-  }
-
-  // Note: Workspace folders support removed to avoid warnings with clients
-  // that don't support dynamic registration (like Neovim)
-
   connection.console.log('========== ON INITIALIZE COMPLETE ==========');
   connection.console.log(`workspaceFolders array: ${JSON.stringify(workspaceFolders)}`);
 
@@ -219,7 +221,7 @@ connection.onInitialized(async () => {
 });
 
 // Helper function to initialize workspace manager
-async function initializeWorkspaceManager(folders: string[], forceReinit: boolean = false): Promise<void> {
+async function initializeWorkspaceManager(folders: URI[], forceReinit: boolean = false): Promise<void> {
   if (workspaceManager && !forceReinit) {
     connection.console.log('WorkspaceManager already initialized');
     return;
@@ -262,9 +264,9 @@ async function initializeWorkspaceManager(folders: string[], forceReinit: boolea
     }
 
     // Refresh inlay hints for all open documents
-    if (hasInlayHintRefreshSupport) {
-      connection.languages.inlayHint.refresh();
-    }
+    // if (hasInlayHintRefreshSupport) {
+    //   connection.languages.inlayHint.refresh();
+    // }
 
     connection.console.log(`Refreshed ${openDocuments.length} open document(s) with workspace context`);
   } catch (error) {
@@ -276,24 +278,19 @@ async function initializeWorkspaceManager(folders: string[], forceReinit: boolea
 // Global settings used when client does not support workspace/configuration
 let globalSettings: HledgerSettings = defaultSettings;
 
-// include dependency functions are centralized in src/server/deps.ts
-import { updateDependencies, clearDependencies, getDependents } from './server/deps';
 
 // Create a shared parser instance with caching
 const sharedParser = new HledgerParser();
 
 // Small helper to centralize parsing options and reduce duplication across handlers
 function parseDocument(
-  document: TextDocument,
-  options?: { parseMode?: 'document' | 'workspace' }
+  document: TextDocument
 ) {
-  const mode = options?.parseMode || 'document';
 
   // Workspace mode: parse from root file for global state
-  if (mode === 'workspace' && workspaceManager) {
-    const root = workspaceManager.getRootForFile(document.uri);
+  if (workspaceManager) {
+    const root = workspaceManager.getRootForFile(URI.parse(document.uri));
     if (root) {
-      connection.console.info(`[parseDocument] Workspace mode: using root ${root}`);
       const parsed = workspaceManager.parseWorkspace();
       if (parsed) {
         return parsed;
@@ -305,11 +302,11 @@ function parseDocument(
     );
   }
 
-  // Document mode: standard include-based parsing
+  // Document mode: single document only parsing
   connection.console.info(`[parseDocument] Document mode for ${document.uri}`);
   return sharedParser.parse(document, {
-    baseUri: document.uri,
-    fileReader
+    baseUri: URI.parse(document.uri),
+    parseMode: 'document'
   });
 }
 
@@ -330,7 +327,7 @@ connection.onDidChangeConfiguration(change => {
 });
 
 // Wrapper around settings module to use connection and capability flag
-function getDocumentSettings(resource: string): Thenable<HledgerSettings> {
+function getDocumentSettings(resource: URI): Thenable<HledgerSettings> {
   return getDocumentSettingsModule(connection, resource, hasConfigurationCapability);
 }
 
@@ -345,10 +342,11 @@ documents.onDidOpen(async e => {
   // If workspace manager not initialized and we don't have workspace folders,
   // use the directory of the opened document as the workspace
   if (!workspaceManager && workspaceFolders.length === 0) {
-    const uri = e.document.uri;
-    const filePath = toFilePath(uri);
+    const uri: URI = URI.parse(e.document.uri);
+    const filePath = uri.fsPath;
     const dirPath = path.dirname(filePath);
     const workspaceUri = toFileUri(dirPath);
+
 
     connection.console.log(`Lazy-initializing WorkspaceManager with directory: ${workspaceUri}`);
     await initializeWorkspaceManager([workspaceUri]);
@@ -357,8 +355,8 @@ documents.onDidOpen(async e => {
 
 // Only keep settings for open documents
 documents.onDidClose(e => {
-  clearDocumentSettings(e.document.uri);
-  clearDependencies(e.document.uri);
+  clearDocumentSettings(URI.parse(e.document.uri));
+  clearDependencies(URI.parse(e.document.uri));
 });
 
 // The content of a text document has changed
@@ -371,16 +369,16 @@ documents.onDidChangeContent(change => {
 
   // Invalidate workspace cache for affected roots
   if (workspaceManager) {
-    workspaceManager.invalidateFile(change.document.uri);
+    workspaceManager.invalidateFile(URI.parse(change.document.uri));
   }
 
   validateTextDocument(change.document);
 
   // Re-validate all files that depend on this one
-  const dependents = getDependents(change.document.uri);
+  const dependents = getDependents(URI.parse(change.document.uri));
   if (dependents) {
     for (const dependentUri of dependents) {
-      const dependentDoc = documents.get(dependentUri);
+      const dependentDoc = documents.get(dependentUri.toString());
       if (dependentDoc) {
         validateTextDocument(dependentDoc);
       }
@@ -390,23 +388,23 @@ documents.onDidChangeContent(change => {
   // Refresh inlay hints after any document change
   // This ensures positions update correctly when lines are added/removed
   // and that workspace-wide state (running balances, etc.) stays in sync
-  if (hasInlayHintRefreshSupport) {
-    connection.console.log(`[Inlay Hints] Refreshing after document change: ${change.document.uri}`);
-    connection.languages.inlayHint.refresh();
-  }
+  // if (hasInlayHintRefreshSupport) {
+  //   connection.console.log(`[Inlay Hints] Refreshing after document change: ${change.document.uri}`);
+  //   connection.languages.inlayHint.refresh();
+  // }
 
   // In workspace mode, changes to one file affect all files in the workspace
   // (e.g., running balances, transaction counts, completions)
   // Re-validate other open documents that share the same root
   if (workspaceManager) {
-    const changedRoot = workspaceManager.getRootForFile(change.document.uri);
+    const changedRoot = workspaceManager.getRootForFile(URI.parse(change.document.uri));
 
     if (changedRoot) {
       // Find all open documents that share the same root (excluding the current one, which was already validated)
       const allDocs = documents.all();
 
       const affectedDocs = allDocs.filter(doc => {
-        const docRoot = workspaceManager!.getRootForFile(doc.uri);
+        const docRoot = workspaceManager!.getRootForFile(URI.parse(doc.uri));
         const isSameRoot = docRoot === changedRoot;
         const isDifferentFile = doc.uri !== change.document.uri;
         return isSameRoot && isDifferentFile;
@@ -450,51 +448,35 @@ connection.onDidChangeWatchedFiles(async (params) => {
 
 // Create a file reader that uses in-memory documents when available
 // This ensures we see unsaved changes in the editor
-const fileReader: FileReader = (uri: string) => {
+const fileReader: FileReader = (uri: URI) => {
   // Try to find document with exact URI
-  let openDoc = documents.get(uri);
+  let openDoc = documents.get(uri.toString());
   if (openDoc) {
-    connection.console.info(`[FileReader] Using in-memory document: ${uri} (version: ${openDoc.version})`);
+    connection.console.debug(`[FileReader] Using in-memory document: ${uri} (version: ${openDoc.version})`);
     return openDoc;
   }
 
-  // VS Code may send encoded URIs (%40 for @, %28%29 for parentheses)
-  // but workspace manager normalizes (decodes) them
-  // Try both directions: decode the URI, and also try encoding it
-
-  // Try decoded version
-  const decodedUri = toFileUri(toFilePath(uri));
-  if (decodedUri !== uri) {
-    openDoc = documents.get(decodedUri);
-    if (openDoc) {
-      connection.console.info(`[FileReader] Using in-memory document (decoded): ${decodedUri} (version: ${openDoc.version})`);
-      return openDoc;
-    }
-  }
-  // At this point we couldn't find an in-memory doc using normalized URI.
-  // Fall back to reading from disk.
-
   // Fall back to reading from disk
-  connection.console.info(`[FileReader] Reading from disk: ${uri}`);
+  // connection.console.debug(`[FileReader] Reading from disk: ${uri}`);
   return defaultFileReader(uri);
 };
 
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
   // Get document settings
-  const settings = (await getDocumentSettings(textDocument.uri)) ?? defaultSettings;
+  const settings = (await getDocumentSettings(URI.parse(textDocument.uri))) ?? defaultSettings;
 
   // Validation needs workspace state for balance assertions and full transaction history
-  const parsedDoc = parseDocument(textDocument, { parseMode: 'workspace' });
+  const parsedDoc = parseDocument(textDocument);
 
   // Track which files this document includes
-  const includedFiles = new Set<string>();
+  const includedFiles = new Set<URI>();
   for (const directive of parsedDoc.directives) {
     if (directive.type === 'include') {
-      const resolvedPath = resolveIncludePathUtil(directive.value, textDocument.uri);
+      const resolvedPath = resolveIncludePathUtil(directive.value, URI.parse(textDocument.uri));
       includedFiles.add(resolvedPath);
     }
   }
-  updateDependencies(textDocument.uri, includedFiles);
+  updateDependencies(URI.parse(textDocument.uri), includedFiles);
 
   // Update completion data from the parsed document (includes all workspace files)
   completionProvider.updateAccounts(parsedDoc.accounts);
@@ -504,7 +486,7 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 
   // Validate the document with settings
   const validationResult = validator.validate(textDocument, parsedDoc, {
-    baseUri: textDocument.uri,
+    baseUri: URI.parse(textDocument.uri),
     fileReader,
     settings: {
       validation: settings?.validation,
@@ -531,10 +513,10 @@ connection.onCompletion(
       }
 
       // Completion needs workspace-wide accounts/payees/commodities for accurate suggestions
-      const parsed = parseDocument(document, { parseMode: 'workspace' });
+      const parsed = parseDocument(document);
 
       // Get settings for completion filtering
-      const settings = await getDocumentSettingsModule(connection, textDocumentPosition.textDocument.uri, hasConfigurationCapability);
+      const settings = await getDocumentSettingsModule(connection, URI.parse(textDocumentPosition.textDocument.uri), hasConfigurationCapability);
 
       return completionProvider.getCompletionItems(document, textDocumentPosition.position, parsed, settings?.completion);
     } catch (error) {
@@ -558,8 +540,8 @@ connection.onHover(async (params, token) => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
 
-  const parsed = parseDocument(document, { parseMode: 'workspace' });
-  const settings = await getDocumentSettings(params.textDocument.uri);
+  const parsed = parseDocument(document);
+  const settings = await getDocumentSettings(URI.parse(params.textDocument.uri));
 
   const hover = hoverProvider.provideHover(document, params.position.line, params.position.character, parsed, settings);
   return hover;
@@ -571,7 +553,7 @@ connection.onDefinition((params) => {
   if (!document) return null;
 
   // Parse document with includes using server's fileReader
-  const parsed = parseDocument(document, { parseMode: 'workspace' });
+  const parsed = parseDocument(document);
 
   const loc = definitionProvider.provideDefinition(document, params.position.line, params.position.character, parsed);
   return loc ? [loc] : null;
@@ -583,7 +565,7 @@ connection.onReferences((params) => {
   if (!document) return null;
 
   // Parse document with includes using server's fileReader
-  const parsed = parseDocument(document, { parseMode: 'workspace' });
+  const parsed = parseDocument(document);
 
   return findReferencesProvider.findReferences(
     document,
@@ -649,8 +631,9 @@ connection.onDocumentFormatting(async (params) => {
     const parsed = parseDocument(document);
 
     // Get formatting settings
-    const settings = await getDocumentSettings(params.textDocument.uri);
+    const settings = await getDocumentSettings(URI.parse(params.textDocument.uri));
     const formattingOptions = settings?.formatting || {};
+    console.log(`Formatting`);
 
     return formattingProvider.formatDocument(document, parsed, params.options, formattingOptions);
   } catch (error) {
@@ -669,7 +652,7 @@ connection.onDocumentRangeFormatting(async (params) => {
     const parsed = parseDocument(document);
 
     // Get formatting settings
-    const settings = await getDocumentSettings(params.textDocument.uri);
+    const settings = await getDocumentSettings(URI.parse(params.textDocument.uri));
     const formattingOptions = settings?.formatting || {};
 
     return formattingProvider.formatRange(document, params.range, parsed, params.options, formattingOptions);
@@ -689,7 +672,7 @@ connection.onDocumentOnTypeFormatting(async (params) => {
     const parsed = parseDocument(document);
 
     // Get formatting settings
-    const settings = await getDocumentSettings(params.textDocument.uri);
+    const settings = await getDocumentSettings(URI.parse(params.textDocument.uri));
     const formattingOptions = settings?.formatting || {};
 
     return formattingProvider.formatOnType(
@@ -720,20 +703,15 @@ connection.languages.semanticTokens.on((params) => {
 
 // Provide inlay hints
 connection.languages.inlayHint.on(async (params) => {
+  connection.console.info(`[Inlay Hints] Request for document: ${params.textDocument.uri}`);
   try {
     const document = documents.get(params.textDocument.uri);
     if (!document) return [];
 
-    connection.console.info(`[Inlay Hints] Request for ${params.textDocument.uri} (doc version: ${document.version}, range: ${params.range.start.line}-${params.range.end.line})`);
-
     // Get settings for inlay hints
-    const settings = await getDocumentSettings(params.textDocument.uri);
-    const inlayHintsSettings = settings?.inlayHints || undefined;
+    const settings = await getDocumentSettings(URI.parse(params.textDocument.uri));
 
-    // Use workspace mode for running balances (needs all transactions chronologically)
-    // Use document mode for inferred amounts (single-file context sufficient)
-    const parseMode = inlayHintsSettings?.showRunningBalances ? 'workspace' : 'document';
-    const parsed = parseDocument(document, { parseMode });
+    const parsed = parseDocument(document);
 
     const hints = inlayHintsProvider.provideInlayHints(
       document,
@@ -742,7 +720,6 @@ connection.languages.inlayHint.on(async (params) => {
       settings
     );
 
-    connection.console.info(`[Inlay Hints] Returning ${hints.length} hints for range ${params.range.start.line}-${params.range.end.line}`);
     return hints;
   } catch (error) {
     connection.console.error(`Error providing inlay hints: ${error}`);
@@ -757,10 +734,10 @@ connection.onCodeLens(async (params) => {
     if (!document) return [];
 
     // CodeLens always needs workspace state for accurate transaction counts and balances
-    const parsed = parseDocument(document, { parseMode: 'workspace' });
+    const parsed = parseDocument(document);
 
     // Get settings for code lens
-    const settings = await getDocumentSettings(params.textDocument.uri);
+    const settings = await getDocumentSettings(URI.parse(params.textDocument.uri));
     const codeLensSettings = settings?.codeLens || undefined;
 
     return codeLensProvider.provideCodeLenses(

@@ -2,6 +2,7 @@
  * Tests for including files from parent directories
  */
 
+import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { parser } from '../../src/parser';
 import { defaultFileReader } from '../../src/utils/uri';
@@ -14,8 +15,8 @@ describe('parent directory includes', () => {
 
   test('should include file from parent directory using ../path', () => {
     const content = fs.readFileSync(childJournalPath, 'utf8');
-    const uri = 'file://' + childJournalPath;
-    const doc = TextDocument.create(uri, 'hledger', 1, content);
+    const uri = URI.file(childJournalPath);
+    const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
     const parsed = parser.parse(doc, {
       baseUri: uri,
@@ -28,12 +29,12 @@ describe('parent directory includes', () => {
     // Should have parent transaction
     const parentTx = parsed.transactions.find(t => t.description === 'Parent Transaction');
     expect(parentTx).toBeDefined();
-    expect(parentTx?.sourceUri).toContain('parent.journal');
+    expect(parentTx?.sourceUri?.toString()).toContain('parent.journal');
 
     // Should have child transaction
     const childTx = parsed.transactions.find(t => t.description === 'Child Transaction');
     expect(childTx).toBeDefined();
-    expect(childTx?.sourceUri).toContain('child.journal');
+    expect(childTx?.sourceUri?.toString()).toContain('child.journal');
 
     // Should have accounts from both files
     expect(Array.from(parsed.accounts.values()).some(a => a.name === 'Assets:Bank')).toBe(true);
@@ -58,8 +59,8 @@ include ../../parent.journal
 `);
 
     const content = fs.readFileSync(deepJournalPath, 'utf8');
-    const uri = 'file://' + deepJournalPath;
-    const doc = TextDocument.create(uri, 'hledger', 1, content);
+    const uri = URI.file(deepJournalPath);
+    const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
     const parsed = parser.parse(doc, {
       baseUri: uri,
@@ -108,8 +109,8 @@ include ../sibling/sibling.journal
 `);
 
     const content = fs.readFileSync(mixedJournalPath, 'utf8');
-    const uri = 'file://' + mixedJournalPath;
-    const doc = TextDocument.create(uri, 'hledger', 1, content);
+    const uri = URI.file(mixedJournalPath);
+    const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
     const parsed = parser.parse(doc, {
       baseUri: uri,
@@ -142,8 +143,8 @@ include ./../parent.journal
 `);
 
     const content = fs.readFileSync(testPath, 'utf8');
-    const uri = 'file://' + testPath;
-    const doc = TextDocument.create(uri, 'hledger', 1, content);
+    const uri = URI.file(testPath);
+    const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
     const parsed = parser.parse(doc, {
       baseUri: uri,
@@ -180,8 +181,8 @@ include ../parent.journal
     fs.writeFileSync(parentPath, originalParent + '\ninclude nested/circular-test.journal\n');
 
     const content = fs.readFileSync(circularPath, 'utf8');
-    const uri = 'file://' + circularPath;
-    const doc = TextDocument.create(uri, 'hledger', 1, content);
+    const uri = URI.file(circularPath);
+    const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
     const parsed = parser.parse(doc, {
       baseUri: uri,

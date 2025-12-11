@@ -1,4 +1,5 @@
 import { Connection } from 'vscode-languageserver/node';
+import { URI } from 'vscode-uri';
 
 export interface HledgerSettings {
   maxNumberOfProblems: number;
@@ -123,7 +124,7 @@ export const defaultSettings: HledgerSettings = {
 };
 
 // Cache the settings of all open documents
-const documentSettings: Map<string, Thenable<HledgerSettings>> = new Map();
+const documentSettings: Map<URI, Thenable<HledgerSettings>> = new Map();
 
 /**
  * Deep merge two objects, with values from 'source' overriding 'target'
@@ -153,22 +154,21 @@ export function deepMerge<T extends Record<string, any>>(target: T, source: Part
  * Get settings for a document. If the client does not support workspace/configuration
  * the default settings are returned.
  */
-export function getDocumentSettings(connection: Connection, resource: string, hasConfigurationCapability: boolean): Thenable<HledgerSettings> {
+export function getDocumentSettings(connection: Connection, resource: URI, hasConfigurationCapability: boolean): Thenable<HledgerSettings> {
   if (!hasConfigurationCapability) {
     return Promise.resolve(defaultSettings);
   }
   let result = documentSettings.get(resource);
   if (!result) {
     result = connection.workspace.getConfiguration({
-      scopeUri: resource,
+      scopeUri: resource.toString(),
       section: 'hledgerLanguageServer'
     }).then((userSettings) => {
       // Merge user settings with defaults so unspecified settings use default values
       const merged = deepMerge(defaultSettings, userSettings || {});
-      // Lightweight log to verify that configuration is flowing from the client
-      connection.console.log(
-        `Loaded hledgerLanguageServer settings for ${resource}: ${JSON.stringify(userSettings || {})}`
-      );
+
+      connection.console.log(`Loaded hledgerLanguageServer settings for ${resource.toString()}`);
+
       return merged;
     });
     documentSettings.set(resource, result);
@@ -176,7 +176,7 @@ export function getDocumentSettings(connection: Connection, resource: string, ha
   return result;
 }
 
-export function clearDocumentSettings(resource: string): void {
+export function clearDocumentSettings(resource: URI): void {
   documentSettings.delete(resource);
 }
 

@@ -9,18 +9,15 @@
  * - Include directives
  */
 
-import { ParsedDocument, Transaction, Account, Directive, Posting, Amount, Payee, Commodity, Tag } from '../types';
+import { ParsedDocument, Transaction, Account, Directive, Posting, Amount, Payee, Commodity, Tag, FileReader } from '../types';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment, isDirective } from '../utils/index';
 import { resolveIncludePath as resolveIncludePathUtil, resolveIncludePaths, toFilePath, toFileUri } from '../utils/uri';
 import * as ast from './ast';
 import { includeManager } from './includes';
+import { URI } from 'vscode-uri';
 
-/**
- * Function type for reading file contents
- * Returns TextDocument if file exists and is readable, null otherwise
- */
-export type FileReader = (uri: string) => TextDocument | null;
+
 
 /**
  * Options for parsing hledger documents
@@ -30,7 +27,7 @@ export interface ParseOptions {
    * Base URI for resolving relative include paths
    * Should be the URI of the document being parsed
    */
-  baseUri?: string;
+  baseUri?: URI;
 
   /**
    * Function to read file contents by URI
@@ -39,10 +36,10 @@ export interface ParseOptions {
   fileReader?: FileReader;
 
   /**
-   * Set of URIs already visited (for circular include detection)
+   * Set of URI strings already visited (for circular include detection)
    * Internal use only
    */
-  visited?: Set<string>;
+  visited?: Map<string, URI>;
 
   /**
    * Parse mode: 'document' or 'workspace'
@@ -59,7 +56,7 @@ export class HledgerParser {
    * Clear the include cache
    * Should be called when included files change
    */
-  clearCache(uri?: string): void {
+  clearCache(uri?: URI): void {
     // Delegate cache clearing to includeManager
     includeManager.clearCache(uri);
   }
@@ -69,6 +66,7 @@ export class HledgerParser {
    */
   parse(document: TextDocument, options?: ParseOptions): ParsedDocument {
     const text = document.getText();
+    const uri: URI = URI.parse(document.uri);
     const lines = text.split('\n');
 
     const transactions: Transaction[] = [];
@@ -93,7 +91,7 @@ export class HledgerParser {
         const commentText = line.trim().substring(1);
         const extractedTags = extractTags(commentText);
         for (const tagName of Object.keys(extractedTags)) {
-          ast.addTag(tags, tagName, false, document.uri, i);
+          ast.addTag(tags, tagName, false, uri, i);
         }
         i++;
         continue;
@@ -103,23 +101,22 @@ export class HledgerParser {
       if (isDirective(line)) {
         const directive = ast.parseDirective(line);
         if (directive) {
-          const normalizedUri = toFileUri(toFilePath(document.uri));
-          directive.sourceUri = normalizedUri;
+          directive.sourceUri = uri;
           directive.line = i;
           directives.push(directive);
 
           // Process the directive to extract metadata
           const trimmed = line.trim();
           if (trimmed.startsWith('account ')) {
-            ast.processAccountDirective(line, accounts, document.uri, i);
+            ast.processAccountDirective(line, accounts, uri, i);
           } else if (trimmed.startsWith('payee ')) {
-            ast.processPayeeDirective(line, payees, document.uri, i);
+            ast.processPayeeDirective(line, payees, uri, i);
           } else if (trimmed.startsWith('commodity ')) {
             // Commodity directives can be multi-line, so we need to handle that
-            const lastLine = ast.processCommodityDirective(lines, i, commodities, document.uri);
+            const lastLine = ast.processCommodityDirective(lines, i, commodities, uri);
             i = lastLine; // Skip past any subdirectives we processed
           } else if (trimmed.startsWith('tag ')) {
-            ast.processTagDirective(line, tags, document.uri, i);
+            ast.processTagDirective(line, tags, uri, i);
           }
         }
         i++;
@@ -130,20 +127,17 @@ export class HledgerParser {
       if (isTransactionHeader(line)) {
         const transaction = ast.parseTransaction(lines, i);
         if (transaction) {
-          const normalizedUri = toFileUri(toFilePath(document.uri));
-          transaction.sourceUri = normalizedUri;
+          transaction.sourceUri = uri;
           transactions.push(transaction);
 
           // Extract metadata from the transaction
           // Add payee
           if (transaction.payee) {
-            const normalizedUri = toFileUri(toFilePath(document.uri));
-            ast.addPayee(payees, transaction.payee, false, normalizedUri, i);
+            ast.addPayee(payees, transaction.payee, false, uri, i);
           }
 
           // Extract accounts, commodities, and tags from postings
-          const normalizedUriForProcess = toFileUri(toFilePath(document.uri));
-          ast.processTransaction(transaction, accounts, commodities, tags, normalizedUriForProcess);
+          ast.processTransaction(transaction, accounts, commodities, tags, uri);
         }
 
         // Skip past the transaction lines to find where it ends
@@ -175,14 +169,14 @@ export class HledgerParser {
     };
 
     // Process includes (delegate to includeManager which owns the cache).
-    if (options?.fileReader) {
+    if (options?.fileReader && options.parseMode != 'document') {
       // For deterministic behavior in tests, clear the include cache at the start of a
       // top-level parse (when no visited set was provided). This ensures each call to
       // parser.parse(...) gets a fresh cache while still allowing caching for repeated
       // includes within the same parse invocation.
       if (!options.visited) includeManager.clearCache();
 
-      result = includeManager.processIncludes(result, document.uri, { fileReader: options.fileReader, visited: options.visited }, (doc, cbOptions) => {
+      result = includeManager.processIncludes(result, uri, { fileReader: options.fileReader, visited: options.visited }, (doc, cbOptions) => {
         // parseCallback: call back into this parser to parse included documents, preserving options
         return this.parse(doc, { ...options, ...cbOptions });
       });

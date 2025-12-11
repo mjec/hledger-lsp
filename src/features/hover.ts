@@ -20,6 +20,7 @@ import { toFilePath, toFileUri } from '../utils/uri';
 import * as path from 'path';
 
 import { HledgerSettings } from '../server/settings';
+import { URI } from 'vscode-uri';
 
 export class HoverProvider {
   /**
@@ -112,8 +113,9 @@ export class HoverProvider {
 
     // Check if we're on a transaction header (lowest priority)
     const trimmedLine = fullLine.trim();
+    const documentUri: URI = URI.parse(document.uri);
     if (isTransactionHeader(trimmedLine)) {
-      return this.provideTransactionHover(fullLine, line, parsed, document.uri, settings);
+      return this.provideTransactionHover(fullLine, line, parsed, documentUri, settings);
     }
 
     return null;
@@ -200,7 +202,11 @@ export class HoverProvider {
       parts.push(`**Status:** Declared`);
       if (account.sourceUri) {
         const filePath = toFilePath(account.sourceUri);
-        const fileName = path.basename(filePath);
+        let fileName = path.basename(filePath);
+        // Handle edge case where fsPath is invalid (e.g., file://test.journal with 2 slashes)
+        if (!fileName || fileName === '/') {
+          fileName = path.basename(account.sourceUri.toString().replace(/^file:\/\/+/, ''));
+        }
         const lineNum = (account.line ?? 0) + 1;
         parts.push(`**Location:** ${fileName}:${lineNum}`);
       }
@@ -233,7 +239,11 @@ export class HoverProvider {
       parts.push(`**Status:** Declared`);
       if (commodity.sourceUri) {
         const filePath = toFilePath(commodity.sourceUri);
-        const fileName = path.basename(filePath);
+        let fileName = path.basename(filePath);
+        // Handle edge case where fsPath is invalid (e.g., file://test.journal with 2 slashes)
+        if (!fileName || fileName === '/') {
+          fileName = path.basename(commodity.sourceUri.toString().replace(/^file:\/\/+/, ''));
+        }
         const lineNum = (commodity.line ?? 0) + 1;
         parts.push(`**Location:** ${fileName}:${lineNum}`);
       }
@@ -291,7 +301,11 @@ export class HoverProvider {
       parts.push(`**Status:** Declared`);
       if (payee.sourceUri) {
         const filePath = toFilePath(payee.sourceUri);
-        const fileName = path.basename(filePath);
+        let fileName = path.basename(filePath);
+        // Handle edge case where fsPath is invalid (e.g., file://test.journal with 2 slashes)
+        if (!fileName || fileName === '/') {
+          fileName = path.basename(payee.sourceUri.toString().replace(/^file:\/\/+/, ''));
+        }
         const lineNum = (payee.line ?? 0) + 1;
         parts.push(`**Location:** ${fileName}:${lineNum}`);
       }
@@ -335,7 +349,11 @@ export class HoverProvider {
       parts.push(`**Status:** Declared`);
       if (tag.sourceUri) {
         const filePath = toFilePath(tag.sourceUri);
-        const fileName = path.basename(filePath);
+        let fileName = path.basename(filePath);
+        // Handle edge case where fsPath is invalid (e.g., file://test.journal with 2 slashes)
+        if (!fileName || fileName === '/') {
+          fileName = path.basename(tag.sourceUri.toString().replace(/^file:\/\/+/, ''));
+        }
         const lineNum = (tag.line ?? 0) + 1;
         parts.push(`**Location:** ${fileName}:${lineNum}`);
       }
@@ -371,10 +389,8 @@ export class HoverProvider {
   /**
    * Provide hover for transaction headers
    */
-  private provideTransactionHover(line: string, lineNumber: number, parsed: ParsedDocument, documentUri: string, settings?: HledgerSettings): Hover | null {
+  private provideTransactionHover(line: string, lineNumber: number, parsed: ParsedDocument, documentUri: URI, settings?: HledgerSettings): Hover | null {
     // Find the transaction at this line
-    // Must match both line number AND source URI (normalized) to avoid collisions in workspace mode
-    const normalizedDocUri = toFileUri(toFilePath(documentUri));
 
     const transaction = parsed.transactions.find(t => {
       if (t.line !== lineNumber) return false;
@@ -382,8 +398,7 @@ export class HoverProvider {
       // If transaction has sourceUri, check it. If not, assume it matches (std parser behavior?)
       // Actually, parseTransactionHeader adds sourceUri.
       if (t.sourceUri) {
-        const normalizedSource = toFileUri(toFilePath(t.sourceUri));
-        return normalizedSource === normalizedDocUri;
+        return t.sourceUri.toString() === documentUri.toString();
       }
       return true;
     });

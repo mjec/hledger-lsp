@@ -1,3 +1,4 @@
+import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { SymbolKind } from 'vscode-languageserver';
 import { documentSymbolProvider, workspaceSymbolProvider } from '../../src/features/symbols';
@@ -181,9 +182,9 @@ account Assets:Bank
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
 
       // Mock fileReader that returns content for other.journal
-      const fileReader = (uri: string) => {
-        if (uri.includes('other.journal')) {
-          return TextDocument.create(uri, 'hledger', 1,
+      const fileReader = (uri: URI) => {
+        if (uri.toString().includes('other.journal')) {
+          return TextDocument.create(uri.toString(), 'hledger', 1,
             'account Expenses:Other\n\n2023-01-10 Other Transaction\n  Expenses:Other  $5.00\n  Assets:Bank\n'
           );
         }
@@ -191,7 +192,7 @@ account Assets:Bank
       };
 
       const parsed = parser.parse(doc, {
-        baseUri: doc.uri,
+        baseUri: URI.parse(doc.uri),
         fileReader
       });
 

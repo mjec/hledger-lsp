@@ -18,6 +18,7 @@ import * as path from 'path';
 import { toFilePath } from '../utils/uri';
 import { ParsedDocument } from '../types';
 import { transactionAnalyzer } from './transactionAnalyzer';
+import { URI } from 'vscode-uri';
 
 interface CompletionSettings {
   onlyDeclaredAccounts?: boolean;
@@ -77,7 +78,7 @@ export class CompletionProvider {
     // Include directive - suggest file paths
     const includeMatch = line.match(/^include\s+(.*)$/);
     if (includeMatch) {
-      return this.getIncludePathCompletions(document.uri, includeMatch[1]);
+      return this.getIncludePathCompletions(URI.parse(document.uri), includeMatch[1]);
     }
 
     // Comment - suggest tags (tags appear after ; in format tag:value)
@@ -214,7 +215,7 @@ export class CompletionProvider {
   /**
    * Get include file path completions
    */
-  private getIncludePathCompletions(documentUri: string, partialPath: string): CompletionItem[] {
+  private getIncludePathCompletions(documentUri: URI, partialPath: string): CompletionItem[] {
     try {
       // Convert URI to file path
       const currentFilePath = toFilePath(documentUri);

@@ -1,3 +1,4 @@
+import { URI } from 'vscode-uri';
 import { InlayHintsProvider } from '../../src/features/inlayHints';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Range, InlayHintKind, InlayHintLabelPart } from 'vscode-languageserver';
@@ -564,15 +565,15 @@ include balance-include-other.journal
     assets:checking                $-40
     expenses:gas                   $40`;
 
-      const otherUri = 'file:///home/patrick/Development/hledger_lsp/server/tests/fixtures/balance-include-other.journal';
-      const baseUri = 'file:///home/patrick/Development/hledger_lsp/server/tests/fixtures/balance-include-base.journal';
+      const otherUri = URI.parse('file:///home/patrick/Development/hledger_lsp/server/tests/fixtures/balance-include-other.journal');
+      const baseUri = URI.parse('file:///home/patrick/Development/hledger_lsp/server/tests/fixtures/balance-include-base.journal');
 
-      const otherDoc = TextDocument.create(otherUri, 'hledger', 1, otherContent);
-      const baseDoc = TextDocument.create(baseUri, 'hledger', 1, baseContent);
+      const otherDoc = TextDocument.create(otherUri.toString(), 'hledger', 1, otherContent);
+      const baseDoc = TextDocument.create(baseUri.toString(), 'hledger', 1, baseContent);
 
       // Create a mock file reader that returns our test documents
-      const fileReader = (uri: string) => {
-        if (uri === otherUri) return otherDoc;
+      const fileReader = (uri: URI) => {
+        if (uri.toString() === otherUri.toString()) return otherDoc;
         return null;
       };
 

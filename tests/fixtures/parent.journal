@@ -6,3 +6,37 @@ account Expenses:Utilities
 2024-01-01 * Parent Transaction
     Expenses:Utilities    $100
     Assets:Bank          $-100
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal
+
+include nested/circular-test.journal

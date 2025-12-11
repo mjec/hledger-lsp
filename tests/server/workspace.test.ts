@@ -1,5 +1,7 @@
+import { URI } from 'vscode-uri';
 import { WorkspaceManager } from '../../src/server/workspace';
-import { HledgerParser, FileReader } from '../../src/parser';
+import { HledgerParser, } from '../../src/parser';
+import { FileReader } from '../../src/types';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Connection } from 'vscode-languageserver/node';
 import * as path from 'path';
@@ -10,7 +12,8 @@ const mockConnection = {
     log: jest.fn(),
     info: jest.fn(),
     error: jest.fn(),
-    warn: jest.fn()
+    warn: jest.fn(),
+    debug: jest.fn()
   }
 } as unknown as Connection;
 
@@ -93,79 +96,79 @@ describe('WorkspaceManager', () => {
     mockDiscoverConfigFile.mockReturnValue(null);
     mockLoadConfigFile.mockReturnValue({
       config: {},
-      configPath: '/workspace1/.hledger-lsp.json',
-      configDir: '/workspace1',
+      configPath: URI.file('/workspace1/.hledger-lsp.json'),
+      configDir: URI.file('/workspace1'),
       warnings: []
     });
 
     // Create a mock fileReader that returns appropriate documents
-    fileReader = (uri: string): TextDocument | null => {
-      if (uri.includes('main.journal')) {
+    fileReader = (uri: URI): TextDocument | null => {
+      if (uri.toString().includes('main.journal')) {
         return TextDocument.create(
-          uri,
+          uri.toString(),
           'hledger',
           1,
           `include expenses.journal
 include income.journal
 include 2024/*.journal`
         );
-      } else if (uri.includes('expenses.journal')) {
+      } else if (uri.toString().includes('expenses.journal')) {
         return TextDocument.create(
-          uri,
+          uri.toString(),
           'hledger',
           1,
           `2024-01-01 * Grocery
     expenses:food  $50.00
     assets:checking`
         );
-      } else if (uri.includes('income.journal')) {
+      } else if (uri.toString().includes('income.journal')) {
         return TextDocument.create(
-          uri,
+          uri.toString(),
           'hledger',
           1,
           `2024-01-15 * Salary
     income:salary  -$1000.00
     assets:checking`
         );
-      } else if (uri.includes('jan.journal')) {
+      } else if (uri.toString().includes('jan.journal')) {
         return TextDocument.create(
-          uri,
+          uri.toString(),
           'hledger',
           1,
           `2024-01-05 * Gas
     expenses:auto  $40.00
     assets:checking`
         );
-      } else if (uri.includes('feb.journal')) {
+      } else if (uri.toString().includes('feb.journal')) {
         return TextDocument.create(
-          uri,
+          uri.toString(),
           'hledger',
           1,
           `2024-02-01 * Electric
     expenses:utilities  $60.00
     assets:checking`
         );
-      } else if (uri.includes('personal.journal')) {
+      } else if (uri.toString().includes('personal.journal')) {
         return TextDocument.create(
-          uri,
+          uri.toString(),
           'hledger',
           1,
           `2024-01-01 * Personal expense
     expenses:personal  $100.00
     assets:checking`
         );
-      } else if (uri.includes('business.journal')) {
+      } else if (uri.toString().includes('business.journal')) {
         return TextDocument.create(
-          uri,
+          uri.toString(),
           'hledger',
           1,
           `2024-01-01 * Business expense
     expenses:business  $200.00
     assets:checking`
         );
-      } else if (uri.includes('absolute_include.journal')) {
+      } else if (uri.toString().includes('absolute_include.journal')) {
         return TextDocument.create(
-          uri,
+          uri.toString(),
           'hledger',
           1,
           `include /workspace1/expenses.journal`
@@ -179,7 +182,7 @@ include 2024/*.journal`
   describe('initialization', () => {
     test('should discover journal files in workspace', async () => {
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -191,7 +194,7 @@ include 2024/*.journal`
 
     test('should discover files in multiple workspace folders', async () => {
       await manager.initialize(
-        ['file:///workspace1', 'file:///workspace2'],
+        [URI.parse('file:///workspace1'), URI.parse('file:///workspace2')],
         parser,
         fileReader,
         mockConnection
@@ -203,7 +206,7 @@ include 2024/*.journal`
 
     test('should handle empty workspace', async () => {
       await manager.initialize(
-        ['file:///empty'],
+        [URI.parse('file:///empty')],
         parser,
         fileReader,
         mockConnection
@@ -222,7 +225,7 @@ include 2024/*.journal`
       mockFg.mockImplementationOnce(() => Promise.resolve(largeFileList));
 
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -236,7 +239,7 @@ include 2024/*.journal`
       nowSpy.mockReturnValueOnce(1000).mockReturnValueOnce(7000); // 6000ms difference
 
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -250,16 +253,16 @@ include 2024/*.journal`
 
   describe('configuration loading', () => {
     test('should load configuration if file exists', async () => {
-      mockDiscoverConfigFile.mockReturnValue('/workspace1/.hledger-lsp.json');
+      mockDiscoverConfigFile.mockReturnValue(URI.file('/workspace1/.hledger-lsp.json'));
       mockLoadConfigFile.mockReturnValue({
         config: { rootFile: 'main.journal' },
-        configPath: '/workspace1/.hledger-lsp.json',
-        configDir: '/workspace1',
+        configPath: URI.file('/workspace1/.hledger-lsp.json'),
+        configDir: URI.file('/workspace1'),
         warnings: []
       });
 
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -269,11 +272,11 @@ include 2024/*.journal`
     });
 
     test('should handle config load errors', async () => {
-      mockDiscoverConfigFile.mockReturnValue('/workspace1/.hledger-lsp.json');
+      mockDiscoverConfigFile.mockReturnValue(URI.file('/workspace1/.hledger-lsp.json'));
       mockLoadConfigFile.mockImplementation(() => { throw new Error('Failed to read'); });
 
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -283,16 +286,16 @@ include 2024/*.journal`
     });
 
     test('should log warnings from config loading', async () => {
-      mockDiscoverConfigFile.mockReturnValue('/workspace1/.hledger-lsp.json');
+      mockDiscoverConfigFile.mockReturnValue(URI.file('/workspace1/.hledger-lsp.json'));
       mockLoadConfigFile.mockReturnValue({
         config: {},
-        configPath: '/workspace1/.hledger-lsp.json',
-        configDir: '/workspace1',
+        configPath: URI.file('/workspace1/.hledger-lsp.json'),
+        configDir: URI.file('/workspace1'),
         warnings: ['Invalid setting']
       });
 
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -305,23 +308,23 @@ include 2024/*.journal`
   describe('root file detection', () => {
     test('should detect file with no parents as root', async () => {
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
       );
 
       const diagnostics = manager.getDiagnosticInfo();
-      expect(diagnostics.rootFile).toBe('file:///workspace1/main.journal');
+      expect(diagnostics.rootFile?.toString()).toBe('file:///workspace1/main.journal');
 
       // main.journal should be the root (it includes others but isn't included)
-      const rootForMain = manager.getRootForFile('file:///workspace1/main.journal');
+      const rootForMain = manager.getRootForFile(URI.parse('file:///workspace1/main.journal'))?.toString();
       expect(rootForMain).toBe('file:///workspace1/main.journal');
     });
 
     test('should detect file that includes many others as root', async () => {
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -329,13 +332,13 @@ include 2024/*.journal`
 
       // main.journal includes 3+ files, should be detected as root
       const diagnostics = manager.getDiagnosticInfo();
-      expect(diagnostics.rootFile).toBe('file:///workspace1/main.journal');
+      expect(diagnostics.rootFile?.toString()).toBe('file:///workspace1/main.journal');
     });
 
     test('should select best root when multiple candidates exist', async () => {
       // Create a workspace with disconnected files
       await manager.initialize(
-        ['file:///workspace2'],
+        [URI.parse('file:///workspace2')],
         parser,
         fileReader,
         mockConnection
@@ -343,7 +346,7 @@ include 2024/*.journal`
 
       const diagnostics = manager.getDiagnosticInfo();
       // Should pick one of the two files (alphabetically: business.journal comes first)
-      expect(diagnostics.rootFile).toBe('file:///workspace2/business.journal');
+      expect(diagnostics.rootFile?.toString()).toBe('file:///workspace2/business.journal');
     });
 
     test('should use explicit root from config', async () => {
@@ -354,37 +357,37 @@ include 2024/*.journal`
       const workspaceUri = toFileUri(workspaceDir);
       const expectedRoot = toFileUri(path.join(workspaceDir, 'expenses.journal'));
 
-      mockDiscoverConfigFile.mockReturnValue(configPath);
+      mockDiscoverConfigFile.mockReturnValue(URI.file(configPath));
       mockLoadConfigFile.mockReturnValue({
         config: { rootFile: 'expenses.journal' }, // Explicitly pick a child as root
-        configPath: configPath,
-        configDir: workspaceDir,
+        configPath: URI.file(configPath),
+        configDir: URI.file(workspaceDir),
         warnings: []
       });
 
       await manager.initialize(
-        [workspaceUri],
+        [URI.parse(workspaceUri)],
         parser,
         fileReader,
         mockConnection
       );
 
       const diagnostics = manager.getDiagnosticInfo();
-      expect(diagnostics.rootFile).toBe(expectedRoot);
+      expect(diagnostics.rootFile?.toString()).toBe(expectedRoot.toString());
       expect(mockConnection.console.log).toHaveBeenCalledWith(expect.stringContaining('Using explicit root'));
     });
 
     test('should warn if configured root not found', async () => {
-      mockDiscoverConfigFile.mockReturnValue('/workspace1/.hledger-lsp.json');
+      mockDiscoverConfigFile.mockReturnValue(URI.file('/workspace1/.hledger-lsp.json'));
       mockLoadConfigFile.mockReturnValue({
         config: { rootFile: 'missing.journal' },
-        configPath: '/workspace1/.hledger-lsp.json',
-        configDir: '/workspace1',
+        configPath: URI.file('/workspace1/.hledger-lsp.json'),
+        configDir: URI.file('/workspace1'),
         warnings: []
       });
 
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -394,16 +397,16 @@ include 2024/*.journal`
     });
 
     test('should disable features if auto-detect disabled and no root', async () => {
-      mockDiscoverConfigFile.mockReturnValue('/workspace1/.hledger-lsp.json');
+      mockDiscoverConfigFile.mockReturnValue(URI.file('/workspace1/.hledger-lsp.json'));
       mockLoadConfigFile.mockReturnValue({
         config: { workspace: { autoDetectRoot: false } },
-        configPath: '/workspace1/.hledger-lsp.json',
-        configDir: '/workspace1',
+        configPath: URI.file('/workspace1/.hledger-lsp.json'),
+        configDir: URI.file('/workspace1'),
         warnings: []
       });
 
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -418,7 +421,7 @@ include 2024/*.journal`
   describe('getRootForFile', () => {
     beforeEach(async () => {
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -426,51 +429,51 @@ include 2024/*.journal`
     });
 
     test('should return root for leaf file', () => {
-      const root = manager.getRootForFile('file:///workspace1/expenses.journal');
-      expect(root).toBe('file:///workspace1/main.journal');
+      const root = manager.getRootForFile(URI.parse('file:///workspace1/expenses.journal'));
+      expect(root?.toString()).toBe('file:///workspace1/main.journal');
     });
 
     test('should return self for root file', () => {
-      const root = manager.getRootForFile('file:///workspace1/main.journal');
-      expect(root).toBe('file:///workspace1/main.journal');
+      const root = manager.getRootForFile(URI.parse('file:///workspace1/main.journal'));
+      expect(root?.toString()).toBe('file:///workspace1/main.journal');
     });
 
     test('should return null for orphan file', () => {
-      const root = manager.getRootForFile('file:///workspace1/orphan.journal');
+      const root = manager.getRootForFile(URI.parse('file:///workspace1/orphan.journal'));
       expect(root).toBeNull();
     });
 
     test('should return root for deeply nested file', () => {
-      const root = manager.getRootForFile('file:///workspace1/2024/jan.journal');
-      expect(root).toBe('file:///workspace1/main.journal');
+      const root = manager.getRootForFile(URI.parse('file:///workspace1/2024/jan.journal'));
+      expect(root?.toString()).toBe('file:///workspace1/main.journal');
     });
 
     test('should return null if no root file identified', async () => {
       // Initialize with autoDetectRoot: false
       const noRootManager = new WorkspaceManager();
-      mockDiscoverConfigFile.mockReturnValue('/workspace1/.hledger-lsp.json');
+      mockDiscoverConfigFile.mockReturnValue(URI.file('/workspace1/.hledger-lsp.json'));
       mockLoadConfigFile.mockReturnValue({
         config: { workspace: { autoDetectRoot: false } },
-        configPath: '/workspace1/.hledger-lsp.json',
-        configDir: '/workspace1',
+        configPath: URI.file('/workspace1/.hledger-lsp.json'),
+        configDir: URI.file('/workspace1'),
         warnings: []
       });
 
       await noRootManager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
       );
 
-      expect(noRootManager.getRootForFile('file:///workspace1/main.journal')).toBeNull();
+      expect(noRootManager.getRootForFile(URI.parse('file:///workspace1/main.journal'))).toBeNull();
     });
   });
 
   describe('workspace parsing', () => {
     beforeEach(async () => {
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -505,16 +508,16 @@ include 2024/*.journal`
     test('should return null if no root file', async () => {
       const noRootManager = new WorkspaceManager();
       // Initialize with options that result in no root
-      mockDiscoverConfigFile.mockReturnValue('/workspace1/.hledger-lsp.json');
+      mockDiscoverConfigFile.mockReturnValue(URI.file('/workspace1/.hledger-lsp.json'));
       mockLoadConfigFile.mockReturnValue({
         config: { workspace: { autoDetectRoot: false } },
-        configPath: '/workspace1/.hledger-lsp.json',
-        configDir: '/workspace1',
+        configPath: URI.file('/workspace1/.hledger-lsp.json'),
+        configDir: URI.file('/workspace1'),
         warnings: []
       });
 
       await noRootManager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -526,20 +529,20 @@ include 2024/*.journal`
     test('should throw if root file cannot be read', async () => {
       // Initialize normally
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
       );
 
       // Make fileReader fail for root
-      const brokenFileReader = (uri: string) => null;
+      const brokenFileReader = (uri: URI) => null;
       // Re-initialize or just use a new manager with broken reader? 
       // We can just spy on fileReader but we passed it as a function.
       // Let's create a new manager instance
       const brokenManager = new WorkspaceManager();
       await brokenManager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         brokenFileReader,
         mockConnection
@@ -556,13 +559,13 @@ include 2024/*.journal`
       // we'll skip this specific edge case or try to setup fileReader to succeed first then fail.
 
       let shouldFail = false;
-      const statefulFileReader = (uri: string) => {
-        if (shouldFail && uri.includes('main.journal')) return null;
+      const statefulFileReader = (uri: URI) => {
+        if (shouldFail && uri.toString().includes('main.journal')) return null;
         return fileReader(uri);
       };
 
       const statefulManager = new WorkspaceManager();
-      await statefulManager.initialize(['file:///workspace1'], parser, statefulFileReader, mockConnection);
+      await statefulManager.initialize([URI.parse('file:///workspace1')], parser, statefulFileReader, mockConnection);
 
       shouldFail = true;
       expect(() => statefulManager.parseWorkspace(true)).toThrow('Root file not found');
@@ -583,7 +586,7 @@ include 2024/*.journal`
   describe('cache invalidation', () => {
     beforeEach(async () => {
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -597,7 +600,7 @@ include 2024/*.journal`
       expect(diagnostics.cached).toBe(true);
 
       // Invalidate a leaf file
-      manager.invalidateFile('file:///workspace1/expenses.journal');
+      manager.invalidateFile(URI.parse('file:///workspace1/expenses.journal'));
 
       // Cache should be cleared for the workspace (main.journal includes expenses)
       diagnostics = manager.getDiagnosticInfo();
@@ -611,7 +614,7 @@ include 2024/*.journal`
       expect(diagnostics.cached).toBe(true);
 
       // Invalidate a file that's not part of the include graph
-      manager.invalidateFile('file:///workspace1/orphan.journal');
+      manager.invalidateFile(URI.parse('file:///workspace1/orphan.journal'));
 
       // Cache should still be valid
       diagnostics = manager.getDiagnosticInfo();
@@ -622,7 +625,7 @@ include 2024/*.journal`
   describe('include graph construction', () => {
     beforeEach(async () => {
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -631,14 +634,14 @@ include 2024/*.journal`
 
     test('should build include graph correctly', async () => {
       // main.journal includes expenses, income, and 2024/*.journal files
-      const root = manager.getRootForFile('file:///workspace1/main.journal');
-      expect(root).toBe('file:///workspace1/main.journal');
+      const root = manager.getRootForFile(URI.parse('file:///workspace1/main.journal'));
+      expect(root?.toString()).toBe('file:///workspace1/main.journal');
 
       // All included files should resolve to main.journal as root
-      expect(manager.getRootForFile('file:///workspace1/expenses.journal')).toBe('file:///workspace1/main.journal');
-      expect(manager.getRootForFile('file:///workspace1/income.journal')).toBe('file:///workspace1/main.journal');
-      expect(manager.getRootForFile('file:///workspace1/2024/jan.journal')).toBe('file:///workspace1/main.journal');
-      expect(manager.getRootForFile('file:///workspace1/2024/feb.journal')).toBe('file:///workspace1/main.journal');
+      expect(manager.getRootForFile(URI.parse('file:///workspace1/expenses.journal'))?.toString()).toBe('file:///workspace1/main.journal');
+      expect(manager.getRootForFile(URI.parse('file:///workspace1/income.journal'))?.toString()).toBe('file:///workspace1/main.journal');
+      expect(manager.getRootForFile(URI.parse('file:///workspace1/2024/jan.journal'))?.toString()).toBe('file:///workspace1/main.journal');
+      expect(manager.getRootForFile(URI.parse('file:///workspace1/2024/feb.journal'))?.toString()).toBe('file:///workspace1/main.journal');
     });
 
     test('should handle absolute include paths', async () => {
@@ -647,9 +650,9 @@ include 2024/*.journal`
       // But since fileReader and fg mock logic are separate, we need to ensure consistency.
 
       // Let's create a manager with a fileReader that handles absolute paths
-      const absFileReader = (uri: string) => {
-        if (uri.includes('absolute_include.journal')) {
-          return TextDocument.create(uri, 'hledger', 1, 'include /workspace1/expenses.journal');
+      const absFileReader = (uri: URI) => {
+        if (uri.toString().includes('absolute_include.journal')) {
+          return TextDocument.create(uri.toString(), 'hledger', 1, 'include /workspace1/expenses.journal');
         }
         return fileReader(uri);
       };
@@ -674,7 +677,7 @@ include 2024/*.journal`
     test('should select single root across all workspace folders', async () => {
       // With multiple workspace folders, we still select only one root
       await manager.initialize(
-        ['file:///workspace1', 'file:///workspace2'],
+        [URI.parse('file:///workspace1'), URI.parse('file:///workspace2')],
         parser,
         fileReader,
         mockConnection
@@ -685,14 +688,14 @@ include 2024/*.journal`
       expect(diagnostics.rootFile).toBeTruthy();
 
       // The root should be main.journal since it has the most includes
-      expect(diagnostics.rootFile).toBe('file:///workspace1/main.journal');
+      expect(diagnostics.rootFile?.toString()).toBe('file:///workspace1/main.journal');
     });
   });
 
   describe('diagnostic info', () => {
     test('should provide accurate diagnostic information', async () => {
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -701,7 +704,7 @@ include 2024/*.journal`
       const diagnostics = manager.getDiagnosticInfo();
 
       expect(diagnostics.totalFiles).toBeGreaterThan(0);
-      expect(diagnostics.rootFile).toBe('file:///workspace1/main.journal');
+      expect(diagnostics.rootFile?.toString()).toBe('file:///workspace1/main.journal');
       expect(diagnostics.cached).toBe(false); // No parsing done yet
 
       manager.parseWorkspace();
@@ -712,7 +715,7 @@ include 2024/*.journal`
 
     test('should log diagnostics to console', async () => {
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -726,7 +729,7 @@ include 2024/*.journal`
   describe('getWorkspaceTree', () => {
     test('should generate text tree', async () => {
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -748,7 +751,7 @@ include 2024/*.journal`
   describe('getWorkspaceTreeStructured', () => {
     test('should return structured tree', async () => {
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -761,7 +764,7 @@ include 2024/*.journal`
       // array will have root + flatten children
 
       expect(tree[0].display).toBe('main.journal');
-      expect(tree.find(n => n.uri.includes('expenses.journal'))).toBeDefined();
+      expect(tree.find(n => n.uri.toString().includes('expenses.journal'))).toBeDefined();
     });
 
     test('should return empty array when no root', () => {
@@ -773,7 +776,7 @@ include 2024/*.journal`
   describe('getWorkspaceFolder', () => {
     test('should define getWorkspaceFolder private method', async () => {
       await manager.initialize(
-        ['file:///workspace1'],
+        [URI.parse('file:///workspace1')],
         parser,
         fileReader,
         mockConnection
@@ -784,8 +787,8 @@ include 2024/*.journal`
       // files discovered are relative to workspace folders.
 
       // Actually, we can test it indirectly via behavior or just cast to any.
-      expect((manager as any).getWorkspaceFolder('file:///workspace1/main.journal')).toBe('file:///workspace1');
-      expect((manager as any).getWorkspaceFolder('file:///outside/file.journal')).toBeNull();
+      expect((manager as any).getWorkspaceFolder(URI.parse('file:///workspace1/main.journal'))?.toString()).toBe('file:///workspace1');
+      expect((manager as any).getWorkspaceFolder(URI.parse('file:///outside/file.journal'))).toBeNull();
     });
   });
 });

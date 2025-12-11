@@ -1,4 +1,5 @@
 import { defaultSettings, deepMerge, getDocumentSettings, clearDocumentSettings, clearAllDocumentSettings } from '../../src/server/settings';
+import { URI } from 'vscode-uri';
 
 describe('Settings', () => {
   beforeEach(() => {
@@ -165,7 +166,7 @@ describe('Settings', () => {
   describe('getDocumentSettings', () => {
     test('should return default settings when configuration capability is false', async () => {
       const mockConnection = {} as any;
-      const resource = 'file:///test.journal';
+      const resource = URI.parse('file:///test.journal');
       const hasConfigCapability = false;
 
       const result = await getDocumentSettings(mockConnection, resource, hasConfigCapability);
@@ -185,17 +186,18 @@ describe('Settings', () => {
           getConfiguration: jest.fn().mockResolvedValue(mockUserSettings)
         },
         console: {
-          log: jest.fn()
+          log: jest.fn(),
+          debug: jest.fn()
         }
       } as any;
 
-      const resource = 'file:///test.journal';
+      const resource = URI.parse('file:///test.journal');
       const hasConfigCapability = true;
 
       const result = await getDocumentSettings(mockConnection, resource, hasConfigCapability);
 
       expect(mockConnection.workspace.getConfiguration).toHaveBeenCalledWith({
-        scopeUri: resource,
+        scopeUri: resource.toString(),
         section: 'hledgerLanguageServer'
       });
       expect(result.validation?.balance).toBe(false);
@@ -214,11 +216,12 @@ describe('Settings', () => {
           getConfiguration: jest.fn().mockResolvedValue(mockUserSettings)
         },
         console: {
-          log: jest.fn()
+          log: jest.fn(),
+          debug: jest.fn()
         }
       } as any;
 
-      const resource = 'file:///cached.journal';
+      const resource = URI.parse('file:///cached.journal');
       const hasConfigCapability = true;
 
       // First call
@@ -238,11 +241,12 @@ describe('Settings', () => {
           getConfiguration: jest.fn().mockResolvedValue(null)
         },
         console: {
-          log: jest.fn()
+          log: jest.fn(),
+          debug: jest.fn()
         }
       } as any;
 
-      const resource = 'file:///test.journal';
+      const resource = URI.parse('file:///test.journal');
       const hasConfigCapability = true;
 
       const result = await getDocumentSettings(mockConnection, resource, hasConfigCapability);
@@ -262,11 +266,12 @@ describe('Settings', () => {
           getConfiguration: jest.fn().mockResolvedValue(mockUserSettings)
         },
         console: {
-          log: jest.fn()
+          log: jest.fn(),
+          debug: jest.fn()
         }
       } as any;
 
-      const resource = 'file:///test.journal';
+      const resource = URI.parse('file:///test.journal');
       const hasConfigCapability = true;
 
       await getDocumentSettings(mockConnection, resource, hasConfigCapability);
@@ -275,7 +280,7 @@ describe('Settings', () => {
         expect.stringContaining('Loaded hledgerLanguageServer settings')
       );
       expect(mockConnection.console.log).toHaveBeenCalledWith(
-        expect.stringContaining(resource)
+        expect.stringContaining(resource.toString())
       );
     });
   });
@@ -287,11 +292,12 @@ describe('Settings', () => {
           getConfiguration: jest.fn().mockResolvedValue({})
         },
         console: {
-          log: jest.fn()
+          log: jest.fn(),
+          debug: jest.fn()
         }
       } as any;
 
-      const resource = 'file:///test.journal';
+      const resource = URI.parse('file:///test.journal');
 
       // First, get settings to populate cache
       await getDocumentSettings(mockConnection, resource, true);
@@ -313,12 +319,13 @@ describe('Settings', () => {
           getConfiguration: jest.fn().mockResolvedValue({})
         },
         console: {
-          log: jest.fn()
+          log: jest.fn(),
+          debug: jest.fn()
         }
       } as any;
 
-      const resource1 = 'file:///test1.journal';
-      const resource2 = 'file:///test2.journal';
+      const resource1 = URI.parse('file:///test1.journal');
+      const resource2 = URI.parse('file:///test2.journal');
 
       // Get settings for multiple documents
       await getDocumentSettings(mockConnection, resource1, true);

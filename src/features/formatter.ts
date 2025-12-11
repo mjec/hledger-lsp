@@ -7,6 +7,8 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Amount, ParsedDocument, Posting, Commodity, Format, Transaction } from '../types';
 import { parsePosting, parseTransactionHeader } from '../parser/ast';
 import { isTransactionHeader, isPosting, isComment, isDirective } from '../utils/index';
+import { toFilePath, toFileUri } from '../utils/uri';
+import { URI } from 'vscode-uri';
 
 export interface FormattingOptions {
   /** Number of spaces for posting indentation (default: 4) */
@@ -85,7 +87,9 @@ export class FormattingProvider {
 
         // Find the corresponding transaction in the parsed document
         // to get inferred costs and other parsing results
-        const transaction = parsed.transactions.find(t => t.line === i);
+
+
+        const transaction = parsed.transactions.find(t => (t.line === i && t.sourceUri?.toString() === document.uri));
 
         // Collect and format all postings in this transaction
         const transactionLines: string[] = [];

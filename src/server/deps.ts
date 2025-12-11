@@ -1,14 +1,16 @@
 // Centralize include dependency tracking for the language server
 // Exports functions to update and clear dependencies and to query dependents.
 
-const includeDependencies: Map<string, Set<string>> = new Map();
-const fileIncludes: Map<string, Set<string>> = new Map();
+import { URI } from "vscode-uri";
+
+const includeDependencies: Map<URI, Set<URI>> = new Map();
+const fileIncludes: Map<URI, Set<URI>> = new Map();
 
 /**
  * Update dependency tracking for a file
  * fileUri: the file that includes the files in includedFiles
  */
-export function updateDependencies(fileUri: string, includedFiles: Set<string>): void {
+export function updateDependencies(fileUri: URI, includedFiles: Set<URI>): void {
   // Clear old dependencies for this file
   const oldIncludes = fileIncludes.get(fileUri);
   if (oldIncludes) {
@@ -40,7 +42,7 @@ export function updateDependencies(fileUri: string, includedFiles: Set<string>):
 /**
  * Clear all dependencies for a file
  */
-export function clearDependencies(fileUri: string): void {
+export function clearDependencies(fileUri: URI): void {
   const oldIncludes = fileIncludes.get(fileUri);
   if (oldIncludes) {
     for (const includedFile of oldIncludes) {
@@ -59,14 +61,14 @@ export function clearDependencies(fileUri: string): void {
 /**
  * Return the set of files that depend on the given URI (files that include it).
  */
-export function getDependents(uri: string): Set<string> | undefined {
+export function getDependents(uri: URI): Set<URI> | undefined {
   return includeDependencies.get(uri);
 }
 
 /**
  * (Optional) Return which files a file includes
  */
-export function getIncludes(fileUri: string): Set<string> | undefined {
+export function getIncludes(fileUri: URI): Set<URI> | undefined {
   return fileIncludes.get(fileUri);
 }
 

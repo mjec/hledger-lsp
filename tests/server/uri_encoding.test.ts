@@ -1,7 +1,9 @@
 import { WorkspaceManager } from '../../src/server/workspace';
-import { HledgerParser, FileReader } from '../../src/parser';
+import { HledgerParser } from '../../src/parser';
+import { FileReader } from '../../src/types';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Connection } from 'vscode-languageserver/node';
+import { URI } from 'vscode-uri';
 import * as path from 'path';
 
 // Mock the Connection interface
@@ -10,7 +12,8 @@ const mockConnection = {
         log: jest.fn(),
         info: jest.fn(),
         error: jest.fn(),
-        warn: jest.fn()
+        warn: jest.fn(),
+        debug: jest.fn()
     }
 } as unknown as Connection;
 
@@ -52,13 +55,13 @@ describe('WorkspaceManager URI Encoding', () => {
         parser = new HledgerParser();
         jest.clearAllMocks();
 
-        fileReader = (uri: string): TextDocument | null => {
+        fileReader = (uri: URI): TextDocument | null => {
             // Simple mock reading
-            if (uri.endsWith('main.journal')) {
-                return TextDocument.create(uri, 'hledger', 1, 'include patrick@email.com/week.journal');
+            if (uri.toString().endsWith('main.journal')) {
+                return TextDocument.create(uri.toString(), 'hledger', 1, 'include patrick@email.com/week.journal');
             }
-            if (uri.endsWith('week.journal')) {
-                return TextDocument.create(uri, 'hledger', 1, '2025-01-01 * Test');
+            if (uri.toString().endsWith('week.journal')) {
+                return TextDocument.create(uri.toString(), 'hledger', 1, '2025-01-01 * Test');
             }
             return null;
         };
@@ -75,7 +78,7 @@ describe('WorkspaceManager URI Encoding', () => {
         // /home/patrick/Insync/patrick.timoney@gmail.com/Google Drive/Joint Finances (2025)/...
 
         const rootDir = '/home/user/Special Characters (2025)';
-        const rootUri = `file://${rootDir}`; // Minimally encoded as per internal logic usually?
+        const rootUri = URI.file(rootDir); // Use URI.file to properly create URI
 
         await manager.initialize(
             [rootUri],
@@ -87,7 +90,7 @@ describe('WorkspaceManager URI Encoding', () => {
         // Verify main.journal was found and set as root
         const diagnostics = manager.getDiagnosticInfo();
         // The main journal internal URI
-        const mainJournalUri = `file://${rootDir}/main.journal`;
+        const mainJournalUri = URI.file(`${rootDir}/main.journal`);
 
         // If the internal discovery works, it should have found the files.
         // However, the issue is about looking up a file with an ENCODED uri.
@@ -95,7 +98,8 @@ describe('WorkspaceManager URI Encoding', () => {
         // VSCode sends this for a file open:
         // percentage encoded spaces, parenthesis, @
         // file:///home/user/Special%20Characters%20%282025%29/patrick%40email.com/week.journal
-        const clientSentUri = 'file:///home/user/Special%20Characters%20%282025%29/patrick%40email.com/week.journal';
+        const clientSentUriString = 'file:///home/user/Special%20Characters%20%282025%29/patrick%40email.com/week.journal';
+        const clientSentUri = URI.parse(clientSentUriString);
 
         // This look up should succeed if we normalize correctly.
         const root = manager.getRootForFile(clientSentUri);
@@ -106,8 +110,8 @@ describe('WorkspaceManager URI Encoding', () => {
         // or rely on the fact that the manager uses it.
         // Received: "file:///home/user/Special%20Characters%20(2025)/main.journal"
         // This is the correct internal representation.
-        const expectedRootUri = 'file:///home/user/Special%20Characters%20(2025)/main.journal';
+        const expectedRootUri = URI.file(`${rootDir}/main.journal`);
 
-        expect(root).toBe(expectedRootUri);
+        expect(root?.toString()).toBe(expectedRootUri.toString());
     });
 });

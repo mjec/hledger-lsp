@@ -6,7 +6,7 @@ import { DocumentSymbol, SymbolInformation, SymbolKind, Range, Location } from '
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction, Directive } from '../types';
 import { formatAmount } from '../utils/amountFormatter';
-import { toFilePath, toFileUri } from '../utils/uri';
+
 
 export class DocumentSymbolProvider {
   /**
@@ -17,13 +17,10 @@ export class DocumentSymbolProvider {
     const symbols: DocumentSymbol[] = [];
     const lines = document.getText().split('\n');
 
-    // Normalize document URI for consistent comparison
-    const normalizedDocUri = toFileUri(toFilePath(document.uri));
-
     // Add directive symbols
     for (const directive of parsedDoc.directives) {
       // Only include directives from the current document
-      if (directive.sourceUri && directive.sourceUri !== normalizedDocUri) {
+      if (directive.sourceUri && directive.sourceUri.toString() !== document.uri) {
         continue;
       }
 
@@ -45,7 +42,7 @@ export class DocumentSymbolProvider {
     // Add transaction symbols
     for (const transaction of parsedDoc.transactions) {
       // Only include transactions from the current document
-      if (transaction.sourceUri && transaction.sourceUri !== normalizedDocUri) {
+      if (transaction.sourceUri && transaction.sourceUri.toString() !== document.uri) {
         continue;
       }
 
@@ -208,7 +205,7 @@ export class WorkspaceSymbolProvider {
       if (account.name.toLowerCase().includes(lowerQuery)) {
         const uri = account.sourceUri || '';
         const line = account.line ?? 0;
-        const location = Location.create(uri, Range.create(line, 0, line, 0));
+        const location = Location.create(uri.toString(), Range.create(line, 0, line, 0));
 
         symbols.push({
           name: account.name,
@@ -224,7 +221,7 @@ export class WorkspaceSymbolProvider {
       if (payee.name.toLowerCase().includes(lowerQuery)) {
         const uri = payee.sourceUri || '';
         const line = payee.line ?? 0;
-        const location = Location.create(uri, Range.create(line, 0, line, 0));
+        const location = Location.create(uri.toString(), Range.create(line, 0, line, 0));
 
         symbols.push({
           name: payee.name,
@@ -240,7 +237,7 @@ export class WorkspaceSymbolProvider {
       if (commodity.name.toLowerCase().includes(lowerQuery)) {
         const uri = commodity.sourceUri || '';
         const line = commodity.line ?? 0;
-        const location = Location.create(uri, Range.create(line, 0, line, 0));
+        const location = Location.create(uri.toString(), Range.create(line, 0, line, 0));
 
         symbols.push({
           name: commodity.name,
@@ -256,7 +253,7 @@ export class WorkspaceSymbolProvider {
       if (tag.name.toLowerCase().includes(lowerQuery)) {
         const uri = tag.sourceUri || '';
         const line = tag.line ?? 0;
-        const location = Location.create(uri, Range.create(line, 0, line, 0));
+        const location = Location.create(uri.toString(), Range.create(line, 0, line, 0));
 
         symbols.push({
           name: tag.name,
@@ -272,7 +269,7 @@ export class WorkspaceSymbolProvider {
       if (transaction.description.toLowerCase().includes(lowerQuery)) {
         const uri = transaction.sourceUri || '';
         const line = transaction.line ?? 0;
-        const location = Location.create(uri, Range.create(line, 0, line, 0));
+        const location = Location.create(uri.toString(), Range.create(line, 0, line, 0));
 
         const statusIcon = transaction.status === 'cleared' ? '* ' :
           transaction.status === 'pending' ? '! ' : '';

@@ -1,3 +1,4 @@
+import { URI } from 'vscode-uri';
 import { InlayHintsProvider } from '../../src/features/inlayHints';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Range } from 'vscode-languageserver';
@@ -13,14 +14,14 @@ describe('InlayHintsProvider URI Encoding - Comprehensive Tests', () => {
     test('should display inferred amount hints with @ in path (original Google Drive bug)', () => {
         // Reproduces the exact original issue: file in ~/Insync/patrick@gmail.com/Google Drive/
         // VSCode encodes @ as %40, spaces as %20
-        const encodedUri = 'file:///home/patrick/Insync/patrick%40gmail.com/Google%20Drive/hledger-test/main.journal';
-        const decodedUri = 'file:///home/patrick/Insync/patrick@gmail.com/Google%20Drive/hledger-test/main.journal';
+        const encodedUri = URI.parse('file:///home/patrick/Insync/patrick%40gmail.com/Google%20Drive/hledger-test/main.journal');
+        const decodedUri = URI.parse('file:///home/patrick/Insync/patrick@gmail.com/Google%20Drive/hledger-test/main.journal');
 
         const content = `2024-01-15 * Test
     expenses:food  $10
     assets:cash`;
 
-        const doc = TextDocument.create(encodedUri, 'hledger', 1, content);
+        const doc = TextDocument.create(encodedUri.toString(), 'hledger', 1, content);
 
         const parsed: ParsedDocument = {
             transactions: [{
@@ -66,14 +67,14 @@ describe('InlayHintsProvider URI Encoding - Comprehensive Tests', () => {
 
     test('should display running balance hints with multiple special characters in path', () => {
         // Test with spaces, parentheses, and @ all in the path
-        const encodedUri = 'file:///home/user/My%20Finances%20(2025)/patrick%40email.com/ledger.journal';
-        const decodedUri = 'file:///home/user/My%20Finances%20(2025)/patrick@email.com/ledger.journal';
+        const encodedUri = URI.parse('file:///home/user/My%20Finances%20(2025)/patrick%40email.com/ledger.journal');
+        const decodedUri = URI.parse('file:///home/user/My%20Finances%20(2025)/patrick@email.com/ledger.journal');
 
         const content = `2024-01-15 * Deposit
     assets:checking       $100
     assets:savings`;
 
-        const doc = TextDocument.create(encodedUri, 'hledger', 1, content);
+        const doc = TextDocument.create(encodedUri.toString(), 'hledger', 1, content);
 
         const parsed: ParsedDocument = {
             transactions: [{
@@ -119,14 +120,14 @@ describe('InlayHintsProvider URI Encoding - Comprehensive Tests', () => {
 
     test('should handle both inferred amounts and running balances with encoded URI', () => {
         // Combined: both inferred amounts and running balances with special chars
-        const encodedUri = 'file:///home/user/patrick%40gmail.com/transactions.journal';
-        const decodedUri = 'file:///home/user/patrick@gmail.com/transactions.journal';
+        const encodedUri = URI.parse('file:///home/user/patrick%40gmail.com/transactions.journal');
+        const decodedUri = URI.parse('file:///home/user/patrick@gmail.com/transactions.journal');
 
         const content = `2024-01-15 * Test
     expenses:food  $10
     assets:cash`;
 
-        const doc = TextDocument.create(encodedUri, 'hledger', 1, content);
+        const doc = TextDocument.create(encodedUri.toString(), 'hledger', 1, content);
 
         const parsed: ParsedDocument = {
             transactions: [{
@@ -173,9 +174,9 @@ describe('InlayHintsProvider URI Encoding - Comprehensive Tests', () => {
     test('should filter transactions by URI even with multiple transactions', () => {
         // Test that we only show hints for transactions in the current document
         // when there are multiple transactions with different sourceUri values
-        const encodedUri = 'file:///home/user/patrick%40gmail.com/main.journal';
-        const decodedUri = 'file:///home/user/patrick@gmail.com/main.journal';
-        const otherUri = 'file:///home/user/patrick@gmail.com/other.journal';
+        const encodedUri = URI.parse('file:///home/user/patrick%40gmail.com/main.journal');
+        const decodedUri = URI.parse('file:///home/user/patrick@gmail.com/main.journal');
+        const otherUri = URI.parse('file:///home/user/patrick@gmail.com/other.journal');
 
         const content = `2024-01-15 * Tx1
     assets:a  $10
@@ -185,7 +186,7 @@ describe('InlayHintsProvider URI Encoding - Comprehensive Tests', () => {
     assets:c  $20
     assets:d`;
 
-        const doc = TextDocument.create(encodedUri, 'hledger', 1, content);
+        const doc = TextDocument.create(encodedUri.toString(), 'hledger', 1, content);
 
         const parsed: ParsedDocument = {
             transactions: [

@@ -3,6 +3,7 @@
  * Tests edge cases for Windows, macOS, and Linux
  */
 
+import { URI } from 'vscode-uri';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
@@ -17,7 +18,7 @@ describe('Cross-Platform Compatibility Tests', () => {
 
   describe('URI to File Path Conversion', () => {
     test('should handle Unix-style file:// URIs', () => {
-      const uri = 'file:///home/user/documents/test.journal';
+      const uri = URI.parse('file:///home/user/documents/test.journal');
       const result = toFilePath(uri);
 
       if (isWindows) {
@@ -31,7 +32,7 @@ describe('Cross-Platform Compatibility Tests', () => {
 
     if (isWindows) {
       test('should handle Windows file:// URIs with drive letters', () => {
-        const uri = 'file:///C:/Users/Name/Documents/test.journal';
+        const uri = URI.parse('file:///C:/Users/Name/Documents/test.journal');
         const result = toFilePath(uri);
 
         // Should be C:\Users\Name\Documents\test.journal
@@ -45,7 +46,7 @@ describe('Cross-Platform Compatibility Tests', () => {
         const drives = ['C', 'D', 'E'];
 
         for (const drive of drives) {
-          const uri = `file:///${drive}:/path/to/file.journal`;
+          const uri = URI.parse(`file:///${drive}:/path/to/file.journal`);
           const result = toFilePath(uri);
 
           expect(result).toMatch(new RegExp(`^${drive}:[\\\\\/]`));
@@ -93,9 +94,9 @@ describe('Cross-Platform Compatibility Tests', () => {
     });
 
     test('should handle URI-encoded spaces (%20)', () => {
-      const uri = isWindows
+      const uri = URI.parse(isWindows
         ? 'file:///C:/Program%20Files/test.journal'
-        : 'file:///home/user/My%20Documents/test.journal';
+        : 'file:///home/user/My%20Documents/test.journal');
 
       const result = toFilePath(uri);
 
@@ -132,9 +133,9 @@ describe('Cross-Platform Compatibility Tests', () => {
       const resolved = resolveIncludePath(includePath, baseUri);
 
       // Should go up one directory and into 'other'
-      expect(resolved).toContain('included.journal');
-      expect(resolved).toContain('other');
-      expect(resolved).not.toContain('documents');
+      expect(resolved.toString()).toContain('included.journal');
+      expect(resolved.toString()).toContain('other');
+      expect(resolved.toString()).not.toContain('documents');
     });
 
     test('should resolve absolute paths correctly', () => {
@@ -288,8 +289,8 @@ describe('Cross-Platform Compatibility Tests', () => {
 `;
       fs.writeFileSync(mainFile, content);
 
-      const uri = toFileUri(mainFile);
-      const doc = TextDocument.create(uri, 'hledger', 1, content);
+      const uri = URI.file(mainFile);
+      const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
       const parsed = parser.parse(doc);
 
       expect(parsed.transactions.length).toBe(1);
@@ -315,15 +316,15 @@ describe('Cross-Platform Compatibility Tests', () => {
     Income:Salary
 `);
 
-      const uri = toFileUri(mainFile);
+      const uri = URI.file(mainFile);
       const content = fs.readFileSync(mainFile, 'utf-8');
-      const doc = TextDocument.create(uri, 'hledger', 1, content);
+      const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
-      const fileReader = (uri: string) => {
+      const fileReader = (uri: URI) => {
         const filePath = toFilePath(uri);
         if (fs.existsSync(filePath)) {
           const content = fs.readFileSync(filePath, 'utf-8');
-          return TextDocument.create(uri, 'hledger', 1, content);
+          return TextDocument.create(uri.toString(), 'hledger', 1, content);
         }
         return null;
       };
@@ -357,13 +358,13 @@ describe('Cross-Platform Compatibility Tests', () => {
 
         const uri = toFileUri(mainFile);
         const content = fs.readFileSync(mainFile, 'utf-8');
-        const doc = TextDocument.create(uri, 'hledger', 1, content);
+        const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
-        const fileReader = (uri: string) => {
+        const fileReader = (uri: URI) => {
           const filePath = toFilePath(uri);
           if (fs.existsSync(filePath)) {
             const content = fs.readFileSync(filePath, 'utf-8');
-            return TextDocument.create(uri, 'hledger', 1, content);
+            return TextDocument.create(uri.toString(), 'hledger', 1, content);
           }
           return null;
         };
@@ -398,7 +399,7 @@ describe('Cross-Platform Compatibility Tests', () => {
         const uri1 = toFileUri(mainFile);
         const uri2 = toFileUri(lowerCaseFile);
 
-        const doc1 = TextDocument.create(uri1, 'hledger', 1, content);
+        const doc1 = TextDocument.create(uri1.toString(), 'hledger', 1, content);
         const parsed1 = parser.parse(doc1);
 
         expect(parsed1.transactions.length).toBe(1);

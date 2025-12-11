@@ -2,20 +2,23 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Validator } from '../../src/features/validator';
 import { ParsedDocument, Transaction } from '../../src/types';
 import { toFileUri } from '../../src/utils/uri';
+import { URI } from 'vscode-uri';
 
 describe('Validator URI Encoding', () => {
     let validator: Validator;
     let mockDocument: TextDocument;
     let mockParsedDoc: ParsedDocument;
 
-    const encodedUri = 'file:///home/user/patrick%40email.com/test.journal';
-    const decodedUri = 'file:///home/user/patrick@email.com/test.journal';
+    const encodedUriString = 'file:///home/user/patrick%40email.com/test.journal';
+    const encodedUri = URI.parse(encodedUriString);
+    const decodedUriString = 'file:///home/user/patrick@email.com/test.journal';
+    const decodedUri = URI.parse(decodedUriString);
 
     beforeEach(() => {
         validator = new Validator();
 
         // Mock document with encoded URI (as sent by VSCode)
-        mockDocument = TextDocument.create(encodedUri, 'hledger', 1, '2025-01-01 Test\n    Expenses:Food    10.00 USD\n    Assets:Cash\n');
+        mockDocument = TextDocument.create(encodedUriString, 'hledger', 1, '2025-01-01 Test\n    Expenses:Food    10.00 USD\n    Assets:Cash\n');
 
         // Mock parsed document with decoded URI (as stored internally)
         const transaction: Transaction = {

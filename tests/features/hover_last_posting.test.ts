@@ -1,4 +1,5 @@
 
+import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { HoverProvider } from '../../src/features/hover';
 import { HledgerParser } from '../../src/parser/index';
@@ -23,7 +24,7 @@ describe('HoverProvider Last Posting', () => {
         const document = TextDocument.create('file:///test.journal', 'hledger', 1, text);
 
         // Parse it using the real parser logic to populate maps
-        const parsed = parser.parse(document, { baseUri: 'file:///test.journal', fileReader: defaultFileReader });
+        const parsed = parser.parse(document, { baseUri: URI.parse('file:///test.journal'), fileReader: defaultFileReader });
 
         // "Expenses:Food" is on line 3, indented.
         // Line indices: 0=empty, 1=date, 2=posting1, 3=posting2
@@ -52,7 +53,7 @@ describe('HoverProvider Last Posting', () => {
 \tExpenses:Food
 `;
         const document = TextDocument.create('file:///tabs.journal', 'hledger', 1, text);
-        const parsed = parser.parse(document, { baseUri: 'file:///tabs.journal', fileReader: defaultFileReader });
+        const parsed = parser.parse(document, { baseUri: URI.parse('file:///tabs.journal'), fileReader: defaultFileReader });
 
         expect(parsed.accounts.has('Expenses:Food')).toBe(true);
         expect(parsed.accounts.get('Expenses:Food')?.declared).toBe(false);
@@ -72,7 +73,7 @@ describe('HoverProvider Last Posting', () => {
     Assets:Bank    -10
     Expenses:LastOne`; // No newline at end
         const document = TextDocument.create('file:///eof.journal', 'hledger', 1, text);
-        const parsed = parser.parse(document, { baseUri: 'file:///eof.journal', fileReader: defaultFileReader });
+        const parsed = parser.parse(document, { baseUri: URI.parse('file:///eof.journal'), fileReader: defaultFileReader });
 
         expect(parsed.accounts.has('Expenses:LastOne')).toBe(true);
 

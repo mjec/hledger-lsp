@@ -1,3 +1,4 @@
+import { URI } from 'vscode-uri';
 import { InlayHintsProvider } from '../../src/features/inlayHints';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Range } from 'vscode-languageserver';
@@ -13,15 +14,15 @@ describe('InlayHintsProvider URI Encoding', () => {
     test('should return hints when client URI is encoded but internal URI is not', () => {
         // Case: @ is encoded by VSCode (%40) but NOT by our server (allowed char)
         // This mismatch causes the bug.
-        const encodedUri = 'file:///home/user/patrick%40email.com/test.journal';
-        const decodedUri = 'file:///home/user/patrick@email.com/test.journal';
+        const encodedUri = URI.parse('file:///home/user/patrick%40email.com/test.journal');
+        const decodedUri = URI.parse('file:///home/user/patrick@email.com/test.journal');
 
         const content = `2024-01-15 * Test
     expenses:food  $10
     assets:cash`;
 
         // Client provides document with Encoded URI
-        const doc = TextDocument.create(encodedUri, 'hledger', 1, content);
+        const doc = TextDocument.create(encodedUri.toString(), 'hledger', 1, content);
 
         // Parser (internal) produces transaction with Decoded URI
         const parsed: ParsedDocument = {

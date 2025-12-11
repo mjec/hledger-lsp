@@ -1,6 +1,7 @@
 import { CodeLensProvider } from '../../src/features/codeLens';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { HledgerParser } from '../../src/parser';
+import { URI } from 'vscode-uri';
 
 describe('CodeLensProvider', () => {
   let provider: CodeLensProvider;
@@ -205,14 +206,15 @@ describe('CodeLensProvider', () => {
       const subDoc = TextDocument.create('file:///sub.journal', 'hledger', 1, subContent);
 
       // File reader that returns our test documents
-      const fileReader = (uri: string) => {
-        if (uri === 'file:///main.journal') return mainDoc;
-        if (uri === 'file:///sub.journal') return subDoc;
+      const fileReader = (uri: URI) => {
+        const uriString = uri.toString();
+        if (uriString === 'file:///main.journal') return mainDoc;
+        if (uriString === 'file:///sub.journal') return subDoc;
         return null;
       };
 
       const parsed = parser.parse(mainDoc, {
-        baseUri: 'file:///main.journal',
+        baseUri: URI.parse('file:///main.journal'),
         fileReader
       });
 

@@ -1,4 +1,5 @@
 import { toFilePath, toFileUri, resolveIncludePath, defaultFileReader, resolveIncludePaths } from '../../src/utils/uri';
+import { URI } from 'vscode-uri';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -6,49 +7,47 @@ import * as fs from 'fs';
 describe('URI utilities', () => {
   describe('toFilePath', () => {
     test('converts file:// URI to path', () => {
-      expect(toFilePath('file:///home/user/test.journal')).toBe('/home/user/test.journal');
+      const uri = URI.parse('file:///home/user/test.journal');
+      expect(toFilePath(uri)).toBe('/home/user/test.journal');
     });
 
     test('decodes URI-encoded characters (spaces)', () => {
-      expect(toFilePath('file:///home/user/Cloud%20Storage/test.journal')).toBe('/home/user/Cloud Storage/test.journal');
+      const uri = URI.parse('file:///home/user/Cloud%20Storage/test.journal');
+      expect(toFilePath(uri)).toBe('/home/user/Cloud Storage/test.journal');
     });
 
     test('decodes URI-encoded characters (parentheses and special chars)', () => {
-      expect(toFilePath('file:///home/user/My%20Documents%20(2025)/test.journal')).toBe('/home/user/My Documents (2025)/test.journal');
+      const uri = URI.parse('file:///home/user/My%20Documents%20(2025)/test.journal');
+      expect(toFilePath(uri)).toBe('/home/user/My Documents (2025)/test.journal');
     });
 
     test('decodes complex path with multiple encoded characters', () => {
-      const uri = 'file:///home/user/Sync/user@example.com/Cloud%20Storage/My%20Documents%20(2025)/Reports/Week44/User/work.journal';
+      const uri = URI.parse('file:///home/user/Sync/user@example.com/Cloud%20Storage/My%20Documents%20(2025)/Reports/Week44/User/work.journal');
       const expected = '/home/user/Sync/user@example.com/Cloud Storage/My Documents (2025)/Reports/Week44/User/work.journal';
       expect(toFilePath(uri)).toBe(expected);
-    });
-
-    test('returns path as-is if no file:// prefix', () => {
-      expect(toFilePath('/home/user/test.journal')).toBe('/home/user/test.journal');
     });
   });
 
   describe('toFileUri', () => {
     test('converts path to file:// URI', () => {
-      expect(toFileUri('/home/user/test.journal')).toBe('file:///home/user/test.journal');
+      const uri = toFileUri('/home/user/test.journal');
+      expect(uri.toString()).toBe('file:///home/user/test.journal');
     });
 
     test('encodes URI characters (spaces)', () => {
-      expect(toFileUri('/home/user/Cloud Storage/test.journal')).toBe('file:///home/user/Cloud%20Storage/test.journal');
+      const uri = toFileUri('/home/user/Cloud Storage/test.journal');
+      expect(uri.toString()).toBe('file:///home/user/Cloud%20Storage/test.journal');
     });
 
     test('encodes URI characters (parentheses)', () => {
-      expect(toFileUri('/home/user/My Documents (2025)/test.journal')).toBe('file:///home/user/My%20Documents%20(2025)/test.journal');
+      const uri = toFileUri('/home/user/My Documents (2025)/test.journal');
+      expect(uri.toString()).toBe('file:///home/user/My%20Documents%20%282025%29/test.journal');
     });
 
     test('encodes complex path with multiple special characters', () => {
-      const path = '/home/user/Sync/user@example.com/Cloud Storage/My Documents (2025)/Reports/Week44/User/work.journal';
-      const expected = 'file:///home/user/Sync/user@example.com/Cloud%20Storage/My%20Documents%20(2025)/Reports/Week44/User/work.journal';
-      expect(toFileUri(path)).toBe(expected);
-    });
-
-    test('returns URI as-is if already has file:// prefix', () => {
-      expect(toFileUri('file:///home/user/test.journal')).toBe('file:///home/user/test.journal');
+      const filePath = '/home/user/Sync/user@example.com/Cloud Storage/My Documents (2025)/Reports/Week44/User/work.journal';
+      const uri = toFileUri(filePath);
+      expect(uri.toString()).toBe('file:///home/user/Sync/user%40example.com/Cloud%20Storage/My%20Documents%20%282025%29/Reports/Week44/User/work.journal');
     });
   });
 
@@ -71,17 +70,17 @@ describe('URI utilities', () => {
 
   describe('resolveIncludePath with spaces', () => {
     test('resolves relative path with spaces in base URI', () => {
-      const baseUri = 'file:///home/user/Cloud%20Storage/main.journal';
+      const baseUri = URI.parse('file:///home/user/Cloud%20Storage/main.journal');
       const includePath = 'declarations.journal';
       const resolved = resolveIncludePath(includePath, baseUri);
-      expect(resolved).toBe('file:///home/user/Cloud%20Storage/declarations.journal');
+      expect(resolved.toString()).toBe('file:///home/user/Cloud%20Storage/declarations.journal');
     });
 
     test('resolves relative path with ../ and spaces', () => {
-      const baseUri = 'file:///home/user/Sync/user@example.com/Cloud%20Storage/My%20Documents%20(2025)/Reports/Week44/User/work.journal';
+      const baseUri = URI.parse('file:///home/user/Sync/user%40example.com/Cloud%20Storage/My%20Documents%20%282025%29/Reports/Week44/User/work.journal');
       const includePath = '../../../Ledgers/declarations.journal';
       const resolved = resolveIncludePath(includePath, baseUri);
-      expect(resolved).toBe('file:///home/user/Sync/user@example.com/Cloud%20Storage/My%20Documents%20(2025)/Ledgers/declarations.journal');
+      expect(resolved.toString()).toBe('file:///home/user/Sync/user%40example.com/Cloud%20Storage/My%20Documents%20%282025%29/Ledgers/declarations.journal');
     });
 
     test('resolves absolute path', () => {
@@ -90,41 +89,41 @@ describe('URI utilities', () => {
         return;
       }
 
-      const baseUri = 'file:///home/user/Cloud%20Storage/main.journal';
+      const baseUri = URI.parse('file:///home/user/Cloud%20Storage/main.journal');
       const includePath = '/etc/declarations.journal';
       const resolved = resolveIncludePath(includePath, baseUri);
-      expect(resolved).toBe('file:///etc/declarations.journal');
+      expect(resolved.toString()).toBe('file:///etc/declarations.journal');
     });
 
     test('resolves tilde path to home directory', () => {
-      const baseUri = 'file:///some/other/path/main.journal';
+      const baseUri = URI.parse('file:///some/other/path/main.journal');
       const includePath = '~/ledger/declarations.journal';
       const resolved = resolveIncludePath(includePath, baseUri);
       const expectedPath = path.join(os.homedir(), 'ledger/declarations.journal');
-      expect(resolved).toBe(toFileUri(expectedPath));
+      expect(resolved.toString()).toBe(toFileUri(expectedPath).toString());
     });
 
     test('resolves bare tilde to home directory', () => {
-      const baseUri = 'file:///some/other/path/main.journal';
+      const baseUri = URI.parse('file:///some/other/path/main.journal');
       const includePath = '~';
       const resolved = resolveIncludePath(includePath, baseUri);
-      expect(resolved).toBe(toFileUri(os.homedir()));
+      expect(resolved.toString()).toBe(toFileUri(os.homedir()).toString());
     });
 
     test('resolves tilde with user notation', () => {
-      const baseUri = 'file:///some/other/path/main.journal';
+      const baseUri = URI.parse('file:///some/other/path/main.journal');
       const includePath = '~user/ledger.journal';
       const resolved = resolveIncludePath(includePath, baseUri);
       // Should resolve relative to home dir (we don't expand ~user differently)
       const expectedPath = path.resolve(os.homedir(), 'user/ledger.journal');
-      expect(resolved).toBe(toFileUri(expectedPath));
+      expect(resolved.toString()).toBe(toFileUri(expectedPath).toString());
     });
 
     test('resolves file:// URI as absolute', () => {
-      const baseUri = 'file:///some/other/path/main.journal';
+      const baseUri = URI.parse('file:///some/other/path/main.journal');
       const includePath = 'file:///absolute/path/declarations.journal';
       const resolved = resolveIncludePath(includePath, baseUri);
-      expect(resolved).toBe('file:///absolute/path/declarations.journal');
+      expect(resolved.toString()).toBe('file:///absolute/path/declarations.journal');
     });
   });
 
@@ -141,7 +140,7 @@ describe('URI utilities', () => {
 
         expect(doc).not.toBeNull();
         expect(doc?.getText()).toContain('2025-01-01 Test');
-        expect(doc?.uri).toBe(uri);
+        expect(doc?.uri).toBe(uri.toString());
       } finally {
         // Cleanup
         fs.unlinkSync(tmpFile);
@@ -150,7 +149,7 @@ describe('URI utilities', () => {
     });
 
     test('returns null for non-existent file', () => {
-      const uri = 'file:///nonexistent/path/test.journal';
+      const uri = URI.parse('file:///nonexistent/path/test.journal');
       const doc = defaultFileReader(uri);
       expect(doc).toBeNull();
     });
@@ -201,7 +200,9 @@ describe('URI utilities', () => {
     test('returns single path for non-glob pattern', () => {
       const baseUri = toFileUri(path.join(tmpDir, 'main.journal'));
       const result = resolveIncludePaths('one.journal', baseUri);
-      expect(result).toEqual([toFileUri(path.join(tmpDir, 'one.journal'))]);
+      const expected = toFileUri(path.join(tmpDir, 'one.journal'));
+      expect(result).toHaveLength(1);
+      expect(result[0].toString()).toBe(expected.toString());
     });
 
     test('expands glob pattern in same directory', () => {
@@ -210,10 +211,11 @@ describe('URI utilities', () => {
 
       // Should match one.journal and two.journal, but NOT main.journal (the including file)
       expect(result).toHaveLength(2);
-      expect(result).toContain(toFileUri(path.join(tmpDir, 'one.journal')));
-      expect(result).toContain(toFileUri(path.join(tmpDir, 'two.journal')));
-      expect(result).not.toContain(toFileUri(path.join(tmpDir, 'main.journal')));
-      expect(result).toEqual(result.slice().sort()); // Should be sorted
+      const resultStrings = result.map(uri => uri.toString());
+      expect(resultStrings).toContain(toFileUri(path.join(tmpDir, 'one.journal')).toString());
+      expect(resultStrings).toContain(toFileUri(path.join(tmpDir, 'two.journal')).toString());
+      expect(resultStrings).not.toContain(toFileUri(path.join(tmpDir, 'main.journal')).toString());
+      expect(resultStrings).toEqual(resultStrings.slice().sort()); // Should be sorted
     });
 
     test('expands recursive glob pattern', () => {
@@ -222,20 +224,22 @@ describe('URI utilities', () => {
 
       // Should match all journal files except main.journal
       expect(result).toHaveLength(3);
-      expect(result).toContain(toFileUri(path.join(tmpDir, 'one.journal')));
-      expect(result).toContain(toFileUri(path.join(tmpDir, 'two.journal')));
-      expect(result).toContain(toFileUri(path.join(tmpDir, 'sub', 'three.journal')));
-      expect(result).not.toContain(toFileUri(path.join(tmpDir, 'main.journal')));
+      const resultStrings = result.map(uri => uri.toString());
+      expect(resultStrings).toContain(toFileUri(path.join(tmpDir, 'one.journal')).toString());
+      expect(resultStrings).toContain(toFileUri(path.join(tmpDir, 'two.journal')).toString());
+      expect(resultStrings).toContain(toFileUri(path.join(tmpDir, 'sub', 'three.journal')).toString());
+      expect(resultStrings).not.toContain(toFileUri(path.join(tmpDir, 'main.journal')).toString());
     });
 
     test('handles absolute glob patterns', () => {
-      const baseUri = 'file:///some/other/path/main.journal';
+      const baseUri = URI.parse('file:///some/other/path/main.journal');
       const pattern = `${tmpDir}/*.journal`;
       const result = resolveIncludePaths(pattern, baseUri);
 
       expect(result.length).toBeGreaterThanOrEqual(2);
-      expect(result).toContain(toFileUri(path.join(tmpDir, 'one.journal')));
-      expect(result).toContain(toFileUri(path.join(tmpDir, 'two.journal')));
+      const resultStrings = result.map(uri => uri.toString());
+      expect(resultStrings).toContain(toFileUri(path.join(tmpDir, 'one.journal')).toString());
+      expect(resultStrings).toContain(toFileUri(path.join(tmpDir, 'two.journal')).toString());
     });
 
     test('handles tilde glob patterns', () => {
@@ -248,11 +252,12 @@ describe('URI utilities', () => {
       fs.writeFileSync(testFile, '', 'utf-8');
 
       try {
-        const baseUri = 'file:///some/other/path/main.journal';
+        const baseUri = URI.parse('file:///some/other/path/main.journal');
         const pattern = '~/.hledger-test-glob/*.journal';
         const result = resolveIncludePaths(pattern, baseUri);
 
-        expect(result).toContain(toFileUri(testFile));
+        const resultStrings = result.map(uri => uri.toString());
+        expect(resultStrings).toContain(toFileUri(testFile).toString());
       } finally {
         // Cleanup
         if (fs.existsSync(testFile)) fs.unlinkSync(testFile);
@@ -261,22 +266,13 @@ describe('URI utilities', () => {
     });
 
     test('handles bare tilde in glob', () => {
-      const baseUri = 'file:///some/other/path/main.journal';
+      const baseUri = URI.parse('file:///some/other/path/main.journal');
       const pattern = '~';
       const result = resolveIncludePaths(pattern, baseUri);
 
       // Bare tilde is not a glob, should return single path
-      expect(result).toEqual([toFileUri(os.homedir())]);
-    });
-  });
-
-  describe('toFilePath error handling', () => {
-    test('handles invalid URI encoding gracefully', () => {
-      // Malformed percent encoding - should return part as-is if decoding fails
-      const uri = 'file:///home/user/test%ZZinvalid.journal';
-      const result = toFilePath(uri);
-      // Should contain the path even if decoding fails for one component
-      expect(result).toContain('test%ZZinvalid.journal');
+      expect(result).toHaveLength(1);
+      expect(result[0].toString()).toBe(toFileUri(os.homedir()).toString());
     });
   });
 });

@@ -9,6 +9,7 @@ import { DocumentLink } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument } from '../types';
 import { resolveIncludePath } from '../utils/uri';
+import { URI } from 'vscode-uri';
 
 export class DocumentLinksProvider {
   /**
@@ -17,6 +18,7 @@ export class DocumentLinksProvider {
   provideDocumentLinks(document: TextDocument, parsedDoc: ParsedDocument): DocumentLink[] {
     const links: DocumentLink[] = [];
     const lines = document.getText().split('\n');
+    const documentUri: URI = URI.parse(document.uri);
 
     // Create links for each include directive
     for (const directive of parsedDoc.directives) {
@@ -56,14 +58,14 @@ export class DocumentLinksProvider {
         if (!includePath) continue;
 
         // Resolve the include path to a full URI
-        const resolvedUri = resolveIncludePath(includePath, document.uri);
+        const resolvedUri = resolveIncludePath(includePath, documentUri);
 
         links.push({
           range: {
             start: { line: directive.line, character: actualPathStart },
             end: { line: directive.line, character: pathEnd }
           },
-          target: resolvedUri
+          target: resolvedUri.toString()
         });
       }
     }

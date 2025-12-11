@@ -1,3 +1,4 @@
+import { URI } from 'vscode-uri';
 import { Transaction, Posting, Amount, Account, Payee, Commodity, Tag, Directive, DecimalMark, ThousandsSeparator, Format } from '../types';
 import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment, isDirective } from '../utils/index';
 import { toFilePath, toFileUri } from '../utils/uri';
@@ -41,7 +42,12 @@ export function parseTransaction(lines: string[], startLine: number): Transactio
 
     if (isPosting(line)) {
       const posting = parsePosting(line);
-      if (posting) postings.push(posting);
+      if (posting) {
+        // Record the line number for the posting so downstream features
+        // (inlay hints, validators, etc.) can position annotations accurately
+        posting.line = currentLine;
+        postings.push(posting);
+      }
     }
 
     currentLine++;
@@ -671,10 +677,8 @@ function parseFormatSubDirective(line: string): { name?: string, format?: Format
  * Add or update an account in the accounts map
  * If account exists, mark as declared if it wasn't already
  */
-export function addAccount(accountMap: Map<string, Account>, name: string, declared: boolean, sourceUri?: string, line?: number): void {
-  if (sourceUri !== undefined) {
-    try { sourceUri = toFileUri(toFilePath(sourceUri)); } catch { }
-  }
+export function addAccount(accountMap: Map<string, Account>, name: string, declared: boolean, sourceUri?: URI, line?: number): void {
+
   const existing = accountMap.get(name);
   if (existing) {
     // If we're adding a declared version, update the existing entry
@@ -693,10 +697,7 @@ export function addAccount(accountMap: Map<string, Account>, name: string, decla
 /**
  * Add or update a payee in the payees map
  */
-export function addPayee(payeeMap: Map<string, Payee>, name: string, declared: boolean, sourceUri?: string, line?: number): void {
-  if (sourceUri !== undefined) {
-    try { sourceUri = toFileUri(toFilePath(sourceUri)); } catch { }
-  }
+export function addPayee(payeeMap: Map<string, Payee>, name: string, declared: boolean, sourceUri?: URI, line?: number): void {
   const existing = payeeMap.get(name);
   if (existing) {
     if (declared && !existing.declared) {
@@ -715,10 +716,7 @@ export function addPayee(payeeMap: Map<string, Payee>, name: string, declared: b
  * Add or update a commodity in the commodities map
  * When merging formats, prefer the one with higher precision or more detail
  */
-export function addCommodity(commodityMap: Map<string, Commodity>, name: string, declared: boolean, format?: Format, sourceUri?: string, line?: number): void {
-  if (sourceUri !== undefined) {
-    try { sourceUri = toFileUri(toFilePath(sourceUri)); } catch { }
-  }
+export function addCommodity(commodityMap: Map<string, Commodity>, name: string, declared: boolean, format?: Format, sourceUri?: URI, line?: number): void {
   const existing = commodityMap.get(name);
   if (existing) {
     if (declared) {
@@ -744,10 +742,7 @@ export function addCommodity(commodityMap: Map<string, Commodity>, name: string,
 /**
  * Add or update a tag in the tags map
  */
-export function addTag(tagMap: Map<string, Tag>, name: string, declared: boolean, sourceUri?: string, line?: number): void {
-  if (sourceUri !== undefined) {
-    try { sourceUri = toFileUri(toFilePath(sourceUri)); } catch { }
-  }
+export function addTag(tagMap: Map<string, Tag>, name: string, declared: boolean, sourceUri?: URI, line?: number): void {
   const existing = tagMap.get(name);
   if (existing) {
     if (declared && !existing.declared) {
@@ -765,10 +760,7 @@ export function addTag(tagMap: Map<string, Tag>, name: string, declared: boolean
 /**
  * Process an account directive and add it to the accounts map
  */
-export function processAccountDirective(line: string, accountMap: Map<string, Account>, sourceUri?: string, lineNumber?: number): void {
-  if (sourceUri !== undefined) {
-    try { sourceUri = toFileUri(toFilePath(sourceUri)); } catch { }
-  }
+export function processAccountDirective(line: string, accountMap: Map<string, Account>, sourceUri?: URI, lineNumber?: number): void {
   const accountName = line.trim().substring(8).split(';')[0].trim();
   if (accountName) {
     addAccount(accountMap, accountName, true, sourceUri, lineNumber);
@@ -778,10 +770,7 @@ export function processAccountDirective(line: string, accountMap: Map<string, Ac
 /**
  * Process a payee directive and add it to the payees map
  */
-export function processPayeeDirective(line: string, payeeMap: Map<string, Payee>, sourceUri?: string, lineNumber?: number): void {
-  if (sourceUri !== undefined) {
-    try { sourceUri = toFileUri(toFilePath(sourceUri)); } catch { }
-  }
+export function processPayeeDirective(line: string, payeeMap: Map<string, Payee>, sourceUri?: URI, lineNumber?: number): void {
   const payeeName = line.trim().substring(6).split(';')[0].trim();
   if (payeeName) {
     addPayee(payeeMap, payeeName, true, sourceUri, lineNumber);
@@ -796,11 +785,8 @@ export function processCommodityDirective(
   lines: string[],
   startLine: number,
   commodityMap: Map<string, Commodity>,
-  sourceUri?: string
+  sourceUri?: URI
 ): number {
-  if (sourceUri !== undefined) {
-    try { sourceUri = toFileUri(toFilePath(sourceUri)); } catch { }
-  }
   const line = lines[startLine];
   const parsed = parseCommodityDirective(line);
   if (!parsed) return startLine;
@@ -834,10 +820,7 @@ export function processCommodityDirective(
 /**
  * Process a tag directive and add it to the tags map
  */
-export function processTagDirective(line: string, tagMap: Map<string, Tag>, sourceUri?: string, lineNumber?: number): void {
-  if (sourceUri !== undefined) {
-    try { sourceUri = toFileUri(toFilePath(sourceUri)); } catch { }
-  }
+export function processTagDirective(line: string, tagMap: Map<string, Tag>, sourceUri?: URI, lineNumber?: number): void {
   const tagName = line.trim().substring(4).split(';')[0].trim();
   if (tagName) {
     addTag(tagMap, tagName, true, sourceUri, lineNumber);
@@ -847,10 +830,7 @@ export function processTagDirective(line: string, tagMap: Map<string, Tag>, sour
 /**
  * Extract accounts, commodities, tags from a transaction and add them to the maps
  */
-export function processTransaction(transaction: Transaction, accountMap: Map<string, Account>, commodityMap: Map<string, Commodity>, tagMap: Map<string, Tag>, sourceUri?: string): void {
-  if (sourceUri !== undefined) {
-    try { sourceUri = toFileUri(toFilePath(sourceUri)); } catch { }
-  }
+export function processTransaction(transaction: Transaction, accountMap: Map<string, Account>, commodityMap: Map<string, Commodity>, tagMap: Map<string, Tag>, sourceUri?: URI): void {
   // Extract payee is handled separately since it's in the transaction header
 
   // Extract accounts and commodities from postings

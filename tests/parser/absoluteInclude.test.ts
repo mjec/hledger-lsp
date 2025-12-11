@@ -2,6 +2,7 @@
  * Tests for including files using absolute paths
  */
 
+import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { parser } from '../../src/parser';
 import { defaultFileReader } from '../../src/utils/uri';
@@ -23,8 +24,8 @@ account Assets:Checking
     Assets:Bank       $-100
 `;
 
-    const uri = 'file://' + path.join(fixturesPath, 'main-absolute.journal');
-    const doc = TextDocument.create(uri, 'hledger', 1, content);
+    const uri = URI.file(path.join(fixturesPath, 'main-absolute.journal'));
+    const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
     const parsed = parser.parse(doc, {
       baseUri: uri,
@@ -37,7 +38,7 @@ account Assets:Checking
     // Should have the absolute test transaction
     const absoluteTx = parsed.transactions.find(t => t.description === 'Absolute Path Test');
     expect(absoluteTx).toBeDefined();
-    expect(absoluteTx?.sourceUri).toContain('absolute-test.journal');
+    expect(absoluteTx?.sourceUri?.toString()).toContain('absolute-test.journal');
 
     // Should have the main transaction
     const mainTx = parsed.transactions.find(t => t.description === 'Main Transaction');
@@ -50,17 +51,17 @@ account Assets:Checking
   });
 
   test('should handle absolute path with file:// URI', () => {
-    const fileUri = 'file://' + absoluteTestPath;
+    const fileUri = URI.file(absoluteTestPath);
     const content = `; Main file with absolute file:// URI
-include ${fileUri}
+include ${fileUri.toString()}
 
 2024-01-12 * URI Test Transaction
     Assets:Bank    $50
     Expenses:Test $-50
 `;
 
-    const uri = 'file://' + path.join(fixturesPath, 'main-uri.journal');
-    const doc = TextDocument.create(uri, 'hledger', 1, content);
+    const uri = URI.file(path.join(fixturesPath, 'main-uri.journal'));
+    const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
     const parsed = parser.parse(doc, {
       baseUri: uri,
@@ -87,8 +88,8 @@ include ${absoluteTestPath}
     Expenses:Test $-25
 `;
 
-    const uri = 'file://' + path.join(fixturesPath, 'linux-test.journal');
-    const doc = TextDocument.create(uri, 'hledger', 1, content);
+    const uri = URI.file(path.join(fixturesPath, 'linux-test.journal'));
+    const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
     const parsed = parser.parse(doc, {
       baseUri: uri,
@@ -121,8 +122,8 @@ include ~/.hledger-test-temp.journal
     Assets:Temp   $-20
 `;
 
-    const uri = 'file://' + path.join(fixturesPath, 'tilde-test.journal');
-    const doc = TextDocument.create(uri, 'hledger', 1, content);
+    const uri = URI.file(path.join(fixturesPath, 'tilde-test.journal'));
+    const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
     const parsed = parser.parse(doc, {
       baseUri: uri,
@@ -147,8 +148,8 @@ include ${nonExistentPath}
     Expenses:Test $-30
 `;
 
-    const uri = 'file://' + path.join(fixturesPath, 'nonexistent-test.journal');
-    const doc = TextDocument.create(uri, 'hledger', 1, content);
+    const uri = URI.file(path.join(fixturesPath, 'nonexistent-test.journal'));
+    const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
     const parsed = parser.parse(doc, {
       baseUri: uri,

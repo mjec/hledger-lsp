@@ -9,9 +9,9 @@
  */
 
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
+import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { ParsedDocument, Transaction, Posting } from '../types';
-import { FileReader } from '../parser/index';
+import { ParsedDocument, Transaction, Posting, FileReader } from '../types';
 import { resolveIncludePath, resolveIncludePaths, toFilePath, toFileUri } from '../utils/uri';
 import { defaultSettings } from '../server/settings';
 import { calculateTransactionBalance } from '../utils/balanceCalculator';
@@ -57,7 +57,7 @@ export interface ValidationOptions {
   /**
    * Base URI for resolving include paths
    */
-  baseUri?: string;
+  baseUri?: URI;
 
   /**
    * Function to check if files exist
@@ -89,14 +89,12 @@ export class Validator {
       return defaultSettings.validation?.[key] ?? true;
     };
 
-    // Normalize document URI for consistent comparison
-    const normalizedDocUri = toFileUri(toFilePath(document.uri));
 
     // Validate each transaction
     for (const transaction of parsedDoc.transactions) {
       // Only validate transactions in the current document
       // (workspace parsing may include transactions from other files)
-      if (transaction.sourceUri !== normalizedDocUri) {
+      if (transaction.sourceUri?.toString() !== document.uri) {
         continue;
       }
 
@@ -246,9 +244,6 @@ export class Validator {
   ): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
-    // Normalize document URI for consistent comparison
-    const normalizedDocUri = toFileUri(toFilePath(document.uri));
-
     // Helper to convert severity string to DiagnosticSeverity
     const getSeverity = (severityStr?: string): DiagnosticSeverity => {
       switch (severityStr) {
@@ -277,7 +272,7 @@ export class Validator {
         // Iterate through transactions to find account usage locations
         for (const transaction of parsedDoc.transactions) {
           // Only process transactions from the current document
-          if (transaction.sourceUri && transaction.sourceUri !== normalizedDocUri) {
+          if (transaction.sourceUri && transaction.sourceUri.toString() !== document.uri) {
             continue;
           }
 
@@ -334,7 +329,7 @@ export class Validator {
         // Iterate through transactions to find payee usage locations
         for (const transaction of parsedDoc.transactions) {
           // Only process transactions from the current document
-          if (transaction.sourceUri && transaction.sourceUri !== normalizedDocUri) {
+          if (transaction.sourceUri && transaction.sourceUri.toString() !== document.uri) {
             continue;
           }
 
@@ -380,7 +375,7 @@ export class Validator {
         // Iterate through transactions to find commodity usage locations
         for (const transaction of parsedDoc.transactions) {
           // Only process transactions from the current document
-          if (transaction.sourceUri && transaction.sourceUri !== normalizedDocUri) {
+          if (transaction.sourceUri && transaction.sourceUri.toString() !== document.uri) {
             continue;
           }
 
@@ -499,7 +494,7 @@ export class Validator {
         // Iterate through transactions to find tag usage locations
         for (const transaction of parsedDoc.transactions) {
           // Only process transactions from the current document
-          if (transaction.sourceUri && transaction.sourceUri !== normalizedDocUri) {
+          if (transaction.sourceUri && transaction.sourceUri.toString() !== document.uri) {
             continue;
           }
 
@@ -635,8 +630,7 @@ export class Validator {
     const diagnostics: Diagnostic[] = [];
 
     // Only validate transactions in the current document
-    const normalizedDocUri = toFileUri(toFilePath(document.uri));
-    const documentTransactions = transactions.filter(t => t.sourceUri === normalizedDocUri);
+    const documentTransactions = transactions.filter(t => t.sourceUri?.toString() === document.uri);
 
     for (let i = 1; i < documentTransactions.length; i++) {
       const prevDate = this.parseDate(documentTransactions[i - 1].date);
@@ -688,8 +682,7 @@ export class Validator {
         }
 
         // Check assertion - but only create diagnostics for assertions in the current document
-        const normalizedDocUri = toFileUri(toFilePath(document.uri));
-        if (posting.assertion && transaction.sourceUri === normalizedDocUri) {
+        if (posting.assertion && transaction.sourceUri?.toString() === document.uri) {
           const accountBalances = balances.get(posting.account);
           const commodity = posting.assertion.commodity || '';
           const expectedBalance = posting.assertion.quantity;
@@ -921,8 +914,9 @@ export class Validator {
   ): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
     const visited = new Set<string>();
-    const baseUri = options.baseUri || document.uri;
+    const baseUri = options.baseUri || URI.parse(document.uri);
     const fileReader = options.fileReader!;
+    const documentUri = URI.parse(document.uri);
 
     // Find all include directives in the document
     const includeDirectives = parsedDoc.directives.filter(d => d.type === 'include');
@@ -955,7 +949,7 @@ export class Validator {
           for (const resolvedPath of resolvedPaths) {
             const includeDoc = fileReader(resolvedPath);
             if (includeDoc) {
-              const circularCheck = this.checkCircularInclude(document.uri, includeDoc, fileReader, new Set([baseUri, resolvedPath]));
+              const circularCheck = this.checkCircularInclude(documentUri, includeDoc, fileReader, new Set([baseUri.toString(), resolvedPath.toString()]));
               if (circularCheck) {
                 const range = this.findFirstOccurrence(document, includePath);
                 if (range) {
@@ -976,7 +970,7 @@ export class Validator {
         const resolvedPath = resolveIncludePath(includePath, baseUri);
 
         // Check for duplicate includes in the same document
-        if (visited.has(resolvedPath)) {
+        if (visited.has(resolvedPath.toString())) {
           const range = this.findFirstOccurrence(document, includePath);
           if (range) {
             diagnostics.push({
@@ -989,7 +983,7 @@ export class Validator {
           continue;
         }
 
-        visited.add(resolvedPath);
+        visited.add(resolvedPath.toString());
 
         // Check if file exists (if enabled)
         const includeDoc = fileReader(resolvedPath);
@@ -1009,7 +1003,7 @@ export class Validator {
 
         // Check for circular includes (if enabled and file exists)
         if (includeDoc && checkCircularIncludes) {
-          const circularCheck = this.checkCircularInclude(document.uri, includeDoc, fileReader, new Set([baseUri, resolvedPath]));
+          const circularCheck = this.checkCircularInclude(documentUri, includeDoc, fileReader, new Set([baseUri.toString(), resolvedPath.toString()]));
           if (circularCheck) {
             const range = this.findFirstOccurrence(document, includePath);
             if (range) {
@@ -1031,27 +1025,28 @@ export class Validator {
   /**
    * Check if a circular include exists by recursively following includes
    */
-  private checkCircularInclude(targetUri: string, document: TextDocument, fileReader: FileReader, visited: Set<string>): boolean {
+  private checkCircularInclude(targetUri: URI, document: TextDocument, fileReader: FileReader, visited: Set<string>): boolean {
     const text = document.getText();
+    const documentUri = URI.parse(document.uri);
     const lines = text.split('\n');
 
     for (const line of lines) {
       const trimmedLine = line.trim();
       if (trimmedLine.startsWith('include ')) {
         const includePath = trimmedLine.substring(8).trim();
-        const resolvedPath = resolveIncludePath(includePath, document.uri);
+        const resolvedPath = resolveIncludePath(includePath, documentUri);
 
         // Check if this include points back to the target
-        if (resolvedPath === targetUri) {
+        if (resolvedPath.toString() === targetUri.toString()) {
           return true;
         }
 
         // Avoid infinite recursion
-        if (visited.has(resolvedPath)) {
+        if (visited.has(resolvedPath.toString())) {
           continue;
         }
 
-        visited.add(resolvedPath);
+        visited.add(resolvedPath.toString());
 
         // Recursively check this file
         const includeDoc = fileReader(resolvedPath);

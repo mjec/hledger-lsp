@@ -1,16 +1,16 @@
-import { ParsedDocument, Account, Payee, Commodity, Tag } from '../types';
+import { ParsedDocument, Account, Payee, Commodity, Tag, FileReader } from '../types';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { resolveIncludePaths } from '../utils/uri';
+import { URI } from 'vscode-uri';
 
-export type FileReader = (uri: string) => TextDocument | null;
 
-export type ParseCallback = (doc: TextDocument, options?: { followIncludes?: boolean; baseUri?: string; fileReader?: FileReader; visited?: Set<string> }) => ParsedDocument;
+export type ParseCallback = (doc: TextDocument, options?: { followIncludes?: boolean; baseUri?: URI; fileReader?: FileReader; visited?: Map<string, URI> }) => ParsedDocument;
 
 export class IncludeManager {
   // Own the cache for parsed included files to centralize include behavior
-  private includeCache: Map<string, ParsedDocument> = new Map();
+  private includeCache: Map<URI, ParsedDocument> = new Map();
 
-  clearCache(uri?: string) {
+  clearCache(uri?: URI) {
     if (uri) this.includeCache.delete(uri);
     else this.includeCache.clear();
   }
@@ -56,14 +56,14 @@ export class IncludeManager {
    */
   processIncludes(
     parsed: ParsedDocument,
-    baseUri: string,
-    options: { fileReader?: FileReader; visited?: Set<string> },
+    baseUri: URI,
+    options: { fileReader?: FileReader; visited?: Map<string, URI> },
     parseCallback: ParseCallback
   ): ParsedDocument {
-    const visited = options.visited || new Set<string>();
-    visited.add(baseUri);
+    const visited = options.visited || new Map<string, URI>();
+    visited.set(baseUri.toString(), baseUri);
 
-    const merged = new Set<string>();
+    const merged = new Map<string, URI>();
     let result: ParsedDocument = { ...parsed };
 
     for (const directive of parsed.directives) {
@@ -72,15 +72,15 @@ export class IncludeManager {
       const resolvedUris = resolveIncludePaths(includePath, baseUri);
 
       for (const resolvedUri of resolvedUris) {
-        if (visited.has(resolvedUri)) continue;
-        if (merged.has(resolvedUri)) continue;
+        if (visited.has(resolvedUri.toString())) continue;
+        if (merged.has(resolvedUri.toString())) continue;
 
         let includedDoc = this.includeCache.get(resolvedUri) || null;
         if (!includedDoc) {
           const includedTextDoc = options.fileReader(resolvedUri);
           if (includedTextDoc) {
             // Use the provided parseCallback to parse included file recursively
-            includedDoc = parseCallback(includedTextDoc, { ...options, baseUri: resolvedUri, visited: new Set(visited) });
+            includedDoc = parseCallback(includedTextDoc, { ...options, baseUri: resolvedUri, visited: new Map(visited) });
             // Cache parsed result
             this.includeCache.set(resolvedUri, includedDoc);
           }
@@ -88,7 +88,7 @@ export class IncludeManager {
 
         if (includedDoc) {
           result = this.mergeParsedDocuments(result, includedDoc);
-          merged.add(resolvedUri);
+          merged.set(resolvedUri.toString(), resolvedUri);
         }
       }
     }

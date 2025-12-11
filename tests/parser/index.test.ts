@@ -3,10 +3,11 @@ import { HledgerParser } from '../../src/parser';
 import * as ast from '../../src/parser/ast';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { URI } from 'vscode-uri';
 
 // Helper functions to convert Maps to sorted arrays for testing
 // Strips sourceUri and line fields that are added by the parser
-function mapToSortedArray<T extends { name: string; sourceUri?: string; line?: number }>(map: Map<string, T>): Partial<T>[] {
+function mapToSortedArray<T extends { name: string; sourceUri?: URI; line?: number }>(map: Map<string, T>): Partial<T>[] {
   return Array.from(map.values())
     .map(({ sourceUri, line, ...rest }) => rest as Partial<T>)
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -62,20 +63,24 @@ describe('HledgerParser', () => {
 commodity USD
 payee Grocery Store
 tag trip`;
-      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const uriString = 'file:///test.journal';
+      const uri = URI.parse(uriString);
+      const doc = TextDocument.create(uriString, 'hledger', 1, content);
       const result = parser.parse(doc);
 
       expect(result.directives).toHaveLength(4);
-      expect(result.directives[0]).toEqual({ type: 'account', value: 'Assets:Checking', comment: undefined, sourceUri: 'file:///test.journal', line: 0 });
-      expect(result.directives[1]).toEqual({ type: 'commodity', value: 'USD', comment: undefined, sourceUri: 'file:///test.journal', line: 1 });
-      expect(result.directives[2]).toEqual({ type: 'payee', value: 'Grocery Store', comment: undefined, sourceUri: 'file:///test.journal', line: 2 });
-      expect(result.directives[3]).toEqual({ type: 'tag', value: 'trip', comment: undefined, sourceUri: 'file:///test.journal', line: 3 });
+      expect(result.directives[0]).toEqual({ type: 'account', value: 'Assets:Checking', comment: undefined, sourceUri: uri, line: 0 });
+      expect(result.directives[1]).toEqual({ type: 'commodity', value: 'USD', comment: undefined, sourceUri: uri, line: 1 });
+      expect(result.directives[2]).toEqual({ type: 'payee', value: 'Grocery Store', comment: undefined, sourceUri: uri, line: 2 });
+      expect(result.directives[3]).toEqual({ type: 'tag', value: 'trip', comment: undefined, sourceUri: uri, line: 3 });
     });
 
     test('should parse directives with comments', () => {
       const content = `account Assets:Checking ; Main checking account
 commodity USD ; US Dollar`;
-      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const uriString = 'file:///test.journal';
+      const uri = URI.parse(uriString);
+      const doc = TextDocument.create(uriString, 'hledger', 1, content);
       const result = parser.parse(doc);
 
       expect(result.directives).toHaveLength(2);
@@ -83,14 +88,14 @@ commodity USD ; US Dollar`;
         type: 'account',
         value: 'Assets:Checking',
         comment: 'Main checking account',
-        sourceUri: 'file:///test.journal',
+        sourceUri: uri,
         line: 0
       });
       expect(result.directives[1]).toEqual({
         type: 'commodity',
         value: 'USD',
         comment: 'US Dollar',
-        sourceUri: 'file:///test.journal',
+        sourceUri: uri,
         line: 1
       });
     });
@@ -198,12 +203,14 @@ payee Online Store
     test('should handle include and alias directives', () => {
       const content = `include other.journal
 alias old:account = new:account`;
-      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const uriString = 'file:///test.journal';
+      const uri = URI.parse(uriString);
+      const doc = TextDocument.create(uriString, 'hledger', 1, content);
       const result = parser.parse(doc);
 
       expect(result.directives).toHaveLength(2);
-      expect(result.directives[0]).toEqual({ type: 'include', value: 'other.journal', comment: undefined, sourceUri: 'file:///test.journal', line: 0 });
-      expect(result.directives[1]).toEqual({ type: 'alias', value: 'old:account = new:account', comment: undefined, sourceUri: 'file:///test.journal', line: 1 });
+      expect(result.directives[0]).toEqual({ type: 'include', value: 'other.journal', comment: undefined, sourceUri: uri, line: 0 });
+      expect(result.directives[1]).toEqual({ type: 'alias', value: 'old:account = new:account', comment: undefined, sourceUri: uri, line: 1 });
     });
 
     test('should handle transactions separated by blank lines', () => {
@@ -780,15 +787,15 @@ tag category ; type of expense`;
       const mainDoc = TextDocument.create('file:///home/user/main.journal', 'hledger', 1, mainContent);
       const includedDoc = TextDocument.create('file:///home/user/included.journal', 'hledger', 1, includedContent);
 
-      const fileReader = (uri: string) => {
-        if (uri === 'file:///home/user/included.journal') {
+      const fileReader = (uri: URI) => {
+        if (uri.toString() === 'file:///home/user/included.journal') {
           return includedDoc;
         }
         return null;
       };
 
       const result = parser.parse(mainDoc, {
-        baseUri: mainDoc.uri,
+        baseUri: URI.parse(mainDoc.uri),
         fileReader
       });
 
@@ -811,15 +818,15 @@ tag category ; type of expense`;
       const mainDoc = TextDocument.create('file:///home/user/main.journal', 'hledger', 1, mainContent);
       const includedDoc = TextDocument.create('file:///home/user/subdir/included.journal', 'hledger', 1, includedContent);
 
-      const fileReader = (uri: string) => {
-        if (uri === 'file:///home/user/subdir/included.journal') {
+      const fileReader = (uri: URI) => {
+        if (uri.toString() === 'file:///home/user/subdir/included.journal') {
           return includedDoc;
         }
         return null;
       };
 
       const result = parser.parse(mainDoc, {
-        baseUri: mainDoc.uri,
+        baseUri: URI.parse(mainDoc.uri),
         fileReader
       });
 
@@ -848,15 +855,15 @@ tag category ; type of expense`;
       // resolver should therefore request that exact URI from the fileReader.
       const includedDoc = TextDocument.create('file:///common.journal', 'hledger', 1, includedContent);
 
-      const fileReader = (uri: string) => {
-        if (uri === 'file:///common.journal') {
+      const fileReader = (uri: URI) => {
+        if (uri.toString() === 'file:///common.journal') {
           return includedDoc;
         }
         return null;
       };
 
       const result = parser.parse(mainDoc, {
-        baseUri: mainDoc.uri,
+        baseUri: URI.parse(mainDoc.uri),
         fileReader
       });
 
@@ -879,17 +886,17 @@ tag category ; type of expense`;
       const homedir = require('os').homedir();
       const { toFileUri } = require('../../src/utils/uri');
       const includedUri = toFileUri(require('path').join(homedir, 'common.journal'));
-      const includedDoc = TextDocument.create(includedUri, 'hledger', 1, includedContent);
+      const includedDoc = TextDocument.create(includedUri.toString(), 'hledger', 1, includedContent);
 
-      const fileReader = (uri: string) => {
-        if (uri === includedUri) {
+      const fileReader = (uri: URI) => {
+        if (uri.toString() === includedUri.toString()) {
           return includedDoc;
         }
         return null;
       };
 
       const result = parser.parse(mainDoc, {
-        baseUri: mainDoc.uri,
+        baseUri: URI.parse(mainDoc.uri),
         fileReader
       });
 
@@ -906,12 +913,12 @@ tag category ; type of expense`;
 
       const doc = TextDocument.create('file:///main.journal', 'hledger', 1, content);
 
-      const fileReader = (uri: string) => {
+      const fileReader = (uri: URI) => {
         return null; // File not found
       };
 
       const result = parser.parse(doc, {
-        baseUri: doc.uri,
+        baseUri: URI.parse(doc.uri),
         fileReader
       });
 
@@ -934,18 +941,18 @@ tag category ; type of expense`;
       const file1Doc = TextDocument.create('file:///home/user/file1.journal', 'hledger', 1, file1Content);
       const file2Doc = TextDocument.create('file:///home/user/file2.journal', 'hledger', 1, file2Content);
 
-      const fileReader = (uri: string) => {
-        if (uri === 'file:///home/user/file2.journal') {
+      const fileReader = (uri: URI) => {
+        if (uri.toString() === 'file:///home/user/file2.journal') {
           return file2Doc;
         }
-        if (uri === 'file:///home/user/file1.journal') {
+        if (uri.toString() === 'file:///home/user/file1.journal') {
           return file1Doc;
         }
         return null;
       };
 
       const result = parser.parse(file1Doc, {
-        baseUri: file1Doc.uri,
+        baseUri: URI.parse(file1Doc.uri),
         fileReader
       });
 
@@ -970,15 +977,15 @@ include included.journal
       const mainDoc = TextDocument.create('file:///main.journal', 'hledger', 1, mainContent);
       const includedDoc = TextDocument.create('file:///included.journal', 'hledger', 1, includedContent);
 
-      const fileReader = (uri: string) => {
-        if (uri === 'file:///included.journal') {
+      const fileReader = (uri: URI) => {
+        if (uri.toString() === 'file:///included.journal') {
           return includedDoc;
         }
         return null;
       };
 
       const result = parser.parse(mainDoc, {
-        baseUri: mainDoc.uri,
+        baseUri: URI.parse(mainDoc.uri),
         fileReader
       });
 
@@ -1008,8 +1015,8 @@ include common.journal
       const commonDoc = TextDocument.create('file:///common.journal', 'hledger', 1, commonContent);
 
       let readCount = 0;
-      const fileReader = (uri: string) => {
-        if (uri === 'file:///common.journal') {
+      const fileReader = (uri: URI) => {
+        if (uri.toString() === 'file:///common.journal') {
           readCount++;
           return commonDoc;
         }
@@ -1017,7 +1024,7 @@ include common.journal
       };
 
       const result = parser.parse(mainDoc, {
-        baseUri: mainDoc.uri,
+        baseUri: URI.parse(mainDoc.uri),
         fileReader
       });
 
@@ -1035,7 +1042,7 @@ include common.journal
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
 
       parser.parse(doc, {
-        baseUri: doc.uri
+        baseUri: URI.parse(doc.uri)
       });
 
       // Clear cache

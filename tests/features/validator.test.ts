@@ -1,3 +1,4 @@
+import { URI } from 'vscode-uri';
 import { Validator } from '../../src/features/validator';
 import { HledgerParser } from '../../src/parser/index';
 import { TextDocument } from 'vscode-languageserver-textdocument';
@@ -1067,10 +1068,10 @@ account expenses:food
       const parsedDoc = parser.parse(doc);
 
       // Create a mock fileReader that returns null for missing files
-      const fileReader = (uri: string) => null;
+      const fileReader = (uri: URI) => null;
 
       const result = validator.validate(doc, parsedDoc, {
-        baseUri: doc.uri,
+        baseUri: URI.parse(doc.uri),
         fileReader
       });
 
@@ -1090,15 +1091,15 @@ account expenses:food
       const parsedDoc = parser.parse(doc);
 
       // Create a mock fileReader that returns a document for existing.journal
-      const fileReader = (uri: string) => {
-        if (uri.includes('existing.journal')) {
-          return TextDocument.create(uri, 'hledger', 1, '');
+      const fileReader = (uri: URI) => {
+        if (uri.toString().includes('existing.journal')) {
+          return TextDocument.create(uri.toString(), 'hledger', 1, '');
         }
         return null;
       };
 
       const result = validator.validate(doc, parsedDoc, {
-        baseUri: doc.uri,
+        baseUri: URI.parse(doc.uri),
         fileReader
       });
 
@@ -1117,12 +1118,12 @@ include accounts.journal
       const parsedDoc = parser.parse(doc);
 
       // Create a mock fileReader that returns a document
-      const fileReader = (uri: string) => {
-        return TextDocument.create(uri, 'hledger', 1, '');
+      const fileReader = (uri: URI) => {
+        return TextDocument.create(uri.toString(), 'hledger', 1, '');
       };
 
       const result = validator.validate(doc, parsedDoc, {
-        baseUri: doc.uri,
+        baseUri: URI.parse(doc.uri),
         fileReader
       });
 
@@ -1141,15 +1142,15 @@ include accounts.journal
       const parsedDoc = parser.parse(doc);
 
       // Create a mock fileReader that simulates b.journal including a.journal
-      const fileReader = (uri: string) => {
-        if (uri.includes('b.journal')) {
-          return TextDocument.create(uri, 'hledger', 1, 'include a.journal');
+      const fileReader = (uri: URI) => {
+        if (uri.toString().includes('b.journal')) {
+          return TextDocument.create(uri.toString(), 'hledger', 1, 'include a.journal');
         }
         return null;
       };
 
       const result = validator.validate(doc, parsedDoc, {
-        baseUri: doc.uri,
+        baseUri: URI.parse(doc.uri),
         fileReader
       });
 
@@ -1168,17 +1169,17 @@ include accounts.journal
       const parsedDoc = parser.parse(doc);
 
       // Create a mock fileReader that simulates a->b->c->a
-      const fileReader = (uri: string) => {
-        if (uri.includes('b.journal')) {
-          return TextDocument.create(uri, 'hledger', 1, 'include c.journal');
-        } else if (uri.includes('c.journal')) {
-          return TextDocument.create(uri, 'hledger', 1, 'include a.journal');
+      const fileReader = (uri: URI) => {
+        if (uri.toString().includes('b.journal')) {
+          return TextDocument.create(uri.toString(), 'hledger', 1, 'include c.journal');
+        } else if (uri.toString().includes('c.journal')) {
+          return TextDocument.create(uri.toString(), 'hledger', 1, 'include a.journal');
         }
         return null;
       };
 
       const result = validator.validate(doc, parsedDoc, {
-        baseUri: doc.uri,
+        baseUri: URI.parse(doc.uri),
         fileReader
       });
 
@@ -1198,12 +1199,12 @@ include c.journal
       const parsedDoc = parser.parse(doc);
 
       // Create a mock fileReader where files don't include each other
-      const fileReader = (uri: string) => {
-        return TextDocument.create(uri, 'hledger', 1, '');
+      const fileReader = (uri: URI) => {
+        return TextDocument.create(uri.toString(), 'hledger', 1, '');
       };
 
       const result = validator.validate(doc, parsedDoc, {
-        baseUri: doc.uri,
+        baseUri: URI.parse(doc.uri),
         fileReader
       });
 
@@ -1235,14 +1236,14 @@ include c.journal
       const doc = TextDocument.create('file:///a.journal', 'hledger', 1, content);
       const parsedDoc = parser.parse(doc);
 
-      const fileReader = (uri: string) => {
-        if (uri.includes('b.journal')) return TextDocument.create(uri, 'hledger', 1, 'include c.journal');
-        if (uri.includes('c.journal')) return TextDocument.create(uri, 'hledger', 1, 'include a.journal');
+      const fileReader = (uri: URI) => {
+        if (uri.toString().includes('b.journal')) return TextDocument.create(uri.toString(), 'hledger', 1, 'include c.journal');
+        if (uri.toString().includes('c.journal')) return TextDocument.create(uri.toString(), 'hledger', 1, 'include a.journal');
         return null;
       };
 
       const result = validator.validate(doc, parsedDoc, {
-        baseUri: doc.uri,
+        baseUri: URI.parse(doc.uri),
         fileReader
       });
 

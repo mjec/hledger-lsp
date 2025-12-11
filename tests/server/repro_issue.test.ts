@@ -1,5 +1,7 @@
+import { URI } from 'vscode-uri';
 import { WorkspaceManager } from '../../src/server/workspace';
-import { HledgerParser, FileReader } from '../../src/parser';
+import { HledgerParser } from '../../src/parser';
+import { FileReader } from '../../src/types';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Connection } from 'vscode-languageserver/node';
 
@@ -9,7 +11,8 @@ const mockConnection = {
         log: jest.fn(),
         info: jest.fn(),
         error: jest.fn(),
-        warn: jest.fn()
+        warn: jest.fn(),
+        debug: jest.fn()
     }
 } as unknown as Connection;
 
@@ -39,11 +42,12 @@ describe('Reproduction of Issue', () => {
         parser = new HledgerParser();
         jest.clearAllMocks();
 
-        fileReader = (uri: string): TextDocument | null => {
-            if (uri.includes('main.journal')) {
-                return TextDocument.create(uri, 'hledger', 1, 'include expenses.journal');
-            } else if (uri.includes('expenses.journal')) {
-                return TextDocument.create(uri, 'hledger', 1, '2024-01-01 * Test\n    expenses:food  $10\n    assets:checking');
+        fileReader = (uri: URI): TextDocument | null => {
+            const uriStr = uri.toString();
+            if (uriStr.includes('main.journal')) {
+                return TextDocument.create(uriStr, 'hledger', 1, 'include expenses.journal');
+            } else if (uriStr.includes('expenses.journal')) {
+                return TextDocument.create(uriStr, 'hledger', 1, '2024-01-01 * Test\n    expenses:food  $10\n    assets:checking');
             }
             return null;
         };
@@ -51,21 +55,21 @@ describe('Reproduction of Issue', () => {
 
     test('should find root for file in subdirectory', async () => {
         await manager.initialize(
-            ['file:///home/patrick/Development/hledger_lsp/server/tests/fixtures'],
+            [URI.parse('file:///home/patrick/Development/hledger_lsp/server/tests/fixtures')],
             parser,
             fileReader,
             mockConnection
         );
 
-        const mainUri = 'file:///home/patrick/Development/hledger_lsp/server/tests/fixtures/test-workspace-1/main.journal';
-        const expensesUri = 'file:///home/patrick/Development/hledger_lsp/server/tests/fixtures/test-workspace-1/expenses.journal';
+        const mainUri = URI.parse('file:///home/patrick/Development/hledger_lsp/server/tests/fixtures/test-workspace-1/main.journal');
+        const expensesUri = URI.parse('file:///home/patrick/Development/hledger_lsp/server/tests/fixtures/test-workspace-1/expenses.journal');
 
         // Verify main.journal is a root
         const rootForMain = manager.getRootForFile(mainUri);
-        expect(rootForMain).toBe(mainUri);
+        expect(rootForMain?.toString()).toBe(mainUri.toString());
 
         // Verify expenses.journal maps to main.journal
         const rootForExpenses = manager.getRootForFile(expensesUri);
-        expect(rootForExpenses).toBe(mainUri);
+        expect(rootForExpenses?.toString()).toBe(mainUri.toString());
     });
 });

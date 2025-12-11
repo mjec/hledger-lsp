@@ -4,6 +4,7 @@
  * with spaces in their names (like "Google Drive", "Joint Finances (2025)", etc.)
  */
 
+import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { parser } from '../../src/parser';
 import { validator } from '../../src/features/validator';
@@ -53,7 +54,7 @@ describe('File paths with spaces integration test', () => {
     const uri = toFileUri(pathWithSpaces);
     const decodedPath = toFilePath(uri);
 
-    expect(uri).toBe('file:///home/user/Cloud%20Storage/test.journal');
+    expect(uri.toString()).toBe('file:///home/user/Cloud%20Storage/test.journal');
     expect(decodedPath).toBe(pathWithSpaces);
   });
 
@@ -62,19 +63,19 @@ describe('File paths with spaces integration test', () => {
     const mainFileUri = toFileUri(mainFilePath);
 
     // Verify the URI has encoded spaces
-    expect(mainFileUri).toContain('Cloud%20Storage');
-    expect(mainFileUri).toContain('My%20Documents%20(2025)');
+    expect(mainFileUri.toString()).toContain('Cloud%20Storage');
+    expect(mainFileUri.toString()).toContain('My%20Documents%20%282025%29');
 
     // Read the file
     const content = fs.readFileSync(mainFilePath, 'utf-8');
-    const document = TextDocument.create(mainFileUri, 'hledger', 1, content);
+    const document = TextDocument.create(mainFileUri.toString(), 'hledger', 1, content);
 
     // Create a file reader that can handle URIs with encoded spaces
-    const fileReader = (uri: string) => {
+    const fileReader = (uri: URI) => {
       const filePath = toFilePath(uri);
       if (fs.existsSync(filePath)) {
         const content = fs.readFileSync(filePath, 'utf-8');
-        return TextDocument.create(uri, 'hledger', 1, content);
+        return TextDocument.create(uri.toString(), 'hledger', 1, content);
       }
       return null;
     };
@@ -100,15 +101,15 @@ describe('File paths with spaces integration test', () => {
   });
 
   test('should validate file with spaces in path without errors', () => {
-    const mainFileUri = toFileUri(mainFilePath);
+    const mainFileUri = URI.file(mainFilePath);
     const content = fs.readFileSync(mainFilePath, 'utf-8');
-    const document = TextDocument.create(mainFileUri, 'hledger', 1, content);
+    const document = TextDocument.create(mainFileUri.toString(), 'hledger', 1, content);
 
-    const fileReader = (uri: string) => {
+    const fileReader = (uri: URI) => {
       const filePath = toFilePath(uri);
       if (fs.existsSync(filePath)) {
         const content = fs.readFileSync(filePath, 'utf-8');
-        return TextDocument.create(uri, 'hledger', 1, content);
+        return TextDocument.create(uri.toString(), 'hledger', 1, content);
       }
       return null;
     };
@@ -136,7 +137,7 @@ describe('File paths with spaces integration test', () => {
   });
 
   test('should resolve include path correctly with spaces', () => {
-    const mainFileUri = toFileUri(mainFilePath);
+    const mainFileUri = URI.file(mainFilePath);
     const includePath = '../../../Ledgers/declarations.journal';
 
     const resolvedUri = resolveIncludePath(includePath, mainFileUri);
@@ -154,15 +155,15 @@ describe('File paths with spaces integration test', () => {
     const testPath = path.join(tempDir, 'Cloud Storage', 'test-missing.journal');
     fs.writeFileSync(testPath, 'include missing-file.journal\n');
 
-    const testUri = toFileUri(testPath);
+    const testUri = URI.file(testPath);
     const content = fs.readFileSync(testPath, 'utf-8');
-    const document = TextDocument.create(testUri, 'hledger', 1, content);
+    const document = TextDocument.create(testUri.toString(), 'hledger', 1, content);
 
-    const fileReader = (uri: string) => {
-      const filePath = toFilePath(uri);
+    const fileReader = (uri: URI) => {
+      const filePath = uri.toString();
       if (fs.existsSync(filePath)) {
         const content = fs.readFileSync(filePath, 'utf-8');
-        return TextDocument.create(uri, 'hledger', 1, content);
+        return TextDocument.create(filePath, 'hledger', 1, content);
       }
       return null;
     };

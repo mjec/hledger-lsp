@@ -1,4 +1,5 @@
 
+import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { HoverProvider } from '../../src/features/hover';
 import { ParsedDocument, Transaction } from '../../src/types';
@@ -11,13 +12,13 @@ describe('HoverProvider Transaction Header Mismatch', () => {
     });
 
     it('should show the correct transaction when multiple files have transactions on the same line', () => {
-        const targetUri = 'file:///home/user/target.journal';
-        const otherUri = 'file:///home/user/other.journal';
+        const targetUri = URI.parse('file:///home/user/target.journal');
+        const otherUri = URI.parse('file:///home/user/other.journal');
         const line = 5;
 
         // Create a document representing "target.journal" at line 5
         // 5 newlines -> line indices 0,1,2,3,4,5
-        const document = TextDocument.create(targetUri, 'hledger', 1,
+        const document = TextDocument.create(targetUri.toString(), 'hledger', 1,
             '\n\n\n\n\n2023-01-01 Target Transaction');
 
         // Mock parsed document containing TWO transactions on line 5

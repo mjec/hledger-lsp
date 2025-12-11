@@ -1,4 +1,5 @@
 import { updateDependencies, clearDependencies, getDependents, getIncludes, __test_reset } from '../../src/server/deps';
+import { URI } from 'vscode-uri';
 
 describe('include dependency tracking', () => {
   beforeEach(() => {
@@ -6,9 +7,9 @@ describe('include dependency tracking', () => {
   });
 
   test('updateDependencies registers reverse mappings', () => {
-    const fileA = 'file:///a.journal';
-    const fileB = 'file:///b.journal';
-    const fileC = 'file:///c.journal';
+    const fileA = URI.parse('file:///a.journal');
+    const fileB = URI.parse('file:///b.journal');
+    const fileC = URI.parse('file:///c.journal');
 
     updateDependencies(fileA, new Set([fileB, fileC]));
 
@@ -27,9 +28,9 @@ describe('include dependency tracking', () => {
   });
 
   test('updateDependencies replaces old includes', () => {
-    const fileA = 'file:///a.journal';
-    const fileB = 'file:///b.journal';
-    const fileC = 'file:///c.journal';
+    const fileA = URI.parse('file:///a.journal');
+    const fileB = URI.parse('file:///b.journal');
+    const fileC = URI.parse('file:///c.journal');
 
     updateDependencies(fileA, new Set([fileB]));
     updateDependencies(fileA, new Set([fileC]));
@@ -42,8 +43,8 @@ describe('include dependency tracking', () => {
   });
 
   test('clearDependencies removes reverse mappings', () => {
-    const fileA = 'file:///a.journal';
-    const fileB = 'file:///b.journal';
+    const fileA = URI.parse('file:///a.journal');
+    const fileB = URI.parse('file:///b.journal');
 
     updateDependencies(fileA, new Set([fileB]));
     expect(getDependents(fileB)?.has(fileA)).toBe(true);

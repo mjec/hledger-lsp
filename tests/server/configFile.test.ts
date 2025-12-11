@@ -2,6 +2,7 @@
  * Tests for configuration file support (.hledger-lsp.json)
  */
 
+import { URI } from 'vscode-uri';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -36,8 +37,8 @@ describe('ConfigFile', () => {
       fs.writeFileSync(configPath, '{}');
       fs.writeFileSync(docPath, '');
 
-      const found = discoverConfigFile(`file://${docPath}`);
-      expect(found).toBe(configPath);
+      const found = discoverConfigFile(URI.file(docPath));
+      expect(found?.fsPath).toBe(configPath);
     });
 
     it('should find config file in parent directory', () => {
@@ -49,8 +50,8 @@ describe('ConfigFile', () => {
       fs.writeFileSync(configPath, '{}');
       fs.writeFileSync(docPath, '');
 
-      const found = discoverConfigFile(`file://${docPath}`);
-      expect(found).toBe(configPath);
+      const found = discoverConfigFile(URI.file(docPath));
+      expect(found?.fsPath).toBe(configPath);
     });
 
     it('should find config file in grandparent directory', () => {
@@ -64,15 +65,15 @@ describe('ConfigFile', () => {
       fs.writeFileSync(configPath, '{}');
       fs.writeFileSync(docPath, '');
 
-      const found = discoverConfigFile(`file://${docPath}`);
-      expect(found).toBe(configPath);
+      const found = discoverConfigFile(URI.file(docPath));
+      expect(found?.fsPath).toBe(configPath);
     });
 
     it('should return null if no config file found', () => {
       const docPath = path.join(tempDir, 'test.journal');
       fs.writeFileSync(docPath, '');
 
-      const found = discoverConfigFile(`file://${docPath}`);
+      const found = discoverConfigFile(URI.file(docPath));
       expect(found).toBeNull();
     });
 
@@ -88,7 +89,7 @@ describe('ConfigFile', () => {
       fs.writeFileSync(docPath, '');
 
       // Should not find config outside workspace root
-      const found = discoverConfigFile(`file://${docPath}`, `file://${workspaceRoot}`);
+      const found = discoverConfigFile(URI.file(docPath), URI.file(workspaceRoot));
       expect(found).toBeNull();
     });
 
@@ -103,8 +104,8 @@ describe('ConfigFile', () => {
       fs.mkdirSync(subDir);
       fs.writeFileSync(docPath, '');
 
-      const found = discoverConfigFile(`file://${docPath}`, `file://${workspaceRoot}`);
-      expect(found).toBe(configPath);
+      const found = discoverConfigFile(URI.file(docPath), URI.file(workspaceRoot));
+      expect(found?.fsPath).toBe(configPath);
     });
   });
 
@@ -113,10 +114,10 @@ describe('ConfigFile', () => {
       const configPath = path.join(tempDir, '.hledger-lsp.json');
       fs.writeFileSync(configPath, '{}');
 
-      const result = loadConfigFile(configPath);
+      const result = loadConfigFile(URI.file(configPath));
       expect(result.config).toEqual({});
-      expect(result.configPath).toBe(configPath);
-      expect(result.configDir).toBe(tempDir);
+      expect(result.configPath.fsPath).toBe(configPath);
+      expect(result.configDir.fsPath).toBe(tempDir);
       expect(result.warnings).toEqual([]);
     });
 
@@ -127,7 +128,7 @@ describe('ConfigFile', () => {
       };
       fs.writeFileSync(configPath, JSON.stringify(config));
 
-      const result = loadConfigFile(configPath);
+      const result = loadConfigFile(URI.file(configPath));
       expect(result.config.rootFile).toEqual('main.journal');
       expect(result.warnings).toEqual([]);
     });
@@ -140,7 +141,7 @@ describe('ConfigFile', () => {
       };
       fs.writeFileSync(configPath, JSON.stringify(config));
 
-      const result = loadConfigFile(configPath);
+      const result = loadConfigFile(URI.file(configPath));
       expect(result.config.include).toEqual(['**/*.journal', 'ledger/**/*.hledger']);
       expect(result.config.exclude).toEqual(['**/archive/**', '**/temp/**']);
       expect(result.warnings).toEqual([]);
@@ -157,7 +158,7 @@ describe('ConfigFile', () => {
       };
       fs.writeFileSync(configPath, JSON.stringify(config));
 
-      const result = loadConfigFile(configPath);
+      const result = loadConfigFile(URI.file(configPath));
       expect(result.config.workspace).toEqual({
         enabled: false,
         eagerParsing: false,
@@ -170,7 +171,7 @@ describe('ConfigFile', () => {
       const configPath = path.join(tempDir, '.hledger-lsp.json');
       fs.writeFileSync(configPath, '{"rootFile": ["main.journal"]}');
 
-      const result = loadConfigFile(configPath);
+      const result = loadConfigFile(URI.file(configPath));
       expect(result.warnings).toContain('rootFile should be a string, ignoring');
     });
 
@@ -178,7 +179,7 @@ describe('ConfigFile', () => {
       const configPath = path.join(tempDir, '.hledger-lsp.json');
       fs.writeFileSync(configPath, '{"include": "**/*.journal"}');
 
-      const result = loadConfigFile(configPath);
+      const result = loadConfigFile(URI.file(configPath));
       expect(result.warnings).toContain('include should be an array, using defaults');
     });
 
@@ -186,7 +187,7 @@ describe('ConfigFile', () => {
       const configPath = path.join(tempDir, '.hledger-lsp.json');
       fs.writeFileSync(configPath, '{"exclude": 123}');
 
-      const result = loadConfigFile(configPath);
+      const result = loadConfigFile(URI.file(configPath));
       expect(result.warnings).toContain('exclude should be an array, using defaults');
     });
 
@@ -194,7 +195,7 @@ describe('ConfigFile', () => {
       const configPath = path.join(tempDir, '.hledger-lsp.json');
       fs.writeFileSync(configPath, '{"workspace": "invalid"}');
 
-      const result = loadConfigFile(configPath);
+      const result = loadConfigFile(URI.file(configPath));
       expect(result.warnings).toContain('workspace should be an object, using defaults');
     });
 
@@ -202,7 +203,7 @@ describe('ConfigFile', () => {
       const configPath = path.join(tempDir, '.hledger-lsp.json');
       fs.writeFileSync(configPath, '{"workspace": {"enabled": "yes"}}');
 
-      const result = loadConfigFile(configPath);
+      const result = loadConfigFile(URI.file(configPath));
       expect(result.warnings).toContain('workspace.enabled should be a boolean, using default');
     });
 
@@ -210,12 +211,12 @@ describe('ConfigFile', () => {
       const configPath = path.join(tempDir, '.hledger-lsp.json');
       fs.writeFileSync(configPath, '{invalid json}');
 
-      expect(() => loadConfigFile(configPath)).toThrow(/Invalid JSON/);
+      expect(() => loadConfigFile(URI.file(configPath))).toThrow(/Invalid JSON/);
     });
 
     it('should throw on missing file', () => {
       const configPath = path.join(tempDir, '.hledger-lsp.json');
-      expect(() => loadConfigFile(configPath)).toThrow(/Failed to read/);
+      expect(() => loadConfigFile(URI.file(configPath))).toThrow(/Failed to read/);
     });
   });
 
@@ -226,10 +227,11 @@ describe('ConfigFile', () => {
       };
       // Use platform-appropriate path
       const configDir = process.platform === 'win32' ? 'C:\\home\\user\\ledger' : '/home/user/ledger';
+      const configPath = path.join(configDir, '.hledger-lsp.json');
       const expected = toFileUri(path.join(configDir, 'main.journal'));
 
-      const resolved = resolveRootFile(config, configDir);
-      expect(resolved).toBe(expected);
+      const resolved = resolveRootFile(config, URI.file(configPath));
+      expect(resolved?.toString()).toBe(expected.toString());
     });
 
     it('should resolve relative path in subdirectory', () => {
@@ -238,10 +240,11 @@ describe('ConfigFile', () => {
       };
       // Use platform-appropriate path
       const configDir = process.platform === 'win32' ? 'C:\\home\\user\\ledger' : '/home/user/ledger';
+      const configPath = path.join(configDir, '.hledger-lsp.json');
       const expected = toFileUri(path.join(configDir, 'sub', 'budget.journal'));
 
-      const resolved = resolveRootFile(config, configDir);
-      expect(resolved).toBe(expected);
+      const resolved = resolveRootFile(config, URI.file(configPath));
+      expect(resolved?.toString()).toBe(expected.toString());
     });
 
     it('should handle absolute path', () => {
@@ -250,13 +253,13 @@ describe('ConfigFile', () => {
       };
       const configDir = '/home/user/ledger';
 
-      const resolved = resolveRootFile(config, configDir);
-      expect(resolved).toBe('file:///absolute/path/main.journal');
+      const resolved = resolveRootFile(config, URI.file(configDir));
+      expect(resolved?.toString()).toBe('file:///absolute/path/main.journal');
     });
 
     it('should return null if no rootFile', () => {
       const config: HledgerLspConfig = {};
-      const resolved = resolveRootFile(config, tempDir);
+      const resolved = resolveRootFile(config, URI.file(tempDir));
       expect(resolved).toBeNull();
     });
   });

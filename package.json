@@ -41,9 +41,10 @@
     "node": ">=16.0.0"
   },
   "dependencies": {
-    "vscode-languageserver": "^9.0.1",
     "fast-glob": "^3.2.12",
-    "vscode-languageserver-textdocument": "^1.0.12"
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12",
+    "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

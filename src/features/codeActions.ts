@@ -14,7 +14,6 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument } from '../types';
 import { formatAmount } from '../utils/amountFormatter';
-import { toFilePath, toFileUri } from '../utils/uri';
 
 export class CodeActionProvider {
   /**
@@ -198,10 +197,8 @@ export class CodeActionProvider {
   ): Position {
     const lines = document.getText().split('\n');
 
-    // Find the last directive of the same type
-    const normalizedDocUri = toFileUri(toFilePath(document.uri));
     const directivesOfType = parsedDoc.directives
-      .filter(d => d.type === directiveType && d.sourceUri === normalizedDocUri);
+      .filter(d => d.type === directiveType && d.sourceUri?.toString() === document.uri);
 
     if (directivesOfType.length > 0) {
       // Insert after the last directive of the same type
@@ -215,7 +212,7 @@ export class CodeActionProvider {
 
     // Find the last directive of any type
     const allDirectives = parsedDoc.directives
-      .filter(d => d.sourceUri === normalizedDocUri);
+      .filter(d => d.sourceUri?.toString() === document.uri);
 
     if (allDirectives.length > 0) {
       // Insert after the last directive

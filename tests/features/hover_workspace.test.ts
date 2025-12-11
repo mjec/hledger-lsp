@@ -1,5 +1,6 @@
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { URI } from 'vscode-uri';
 import { HoverProvider } from '../../src/features/hover';
 import { ParsedDocument, Transaction } from '../../src/types';
 
@@ -40,10 +41,11 @@ describe('HoverProvider Workspace Context', () => {
     it('should report account as DECLARED if in parsed document (workspace context)', () => {
         // Simulating workspace parse where "Expenses:Food" is declared in 'accounts.journal'
         const accountName = 'Expenses:Food';
+        const accountsUri = URI.parse('file:///home/user/accounts.journal');
         const parsedDocWorkspace: ParsedDocument = {
             transactions: [],
             accounts: new Map([
-                [accountName, { name: accountName, declared: true, sourceUri: 'file:///home/user/accounts.journal' }]
+                [accountName, { name: accountName, declared: true, sourceUri: accountsUri }]
             ]),
             commodities: new Map(),
             payees: new Map(),

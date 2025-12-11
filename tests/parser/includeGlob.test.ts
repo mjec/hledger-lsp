@@ -1,3 +1,4 @@
+import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
 // Mock resolveIncludePaths so tests don't access the real filesystem. This must run
@@ -30,7 +31,7 @@ describe('include glob expansion', () => {
   // helper to create a TextDocument with given content and uri
   function docFor(path: string, content: string) {
     const uri = toFileUri(`${baseDir}/${path}`);
-    return TextDocument.create(uri, 'journal', 0, content);
+    return TextDocument.create(uri.toString(), 'journal', 0, content);
   }
 
   test('expands simple relative glob and excludes the including file', () => {
@@ -45,14 +46,14 @@ describe('include glob expansion', () => {
     const b = docFor('b.journal', 'account Expenses:Food\n');
 
     // Provide a fileReader that maps these URIs to the documents above
-    const fileReader = (uri: string) => {
-      if (uri === includeAll.uri) return includeAll;
-      if (uri === a.uri) return a;
-      if (uri === b.uri) return b;
+    const fileReader = (uri: URI) => {
+      if (uri.toString() === includeAll.uri) return includeAll;
+      if (uri.toString() === a.uri) return a;
+      if (uri.toString() === b.uri) return b;
       return null;
     };
 
-    const parsed = sharedParser.parse(includeAll, { baseUri: includeAll.uri, fileReader });
+    const parsed = sharedParser.parse(includeAll, { baseUri: URI.parse(includeAll.uri), fileReader });
 
     // Should contain accounts from a.journal and b.journal, but not re-include include-all.journal
     const accounts: string[] = Array.from(parsed.accounts.values()).map(acc => acc.name);
@@ -67,8 +68,9 @@ describe('include glob expansion', () => {
     const sub2 = docFor('dir/sub/two.journal', 'account Income:Salary\n');
     const dot = docFor('.hidden.journal', 'account Hidden:Acct\n');
 
-    const fileReader = (uri: string) => {
-      switch (uri) {
+    const fileReader = (uri: URI) => {
+      const uriStr = uri.toString();
+      switch (uriStr) {
         case rootInclude.uri:
           return rootInclude;
         case sub.uri:
@@ -82,7 +84,7 @@ describe('include glob expansion', () => {
       }
     };
 
-    const parsed = sharedParser.parse(rootInclude, { baseUri: rootInclude.uri, fileReader });
+    const parsed = sharedParser.parse(rootInclude, { baseUri: URI.parse(rootInclude.uri), fileReader });
     const accounts: string[] = Array.from(parsed.accounts.values()).map(acc => acc.name);
 
     expect(accounts).toContain('Liabilities:Card');

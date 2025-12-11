@@ -9,6 +9,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { toFilePath, toFileUri } from '../utils/uri';
+import { URI } from 'vscode-uri';
 
 /**
  * Schema for .hledger-lsp.json configuration file
@@ -83,9 +84,9 @@ export interface ConfigLoadResult {
   /** The loaded and validated configuration */
   config: HledgerLspConfig;
   /** Absolute path to the config file */
-  configPath: string;
+  configPath: URI;
   /** Directory containing the config file (used as base for relative paths) */
-  configDir: string;
+  configDir: URI;
   /** Any validation warnings */
   warnings: string[];
 }
@@ -97,16 +98,18 @@ export interface ConfigLoadResult {
  * @param workspaceRoot - URI of the workspace root (optional, stops search here)
  * @returns Path to the config file, or null if not found
  */
-export function discoverConfigFile(startUri: string, workspaceRoot?: string): string | null {
-  let currentDir = path.dirname(toFilePath(startUri));
+export function discoverConfigFile(startUri: URI, workspaceRoot?: URI): URI | null {
+  const filePath = toFilePath(startUri);
+  let currentDir = filePath;
   const workspaceRootPath = workspaceRoot ? toFilePath(workspaceRoot) : null;
 
   // Walk up the directory tree
   while (true) {
     const configPath = path.join(currentDir, '.hledger-lsp.json');
+    const configUri = URI.file(configPath);
 
-    if (fs.existsSync(configPath)) {
-      return configPath;
+    if (fs.existsSync(toFilePath(configUri))) {
+      return configUri;
     }
 
     // Stop at workspace root if provided
@@ -134,13 +137,13 @@ export function discoverConfigFile(startUri: string, workspaceRoot?: string): st
  * @returns Loaded configuration with validation warnings
  * @throws Error if the config file is invalid JSON or cannot be read
  */
-export function loadConfigFile(configPath: string): ConfigLoadResult {
+export function loadConfigFile(configPath: URI): ConfigLoadResult {
   const warnings: string[] = [];
 
   // Read and parse JSON
   let rawConfig: any;
   try {
-    const content = fs.readFileSync(configPath, 'utf-8');
+    const content = fs.readFileSync(toFilePath(configPath), 'utf-8');
     rawConfig = JSON.parse(content);
   } catch (error) {
     if (error instanceof SyntaxError) {
@@ -220,7 +223,7 @@ export function loadConfigFile(configPath: string): ConfigLoadResult {
     }
   }
 
-  const configDir = path.dirname(configPath);
+  const configDir = URI.parse(path.dirname(toFilePath(configPath)));
 
   return {
     config,
@@ -234,17 +237,17 @@ export function loadConfigFile(configPath: string): ConfigLoadResult {
  * Resolve root file path relative to config directory
  *
  * @param config - The loaded configuration
- * @param configDir - Directory containing the config file
+ * @param configPath - Directory containing the config file
  * @returns Absolute file URI, or null if not configured
  */
-export function resolveRootFile(config: HledgerLspConfig, configDir: string): string | null {
+export function resolveRootFile(config: HledgerLspConfig, configPath: URI): URI | null {
   if (!config.rootFile) {
     return null;
   }
 
   const absPath = path.isAbsolute(config.rootFile)
     ? config.rootFile
-    : path.resolve(configDir, config.rootFile);
+    : path.resolve(path.dirname(configPath.fsPath), config.rootFile);
   return toFileUri(absPath);
 }
 
