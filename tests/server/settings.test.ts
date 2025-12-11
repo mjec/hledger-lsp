@@ -254,35 +254,7 @@ describe('Settings', () => {
       expect(result).toEqual(defaultSettings);
     });
 
-    test('should log loaded settings', async () => {
-      const mockUserSettings = {
-        validation: {
-          balance: false
-        }
-      };
 
-      const mockConnection = {
-        workspace: {
-          getConfiguration: jest.fn().mockResolvedValue(mockUserSettings)
-        },
-        console: {
-          log: jest.fn(),
-          debug: jest.fn()
-        }
-      } as any;
-
-      const resource = URI.parse('file:///test.journal');
-      const hasConfigCapability = true;
-
-      await getDocumentSettings(mockConnection, resource, hasConfigCapability);
-
-      expect(mockConnection.console.log).toHaveBeenCalledWith(
-        expect.stringContaining('Loaded hledgerLanguageServer settings')
-      );
-      expect(mockConnection.console.log).toHaveBeenCalledWith(
-        expect.stringContaining(resource.toString())
-      );
-    });
   });
 
   describe('clearDocumentSettings', () => {

@@ -181,7 +181,6 @@ connection.onInitialize((params: InitializeParams) => {
           'hledger.insertInferredAmount',
           'hledger.convertToTotalCost',
           'hledger.refreshInlayHints',
-          'hledger.showWorkspaceGraph',
           'hledger.showWorkspaceGraphStructured'
         ]
       }
@@ -388,10 +387,9 @@ documents.onDidChangeContent(change => {
   // Refresh inlay hints after any document change
   // This ensures positions update correctly when lines are added/removed
   // and that workspace-wide state (running balances, etc.) stays in sync
-  // if (hasInlayHintRefreshSupport) {
-  //   connection.console.log(`[Inlay Hints] Refreshing after document change: ${change.document.uri}`);
-  //   connection.languages.inlayHint.refresh();
-  // }
+  if (hasInlayHintRefreshSupport) {
+    connection.languages.inlayHint.refresh();
+  }
 
   // In workspace mode, changes to one file affect all files in the workspace
   // (e.g., running balances, transaction counts, completions)
@@ -703,7 +701,6 @@ connection.languages.semanticTokens.on((params) => {
 
 // Provide inlay hints
 connection.languages.inlayHint.on(async (params) => {
-  connection.console.info(`[Inlay Hints] Request for document: ${params.textDocument.uri}`);
   try {
     const document = documents.get(params.textDocument.uri);
     if (!document) return [];
@@ -973,22 +970,6 @@ connection.onExecuteCommand(async (params) => {
     } else {
       connection.window.showInformationMessage('Inlay hint refresh not supported by your editor');
     }
-  } else if (params.command === 'hledger.showWorkspaceGraph') {
-    connection.console.log(`[ExecuteCommand] showWorkspaceGraph called. workspaceManager exists: ${!!workspaceManager}`);
-    if (workspaceManager) {
-      try {
-        const graph = workspaceManager.getWorkspaceTree();
-        connection.console.log(`[ExecuteCommand] Tree generated, length: ${graph.length}`);
-        return graph;
-      } catch (error) {
-        connection.console.error(`[ExecuteCommand] Error generating tree: ${error}`);
-        return `Error generating tree: ${error}`;
-      }
-    } else {
-      connection.console.warn('[ExecuteCommand] Workspace manager not initialized');
-      connection.window.showErrorMessage('Workspace manager not initialized');
-      return 'Error: Workspace manager not initialized. Check LSP logs.';
-    }
   } else if (params.command === 'hledger.showWorkspaceGraphStructured') {
     connection.console.log(`[ExecuteCommand] showWorkspaceGraphStructured called. workspaceManager exists: ${!!workspaceManager}`);
     if (workspaceManager) {
@@ -1002,7 +983,7 @@ connection.onExecuteCommand(async (params) => {
       }
     } else {
       connection.console.warn('[ExecuteCommand] Workspace manager not initialized');
-      connection.window.showErrorMessage('Workspace manager not initialized');
+      // connection.window.showErrorMessage('Workspace manager not initialized');
       return [];
     }
   }

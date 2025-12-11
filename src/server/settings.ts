@@ -167,7 +167,7 @@ export function getDocumentSettings(connection: Connection, resource: URI, hasCo
       // Merge user settings with defaults so unspecified settings use default values
       const merged = deepMerge(defaultSettings, userSettings || {});
 
-      connection.console.log(`Loaded hledgerLanguageServer settings for ${resource.toString()}`);
+      // connection.console.log(`Loaded hledgerLanguageServer settings for ${resource.toString()}`);
 
       return merged;
     });

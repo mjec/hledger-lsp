@@ -298,9 +298,7 @@ export class WorkspaceManager {
     // Step 1: Check for explicit root file from config
     if (this.config && this.config.rootFile && this.configPath) {
       const explicitRoot = resolveRootFile(this.config, this.configPath);
-      console.log(`[WorkspaceManager] Config path: ${this.configPath}`);
       console.log(`[WorkspaceManager] Explicit root from config: ${explicitRoot}`);
-      console.log(`Journal files: ${Array.from(this.journalFiles).join(', ')}`);
 
       if (explicitRoot) {
         console.log(`Journal files has explicit root: ${this.journalFiles.has(explicitRoot.toString())}`);
