@@ -12,8 +12,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p .",
-    "watch": "tsc -watch -p .",
+    "build": "tsc -p tsconfig.build.json",
+    "watch": "tsc -watch -p tsconfig.build.json",
     "lint": "eslint src --ext ts",
     "test": "jest",
     "test:watch": "jest --watch",
