@@ -91,7 +91,23 @@ export function getAmountLayout(amount: Amount, parsed: ParsedDocument, options:
 
   if (commodity && commodity.format) {
     format = commodity.format;
-    declaredPrecision = commodity.format.precision ?? undefined;
+    const formatPrecision = commodity.format.precision;
+    // Note: precision can be undefined (not set), null (no decimal), or a number
+    // Only set declaredPrecision if it's a number
+    if (formatPrecision !== null && formatPrecision !== undefined) {
+      declaredPrecision = formatPrecision;
+    }
+
+    // Apply heuristic defaults for common currency symbols in two cases:
+    // 1. If precision not specified at all (undefined)
+    // 2. If precision is null AND the amount being formatted doesn't have its own format
+    //    (meaning it's being created programmatically, like for inferred amounts)
+    if (formatPrecision === undefined || (formatPrecision === null && !amount.format)) {
+      const leftSymbols = ['$', '€', '£', '¥'];
+      if (leftSymbols.includes(amount.commodity)) {
+        declaredPrecision = 2;
+      }
+    }
   } else if (amount.format) {
     format = amount.format;
   } else {
@@ -123,13 +139,19 @@ export function getAmountLayout(amount: Amount, parsed: ParsedDocument, options:
   // 1. Never reduce precision if posting has higher precision than declared
   // 2. Add zeros to match declared precision when actual < declared
   // 3. Don't change formatting when commodity is not declared
-  const actualPrecision = amount.format?.precision ?? undefined;
+  // Note: precision can be undefined (not set), null (no decimal), or a number
+  const amountFormatPrecision = amount.format?.precision;
+  const actualPrecision = (amountFormatPrecision !== null && amountFormatPrecision !== undefined) ? amountFormatPrecision : undefined;
   let targetPrecision: number | undefined = undefined;
 
   if (declaredPrecision !== undefined) {
     // Commodity is declared - use max of actual and declared precision
     if (actualPrecision !== undefined) {
       targetPrecision = Math.max(actualPrecision, declaredPrecision);
+    } else if (amountFormatPrecision === null && commodity?.declared !== true) {
+      // Amount has explicit null precision (no decimal) - preserve it
+      // UNLESS the commodity is declared (via commodity directive), in which case use declared precision
+      targetPrecision = undefined;
     } else {
       targetPrecision = declaredPrecision;
     }
@@ -169,13 +191,13 @@ export function getAmountLayout(amount: Amount, parsed: ParsedDocument, options:
   const amountDecimalString = decimalPart;
 
   return {
-    commodityBefore: format.symbolOnLeft ? format?.symbol || amount.commodity || '' : '',
+    commodityBefore: symbolOnLeft ? format?.symbol || amount.commodity || '' : '',
     isNegative: amount.quantity < 0,
     negativeSignBefore,
     amountIntegerString,
     amountDecimalString,
     demicalMark: (targetPrecision !== undefined && targetPrecision > 0) || amountDecimalString.length > 0 ? (format.decimalMark || '.') : '',
     spaceBetweenCommodityAndAmount,
-    commodityAfter: !format.symbolOnLeft ? format?.symbol || amount.commodity || '' : ''
+    commodityAfter: !symbolOnLeft ? format?.symbol || amount.commodity || '' : ''
   };
 }

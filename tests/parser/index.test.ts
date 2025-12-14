@@ -6,8 +6,15 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 
 // Helper functions to convert Maps to sorted arrays for testing
-// Strips sourceUri and line fields that are added by the parser
-function mapToSortedArray<T extends { name: string; sourceUri?: URI; line?: number }>(map: Map<string, T>): Partial<T>[] {
+// Strips sourceUri, line, and format fields that are added by the parser
+function mapToSortedArray<T extends { name: string; sourceUri?: URI; line?: number; format?: any }>(map: Map<string, T>): Partial<T>[] {
+  return Array.from(map.values())
+    .map(({ sourceUri, line, format, ...rest }) => rest as Partial<T>)
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}
+
+// Helper for tests that need to verify formats - only strips sourceUri and line
+function mapToSortedArrayWithFormat<T extends { name: string; sourceUri?: URI; line?: number }>(map: Map<string, T>): Partial<T>[] {
   return Array.from(map.values())
     .map(({ sourceUri, line, ...rest }) => rest as Partial<T>)
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -521,7 +528,7 @@ commodity GBP
 commodity 1.000,00 EUR
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const commodities = mapToSortedArray(parser.parse(doc).commodities);
+      const commodities = mapToSortedArrayWithFormat(parser.parse(doc).commodities);
 
       expect(commodities).toEqual([
         { name: '$', declared: true, format: { symbol: '$', symbolOnLeft: true, spaceBetween: false, decimalMark: '.', thousandsSeparator: null, precision: 2 } },

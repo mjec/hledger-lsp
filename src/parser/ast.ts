@@ -842,17 +842,17 @@ export function processTransaction(transaction: Transaction, accountMap: Map<str
 
     // Add commodity from amount
     if (posting.amount?.commodity && posting.amount.commodity !== '') {
-      addCommodity(commodityMap, posting.amount.commodity, false, undefined, sourceUri);
+      addCommodity(commodityMap, posting.amount.commodity, false, posting.amount.format, sourceUri);
     }
 
     // Add commodity from cost
     if (posting.cost?.amount?.commodity && posting.cost.amount.commodity !== '') {
-      addCommodity(commodityMap, posting.cost.amount.commodity, false, undefined, sourceUri);
+      addCommodity(commodityMap, posting.cost.amount.commodity, false, posting.cost.amount.format, sourceUri);
     }
 
     // Add commodity from balance assertion
     if (posting.assertion?.commodity && posting.assertion.commodity !== '') {
-      addCommodity(commodityMap, posting.assertion.commodity, false, undefined, sourceUri);
+      addCommodity(commodityMap, posting.assertion.commodity, false, posting.assertion.format, sourceUri);
     }
 
     // Extract tags from posting comments
