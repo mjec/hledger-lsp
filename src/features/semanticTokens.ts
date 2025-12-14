@@ -497,7 +497,7 @@ export class SemanticTokensProvider {
     builder: SemanticTokensBuilder
   ): void {
     // Match sign before commodity with space: - $ 100.00 or + EUR 1000
-    let match = amountStr.match(/^([-+])\s*([^\d\s;+-]+)\s+(\d[\d,.'\s]*(?:[.,]\d+)?)/);
+    let match = amountStr.match(/^([-+])\s*([^\d\s;+-.]+)\s+(\d[\d,.'\s]*(?:[.,]\d+)?)/);
     if (match) {
       const [, sign, commodity, number] = match;
       const commodityStart = startOffset + amountStr.indexOf(commodity);
@@ -509,7 +509,7 @@ export class SemanticTokensProvider {
     }
 
     // Match sign before commodity without space: -$100.00 or +€50.50
-    match = amountStr.match(/^([-+])([^\d\s;+-]+)(\d[\d,.'\s]*(?:[.,]\d+)?)/);
+    match = amountStr.match(/^([-+])([^\d\s;+-.]+)(\d[\d,.'\s]*(?:[.,]\d+)?)/);
     if (match) {
       const [, sign, commodity, number] = match;
       const signStart = startOffset;
@@ -523,7 +523,7 @@ export class SemanticTokensProvider {
 
     // Match commodity-first with space: $ 100.00 or EUR 1 000 000,00
     // Number pattern allows digits, commas, dots, apostrophes, and spaces within the number
-    match = amountStr.match(/^([^\d\s;+-]+)\s+([-+]?\d[\d,.'\s]*(?:[.,]\d+)?)/);
+    match = amountStr.match(/^([^\d\s;+-.]+)\s+([-+]?\d[\d,.'\s]*(?:[.,]\d+)?)/);
     if (match) {
       const [, commodity, number] = match;
       const commodityStart = startOffset + amountStr.indexOf(commodity);
@@ -535,7 +535,7 @@ export class SemanticTokensProvider {
     }
 
     // Match commodity-first without space: $100.00
-    match = amountStr.match(/^([^\d\s;+-]+)([-+]?\d[\d,.'\s]*(?:[.,]\d+)?)/);
+    match = amountStr.match(/^([^\d\s;+-.]+)([-+]?\d[\d,.'\s]*(?:[.,]\d+)?)/);
     if (match) {
       const [, commodity, number] = match;
       const commodityStart = startOffset + amountStr.indexOf(commodity);
@@ -547,7 +547,7 @@ export class SemanticTokensProvider {
     }
 
     // Match commodity-after with space: 100.00 USD or 1 000 000,00 EUR
-    match = amountStr.match(/([-+]?\d[\d,.'\s]*(?:[.,]\d+)?)\s+([^\d\s;+-]+)/);
+    match = amountStr.match(/([-+]?\d[\d,.'\s]*(?:[.,]\d+)?)\s+([^\d\s;+-.]+)/);
     if (match) {
       const [, number, commodity] = match;
       const numberStart = startOffset + amountStr.indexOf(number);
@@ -559,7 +559,7 @@ export class SemanticTokensProvider {
     }
 
     // Match commodity-after without space: 100.00USD
-    match = amountStr.match(/([-+]?\d[\d,.'\s]*(?:[.,]\d+)?)([^\d\s;+-]+)/);
+    match = amountStr.match(/([-+]?\d[\d,.'\s]*(?:[.,]\d+)?)([^\d\s;+-.]+)/);
     if (match) {
       const [, number, commodity] = match;
       const numberStart = startOffset + amountStr.indexOf(number);

@@ -232,6 +232,37 @@ export class FormattingProvider {
       postingLayouts.push(postingLayout);
     }
 
+    transaction.postingColumnsWidths = {
+      indentColumnWidth,
+      accountColumnWidth,
+      commodityBeforeColumnWidth,
+      spaceBetweenCommodityBeforeAndAmount,
+      negativeSignColumnWidth,
+      amountIntegerColumnWidth,
+      amountDecimalMarkColumnWidth,
+      amountDecimalColumnWidth,
+      spaceBetweenAmountAndCommodityAfterColumnWidth,
+      commodityAfterColumnWidth,
+      costColumnWidth,
+      costCommodityBeforeColumnWidth,
+      spaceBetweenCostCommodityBeforeAndAmount,
+      costNegativeSignColumnWidth,
+      costAmountIntegerColumnWidth,
+      costAmountDecimalMarkColumnWidth,
+      costAmountDecimalColumnWidth,
+      spaceBetweenCostAmountAndCommodityAfterColumnWidth,
+      costCommodityAfterColumnWidth,
+      assertionColumnWidth,
+      assertionCommodityBeforeColumnWidth,
+      spaceBetweenAssertionCommodityBeforeAndAmount,
+      assertionNegativeSignColumnWidth,
+      assertionAmountIntegerColumnWidth,
+      assertionAmountDecimalMarkColumnWidth,
+      assertionAmountDecimalColumnWidth,
+      spaceBetweenAssertionAmountAndCommodityAfterColumnWidth,
+      assertionCommodityAfterColumnWidth,
+    }
+
     // Second pass: format each posting line
     const formattedPostingLines: string[] = [];
     for (let idx = 0; idx < transaction.postings.length; idx++) {

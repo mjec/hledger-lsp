@@ -12,6 +12,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction, Posting } from '../types';
 import { formatAmount } from '../utils/amountFormatter';
 import { calculateTransactionBalance } from '../utils/balanceCalculator';
+import { calculateRunningBalances, RunningBalanceMap } from '../utils/runningBalanceCalculator';
 
 
 export interface InlayHintsSettings {
@@ -47,7 +48,7 @@ export class InlayHintsProvider {
     // If showing running balances, we need to process all transactions to accumulate balances
     // Otherwise, only process transactions within the requested range
     const runningBalances = config.showRunningBalances
-      ? this.calculateRunningBalances(parsed)
+      ? calculateRunningBalances(parsed)
       : new Map<number, Map<number, Map<string, number>>>();
 
     // Only process transactions within the requested range
@@ -139,102 +140,6 @@ export class InlayHintsProvider {
     }
 
     return hints;
-  }
-
-  /**
-   * Get inferred amounts for a transaction from the AST.
-   * Returns a map of posting index to inferred amounts (commodity -> quantity)
-   * This is no longer calculated - it uses the amounts already inferred during parsing.
-   */
-  private getInferredAmountsFromAST(transaction: Transaction): Map<number, Map<string, number>> {
-    const result = new Map<number, Map<string, number>>();
-
-    // Extract inferred amounts directly from the AST
-    for (let i = 0; i < transaction.postings.length; i++) {
-      const posting = transaction.postings[i];
-      if (posting.amount && posting.amount.inferred) {
-        const commodity = posting.amount.commodity || '';
-        result.set(i, new Map([[commodity, posting.amount.quantity]]));
-      }
-    }
-
-    return result;
-  }
-
-  /**
-   * Calculate running balances for all transactions
-   * Returns a map of transaction->posting index->account->commodity->balance
-   */
-  private calculateRunningBalances(parsed: ParsedDocument): Map<number, Map<number, Map<string, number>>> {
-    const result = new Map<number, Map<number, Map<string, number>>>();
-
-    // Track global account balances across all transactions
-    const accountBalances = new Map<string, Map<string, number>>();
-
-    // Sort transactions by date to calculate balances in chronological order
-    // This is important when transactions come from multiple files via includes
-    const sortedTransactions = [...parsed.transactions].sort((a, b) => {
-      return a.date.localeCompare(b.date);
-    });
-
-    // Create a map from sorted index to original index
-    const sortedToOriginalIndex = new Map<number, number>();
-    sortedTransactions.forEach((tx, sortedIdx) => {
-      const originalIdx = parsed.transactions.indexOf(tx);
-      sortedToOriginalIndex.set(sortedIdx, originalIdx);
-    });
-
-    for (let sortedIdx = 0; sortedIdx < sortedTransactions.length; sortedIdx++) {
-      const transaction = sortedTransactions[sortedIdx];
-      const txIndex = sortedToOriginalIndex.get(sortedIdx)!;
-      const postingBalances = new Map<number, Map<string, number>>();
-
-      // Get inferred amounts from the AST (already calculated during parsing)
-      const inferredAmounts = this.getInferredAmountsFromAST(transaction);
-
-      for (let postingIndex = 0; postingIndex < transaction.postings.length; postingIndex++) {
-        const posting = transaction.postings[postingIndex];
-        const account = posting.account;
-
-        // Get amount (either explicit or inferred)
-        let amountMap: Map<string, number> | undefined;
-
-        if (posting.amount) {
-          // Explicit amount
-          const commodity = posting.amount.commodity || '';
-          amountMap = new Map([[commodity, posting.amount.quantity]]);
-        } else {
-          // Inferred amount
-          amountMap = inferredAmounts.get(postingIndex);
-        }
-
-        if (amountMap) {
-          // Update balance for each commodity in this posting
-          for (const [commodity, quantity] of amountMap.entries()) {
-            // Get or create account balance map
-            if (!accountBalances.has(account)) {
-              accountBalances.set(account, new Map<string, number>());
-            }
-            const commodityBalances = accountBalances.get(account)!;
-
-            // Update balance
-            const currentBalance = commodityBalances.get(commodity) || 0;
-            const newBalance = currentBalance + quantity;
-            commodityBalances.set(commodity, newBalance);
-
-            // Store this posting's resulting balance
-            if (!postingBalances.has(postingIndex)) {
-              postingBalances.set(postingIndex, new Map());
-            }
-            postingBalances.get(postingIndex)!.set(commodity, newBalance);
-          }
-        }
-      }
-
-      result.set(txIndex, postingBalances);
-    }
-
-    return result;
   }
 
   /**

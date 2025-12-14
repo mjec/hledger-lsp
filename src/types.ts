@@ -29,6 +29,7 @@ export interface Transaction {
   tags?: Record<string, string>;
   sourceUri?: URI; // Which file this transaction came from
   line?: number; // 0-based line number where transaction starts
+  postingColumnsWidths?: PostingColumnWidths; // Cached column widths for formatting postings
 }
 
 export interface Posting {
@@ -130,3 +131,34 @@ export interface ParsedDocument {
 }
 
 export type FileReader = (uri: URI) => TextDocument | null;
+
+export type PostingColumnWidths = {
+  indentColumnWidth: number;
+  accountColumnWidth: number;
+  commodityBeforeColumnWidth: number;
+  spaceBetweenCommodityBeforeAndAmount: number;
+  negativeSignColumnWidth: number;
+  amountIntegerColumnWidth: number;
+  amountDecimalMarkColumnWidth: number;
+  amountDecimalColumnWidth: number;
+  spaceBetweenAmountAndCommodityAfterColumnWidth: number;
+  commodityAfterColumnWidth: number;
+  costColumnWidth: number;
+  costCommodityBeforeColumnWidth: number;
+  spaceBetweenCostCommodityBeforeAndAmount: number;
+  costNegativeSignColumnWidth: number;
+  costAmountIntegerColumnWidth: number;
+  costAmountDecimalMarkColumnWidth: number;
+  costAmountDecimalColumnWidth: number;
+  spaceBetweenCostAmountAndCommodityAfterColumnWidth: number;
+  costCommodityAfterColumnWidth: number;
+  assertionColumnWidth: number;
+  assertionCommodityBeforeColumnWidth: number;
+  spaceBetweenAssertionCommodityBeforeAndAmount: number;
+  assertionNegativeSignColumnWidth: number;
+  assertionAmountIntegerColumnWidth: number;
+  assertionAmountDecimalMarkColumnWidth: number;
+  assertionAmountDecimalColumnWidth: number;
+  spaceBetweenAssertionAmountAndCommodityAfterColumnWidth: number;
+  assertionCommodityAfterColumnWidth: number;
+}

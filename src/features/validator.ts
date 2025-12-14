@@ -16,6 +16,7 @@ import { resolveIncludePath, resolveIncludePaths, toFilePath, toFileUri } from '
 import { defaultSettings } from '../server/settings';
 import { calculateTransactionBalance } from '../utils/balanceCalculator';
 import { formatAmount } from '../utils/amountFormatter';
+import { calculateAccountBalances } from '../utils/runningBalanceCalculator';
 
 export interface ValidationResult {
   diagnostics: Diagnostic[];
@@ -661,29 +662,34 @@ export class Validator {
   ): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
-    // Track running balances per account per commodity
-    const balances = new Map<string, Map<string, number>>();
+    // Use the shared running balance calculator
+    // This ensures balances are calculated in chronological order (by date),
+    // not parse order, which is critical for multi-file journals
+    const balances = calculateAccountBalances(transactions);
 
-    // Process ALL transactions to calculate running balances correctly
-    // (workspace parsing includes transactions from all files)
-    for (const transaction of transactions) {
+    // Sort transactions by date to check assertions in chronological order
+    const sortedTransactions = [...transactions].sort((a, b) => {
+      return a.date.localeCompare(b.date);
+    });
+
+    // Now check assertions in chronological order
+    // We need to track balances as we go to know the balance at each assertion
+    const runningBalances = new Map<string, Map<string, number>>();
+
+    for (const transaction of sortedTransactions) {
       for (const posting of transaction.postings) {
         // Update running balance
-        // Note: Balance assertions check the ORIGINAL commodity (amount.commodity),
-        // not the cost commodity. So we always update balance in the amount's commodity.
         if (posting.amount) {
-          const accountBalances = balances.get(posting.account) || new Map<string, number>();
+          const accountBalances = runningBalances.get(posting.account) || new Map<string, number>();
           const commodity = posting.amount.commodity || '';
           const currentBalance = accountBalances.get(commodity) || 0;
-          // Always use the original amount quantity for balance tracking,
-          // regardless of whether there's a cost notation
           accountBalances.set(commodity, currentBalance + posting.amount.quantity);
-          balances.set(posting.account, accountBalances);
+          runningBalances.set(posting.account, accountBalances);
         }
 
         // Check assertion - but only create diagnostics for assertions in the current document
         if (posting.assertion && transaction.sourceUri?.toString() === document.uri) {
-          const accountBalances = balances.get(posting.account);
+          const accountBalances = runningBalances.get(posting.account);
           const commodity = posting.assertion.commodity || '';
           const expectedBalance = posting.assertion.quantity;
           const actualBalance = accountBalances?.get(commodity) || 0;
