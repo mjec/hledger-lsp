@@ -5,10 +5,9 @@
 import { TextEdit, Range, Position, FormattingOptions as LSPFormattingOptions } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Amount, ParsedDocument, Posting, Commodity, Format, Transaction } from '../types';
-import { parsePosting, parseTransactionHeader } from '../parser/ast';
+import { parseTransactionHeader } from '../parser/ast';
 import { isTransactionHeader, isPosting, isComment, isDirective } from '../utils/index';
-import { toFilePath, toFileUri } from '../utils/uri';
-import { URI } from 'vscode-uri';
+import { getAmountLayout, AmountLayout } from '../utils/amountFormatter';
 
 export interface FormattingOptions {
   /** Number of spaces for posting indentation (default: 4) */
@@ -29,23 +28,27 @@ export interface FormattingOptions {
   signPosition?: 'before-symbol' | 'after-symbol';
 }
 
-interface amountLayout {
-  commodityBefore: string;
-  isNegative: boolean;
-  negativeSignBefore: boolean;  // true if sign should be before commodity
-  amountIntegerString: string;
-  amountDecimalString: string;
-  demicalMark: string;
-  commodityAfter: string;
-  spaceBetweenCommodityAndAmount: boolean;
+
+
+
+interface AmountColumnWidths {
+  commodityBefore: number;
+  spaceBetweenCommodityBeforeAndAmount: number;
+  negativeSign: number;
+  integer: number;
+  decimalMark: number;
+  decimal: number;
+  spaceBetweenAmountAndCommodityAfter: number;
+  commodityAfter: number;
 }
 
-interface postingLayout {
-  amountLayout?: amountLayout;
-  costLayout?: amountLayout;
-  assertionLayout?: amountLayout;
+interface TransactionColumnWidths {
+  indent: number;
+  account: number;
+  amount: AmountColumnWidths;
+  cost: AmountColumnWidths & { marker: number };
+  assertion: AmountColumnWidths & { marker: number };
 }
-
 
 const DEFAULT_OPTIONS: Required<FormattingOptions> = {
   indentation: 4,
@@ -151,245 +154,85 @@ export class FormattingProvider {
       return formattedLines;
     }
 
-    let indentColumnWidth = 0;
-    let accountColumnWidth = 0;
-    let commodityBeforeColumnWidth = 0;
-    let spaceBetweenCommodityBeforeAndAmount = 0;
-    let negativeSignColumnWidth = 0;
-    let amountIntegerColumnWidth = 0;
-    let amountDecimalMarkColumnWidth = 0;
-    let amountDecimalColumnWidth = 0;
-    let spaceBetweenAmountAndCommodityAfterColumnWidth = 0;
-    let commodityAfterColumnWidth = 0;
-    let costColumnWidth = 0;
-    let costCommodityBeforeColumnWidth = 0;
-    let spaceBetweenCostCommodityBeforeAndAmount = 0;
-    let costNegativeSignColumnWidth = 0;
-    let costAmountIntegerColumnWidth = 0;
-    let costAmountDecimalMarkColumnWidth = 0;
-    let costAmountDecimalColumnWidth = 0;
-    let spaceBetweenCostAmountAndCommodityAfterColumnWidth = 0;
-    let costCommodityAfterColumnWidth = 0;
-    let assertionColumnWidth = 0;
-    let assertionCommodityBeforeColumnWidth = 0;
-    let spaceBetweenAssertionCommodityBeforeAndAmount = 0;
-    let assertionNegativeSignColumnWidth = 0;
-    let assertionAmountIntegerColumnWidth = 0;
-    let assertionAmountDecimalMarkColumnWidth = 0;
-    let assertionAmountDecimalColumnWidth = 0;
-    let spaceBetweenAssertionAmountAndCommodityAfterColumnWidth = 0;
-    let assertionCommodityAfterColumnWidth = 0;
-
-    // First pass: determine column widths and cache layouts
-    const postingLayouts: postingLayout[] = [];
-    for (let posting of transaction.postings) {
-      let postingLayout: postingLayout = {};
-      indentColumnWidth = Math.max(indentColumnWidth, options.indentation);
-      accountColumnWidth = Math.max(accountColumnWidth, posting.account.length);
-
-      // Skip layouting inferred amounts since they don't exist in the source
-      if (posting.amount && !posting.amount.inferred) {
-        const layout = this.layoutAmount(posting.amount, parsed, options);
-        postingLayout.amountLayout = layout;
-        commodityBeforeColumnWidth = Math.max(commodityBeforeColumnWidth, layout.commodityBefore.length);
-        negativeSignColumnWidth = Math.max(negativeSignColumnWidth, layout.isNegative ? 1 : 0);
-        spaceBetweenCommodityBeforeAndAmount = Math.max(spaceBetweenCommodityBeforeAndAmount, (layout.spaceBetweenCommodityAndAmount && layout.commodityBefore.length) ? 1 : 0);
-        amountIntegerColumnWidth = Math.max(amountIntegerColumnWidth, layout.amountIntegerString.length);
-        amountDecimalMarkColumnWidth = Math.max(amountDecimalMarkColumnWidth, layout.amountDecimalString ? 1 : 0);
-        amountDecimalColumnWidth = Math.max(amountDecimalColumnWidth, layout.amountDecimalString.length);
-        spaceBetweenAmountAndCommodityAfterColumnWidth = Math.max(spaceBetweenAmountAndCommodityAfterColumnWidth, (layout.spaceBetweenCommodityAndAmount && layout.commodityAfter.length) ? 1 : 0);
-        commodityAfterColumnWidth = Math.max(commodityAfterColumnWidth, layout.commodityAfter.length);
-      }
-
-      // Skip layouting inferred costs since they don't exist in the source
-      if (posting.cost && !posting.cost.inferred) {
-        const layout = this.layoutAmount(posting.cost.amount, parsed, options);
-        postingLayout.costLayout = layout;
-        costColumnWidth = Math.max(costColumnWidth, posting.cost.type === 'unit' ? 3 : 4);
-        costCommodityBeforeColumnWidth = Math.max(costCommodityBeforeColumnWidth, layout.commodityBefore.length);
-        costNegativeSignColumnWidth = Math.max(costNegativeSignColumnWidth, layout.isNegative ? 1 : 0);
-        spaceBetweenCostCommodityBeforeAndAmount = Math.max(spaceBetweenCostCommodityBeforeAndAmount, (layout.spaceBetweenCommodityAndAmount && layout.commodityBefore.length) ? 1 : 0);
-        costAmountIntegerColumnWidth = Math.max(costAmountIntegerColumnWidth, layout.amountIntegerString.length);
-        costAmountDecimalMarkColumnWidth = Math.max(costAmountDecimalMarkColumnWidth, layout.amountDecimalString ? 1 : 0);
-        costAmountDecimalColumnWidth = Math.max(costAmountDecimalColumnWidth, layout.amountDecimalString.length);
-        spaceBetweenCostAmountAndCommodityAfterColumnWidth = Math.max(spaceBetweenCostAmountAndCommodityAfterColumnWidth, (layout.spaceBetweenCommodityAndAmount && layout.commodityAfter.length) ? 1 : 0);
-        costCommodityAfterColumnWidth = Math.max(costCommodityAfterColumnWidth, layout.commodityAfter.length);
-      }
-
-      if (posting.assertion) {
-        const layout = this.layoutAmount(posting.assertion, parsed, options);
-        postingLayout.assertionLayout = layout;
-        assertionColumnWidth = Math.max(assertionColumnWidth, 3); // for the assertion operator with spaces
-        assertionCommodityBeforeColumnWidth = Math.max(assertionCommodityBeforeColumnWidth, layout.commodityBefore.length);
-        assertionNegativeSignColumnWidth = Math.max(assertionNegativeSignColumnWidth, layout.isNegative ? 1 : 0);
-        spaceBetweenAssertionCommodityBeforeAndAmount = Math.max(spaceBetweenAssertionCommodityBeforeAndAmount, layout.isNegative ? 1 : 0);
-        assertionAmountIntegerColumnWidth = Math.max(assertionAmountIntegerColumnWidth, layout.amountIntegerString.length);
-        assertionAmountDecimalMarkColumnWidth = Math.max(assertionAmountDecimalMarkColumnWidth, layout.amountDecimalString ? 1 : 0);
-        assertionAmountDecimalColumnWidth = Math.max(assertionAmountDecimalColumnWidth, layout.amountDecimalString.length);
-        spaceBetweenAssertionAmountAndCommodityAfterColumnWidth = Math.max(spaceBetweenAssertionAmountAndCommodityAfterColumnWidth, (layout.spaceBetweenCommodityAndAmount && layout.commodityAfter.length) ? 1 : 0);
-        assertionCommodityAfterColumnWidth = Math.max(assertionCommodityAfterColumnWidth, layout.commodityAfter.length);
-      }
-      postingLayouts.push(postingLayout);
-    }
-
-    transaction.postingColumnsWidths = {
-      indentColumnWidth,
-      accountColumnWidth,
-      commodityBeforeColumnWidth,
-      spaceBetweenCommodityBeforeAndAmount,
-      negativeSignColumnWidth,
-      amountIntegerColumnWidth,
-      amountDecimalMarkColumnWidth,
-      amountDecimalColumnWidth,
-      spaceBetweenAmountAndCommodityAfterColumnWidth,
-      commodityAfterColumnWidth,
-      costColumnWidth,
-      costCommodityBeforeColumnWidth,
-      spaceBetweenCostCommodityBeforeAndAmount,
-      costNegativeSignColumnWidth,
-      costAmountIntegerColumnWidth,
-      costAmountDecimalMarkColumnWidth,
-      costAmountDecimalColumnWidth,
-      spaceBetweenCostAmountAndCommodityAfterColumnWidth,
-      costCommodityAfterColumnWidth,
-      assertionColumnWidth,
-      assertionCommodityBeforeColumnWidth,
-      spaceBetweenAssertionCommodityBeforeAndAmount,
-      assertionNegativeSignColumnWidth,
-      assertionAmountIntegerColumnWidth,
-      assertionAmountDecimalMarkColumnWidth,
-      assertionAmountDecimalColumnWidth,
-      spaceBetweenAssertionAmountAndCommodityAfterColumnWidth,
-      assertionCommodityAfterColumnWidth,
-    }
+    // First pass: Calculate all column widths
+    const widths = this.calculateTransactionWidths(transaction, parsed, options);
 
     // Second pass: format each posting line
     const formattedPostingLines: string[] = [];
-    for (let idx = 0; idx < transaction.postings.length; idx++) {
-      const posting = transaction.postings[idx];
-      const postingLayout = postingLayouts[idx];
+    for (let posting of transaction.postings) {
       let line = ' '.repeat(options.indentation);
-      line += posting.account.padEnd(accountColumnWidth, ' ');
+      line += posting.account.padEnd(widths.account, ' ');
       line += ' '.repeat(options.minSpacing);
 
-
-      // Skip formatting inferred amounts since they don't exist in the source
+      // 1. Amount
       if (posting.amount && !posting.amount.inferred) {
-        const lengthAtPaddingLocation = line.length;
-        const layout = postingLayout.amountLayout!;
+        const layout = getAmountLayout(posting.amount, parsed, options);
+        const amountBlock = this.formatAlignedAmount(layout, widths.amount, options);
 
-        // Handle sign position based on layout.negativeSignBefore
-        if (layout.negativeSignBefore) {
-          // Format as: -$100  (sign before commodity)
-          line += layout.isNegative ? '-'.padStart(negativeSignColumnWidth, ' ') : ' '.repeat(negativeSignColumnWidth);
-          line += layout.commodityBefore.padStart(commodityBeforeColumnWidth, ' ');
-        } else {
-          // Format as: $-100  (commodity before sign, default)
-          line += layout.commodityBefore.padStart(commodityBeforeColumnWidth, ' ');
-          line += layout.isNegative ? '-'.padStart(negativeSignColumnWidth, ' ') : ' '.repeat(negativeSignColumnWidth);
-        }
+        // Calculate decimal alignment padding
+        const preDecimalWidth = widths.amount.commodityBefore +
+          widths.amount.spaceBetweenCommodityBeforeAndAmount +
+          widths.amount.negativeSign +
+          widths.amount.integer;
 
-        line += ' '.repeat(spaceBetweenCommodityBeforeAndAmount);
-        line += layout.amountIntegerString.padStart(amountIntegerColumnWidth, ' ');
-        const lengthAtDecimalLocation = line.length;
-        const targetDecimalColumn = options.decimalAlignColumn;
-        const linePrePadding = line.substring(0, lengthAtPaddingLocation);
-        const linePostPadding = line.substring(lengthAtPaddingLocation);
-        const currentDecimalColumn = lengthAtDecimalLocation;
-        const neededPadding = targetDecimalColumn - currentDecimalColumn;
-        line = linePrePadding + ' '.repeat(Math.max(0, neededPadding)) + linePostPadding;
-        if (layout.demicalMark) {
-          line += layout.demicalMark.padEnd(amountDecimalMarkColumnWidth, ' ');
-          line += layout.amountDecimalString.padEnd(amountDecimalColumnWidth, ' ');
-        } else {
-          line += ' '.repeat(amountDecimalMarkColumnWidth + amountDecimalColumnWidth);
-        }
-        line += ' '.repeat(spaceBetweenAmountAndCommodityAfterColumnWidth);
-        line += layout.commodityAfter.padEnd(commodityAfterColumnWidth, ' ');
+        const currentLen = line.length;
+        const targetLen = options.decimalAlignColumn;
+        const padding = Math.max(0, targetLen - currentLen - preDecimalWidth);
+
+        line += ' '.repeat(padding) + amountBlock;
       } else {
-        const lengthAtPaddingLocation = line.length;
-        const neededPadding = options.decimalAlignColumn - lengthAtPaddingLocation;
-        line += ' '.repeat(Math.max(0, neededPadding));
-        line += ' '.repeat(
-          amountDecimalMarkColumnWidth +
-          amountDecimalColumnWidth +
-          spaceBetweenAmountAndCommodityAfterColumnWidth +
-          commodityAfterColumnWidth
-        ); // space for missing amount
+        // Space for missing amount
+        const preDecimalWidth = widths.amount.commodityBefore +
+          widths.amount.spaceBetweenCommodityBeforeAndAmount +
+          widths.amount.negativeSign +
+          widths.amount.integer;
+        const postDecimalWidth = widths.amount.decimalMark +
+          widths.amount.decimal +
+          widths.amount.spaceBetweenAmountAndCommodityAfter +
+          widths.amount.commodityAfter;
+
+        const currentLen = line.length;
+        const targetLen = options.decimalAlignColumn;
+        const padding = Math.max(0, targetLen - currentLen - preDecimalWidth);
+
+        line += ' '.repeat(padding + preDecimalWidth + postDecimalWidth);
       }
 
-      // Skip formatting inferred costs since they don't exist in the source
+      // 2. Cost
       if (posting.cost && !posting.cost.inferred) {
-        const layout = postingLayout.costLayout!;
-        line += posting.cost.type === 'unit' ? ' @'.padEnd(costColumnWidth, ' ') : ' @@'.padEnd(costColumnWidth, ' ');
-
-        // Handle sign position for cost
-        if (layout.negativeSignBefore) {
-          line += layout.isNegative ? '-'.padStart(costNegativeSignColumnWidth, ' ') : ' '.repeat(costNegativeSignColumnWidth);
-          line += layout.commodityBefore.padStart(costCommodityBeforeColumnWidth, ' ');
-        } else {
-          line += layout.commodityBefore.padStart(costCommodityBeforeColumnWidth, ' ');
-          line += layout.isNegative ? '-'.padStart(costNegativeSignColumnWidth, ' ') : ' '.repeat(costNegativeSignColumnWidth);
-        }
-
-        line += ' '.repeat(spaceBetweenCostCommodityBeforeAndAmount);
-        line += layout.amountIntegerString.padStart(costAmountIntegerColumnWidth, ' ');
-        if (layout.demicalMark) {
-          line += layout.demicalMark.padEnd(costAmountDecimalMarkColumnWidth, ' ');
-          line += layout.amountDecimalString.padEnd(costAmountDecimalColumnWidth, ' ');
-        } else {
-          line += ' '.repeat(costAmountDecimalColumnWidth + costAmountDecimalMarkColumnWidth);
-        }
-        line += ' '.repeat(spaceBetweenCostAmountAndCommodityAfterColumnWidth);
-        line += layout.commodityAfter.padEnd(costCommodityAfterColumnWidth, ' ');
+        const layout = getAmountLayout(posting.cost.amount, parsed, options);
+        // Ensure marker (" @" or " @@") is padded to width
+        line += (posting.cost.type === 'unit' ? ' @' : ' @@').padEnd(widths.cost.marker, ' ');
+        line += this.formatAlignedAmount(layout, widths.cost, options);
       } else {
-        line += ' '.repeat(costColumnWidth +
-          costCommodityBeforeColumnWidth +
-          spaceBetweenCostCommodityBeforeAndAmount +
-          costNegativeSignColumnWidth +
-          costAmountIntegerColumnWidth +
-          costAmountDecimalMarkColumnWidth +
-          costAmountDecimalColumnWidth +
-          spaceBetweenCostAmountAndCommodityAfterColumnWidth +
-          costCommodityAfterColumnWidth
-        ); // space for missing cost
+        const totalWidth = widths.cost.marker +
+          widths.cost.commodityBefore +
+          widths.cost.spaceBetweenCommodityBeforeAndAmount +
+          widths.cost.negativeSign +
+          widths.cost.integer +
+          widths.cost.decimalMark +
+          widths.cost.decimal +
+          widths.cost.spaceBetweenAmountAndCommodityAfter +
+          widths.cost.commodityAfter;
+        line += ' '.repeat(totalWidth);
       }
 
+      // 3. Assertion
       if (posting.assertion) {
-        const layout = postingLayout.assertionLayout!;
-        line += ' ='.padEnd(assertionColumnWidth, ' ');
-
-        // Handle sign position for assertion
-        if (layout.negativeSignBefore) {
-          line += layout.isNegative ? '-'.padStart(assertionNegativeSignColumnWidth, ' ') : ' '.repeat(assertionNegativeSignColumnWidth);
-          line += layout.commodityBefore.padStart(assertionCommodityBeforeColumnWidth, ' ');
-        } else {
-          line += layout.commodityBefore.padStart(assertionCommodityBeforeColumnWidth, ' ');
-          line += layout.isNegative ? '-'.padStart(assertionNegativeSignColumnWidth, ' ') : ' '.repeat(assertionNegativeSignColumnWidth);
-        }
-
-        line += ' '.repeat(spaceBetweenAssertionCommodityBeforeAndAmount);
-        line += layout.amountIntegerString.padStart(assertionAmountIntegerColumnWidth, ' ');
-        if (layout.demicalMark) {
-          line += layout.demicalMark.padEnd(assertionAmountDecimalMarkColumnWidth, ' ');
-          line += layout.amountDecimalString.padEnd(assertionAmountDecimalColumnWidth, ' ');
-        } else {
-          line += ' '.repeat(assertionAmountDecimalColumnWidth + assertionAmountDecimalMarkColumnWidth);
-        }
-        line += ' '.repeat(spaceBetweenAssertionAmountAndCommodityAfterColumnWidth);
-        line += layout.commodityAfter.padEnd(assertionCommodityAfterColumnWidth, ' ');
+        const layout = getAmountLayout(posting.assertion, parsed, options);
+        line += ' ='.padEnd(widths.assertion.marker, ' ');
+        line += this.formatAlignedAmount(layout, widths.assertion, options);
       } else {
-        line += ' '.repeat(2 + // space for spaces around assertion indicator
-          assertionColumnWidth +
-          assertionCommodityBeforeColumnWidth +
-          spaceBetweenAssertionCommodityBeforeAndAmount +
-          assertionNegativeSignColumnWidth +
-          assertionAmountIntegerColumnWidth +
-          assertionAmountDecimalColumnWidth +
-          assertionAmountDecimalMarkColumnWidth +
-          spaceBetweenAssertionAmountAndCommodityAfterColumnWidth +
-          assertionCommodityAfterColumnWidth
-        ); // space for missing assertion
+        const totalWidth = widths.assertion.marker +
+          widths.assertion.commodityBefore +
+          widths.assertion.spaceBetweenCommodityBeforeAndAmount +
+          widths.assertion.negativeSign +
+          widths.assertion.integer +
+          widths.assertion.decimalMark +
+          widths.assertion.decimal +
+          widths.assertion.spaceBetweenAmountAndCommodityAfter +
+          widths.assertion.commodityAfter;
+        line += ' '.repeat(totalWidth);
       }
 
       if (posting.comment) {
@@ -413,89 +256,108 @@ export class FormattingProvider {
     }
 
     return formattedLines;
-
   }
 
+  private calculateTransactionWidths(
+    transaction: Transaction,
+    parsed: ParsedDocument,
+    options: Required<FormattingOptions>
+  ): TransactionColumnWidths {
+    const widths: TransactionColumnWidths = {
+      indent: options.indentation,
+      account: 0,
+      amount: this.emptyAmountWidths(),
+      cost: { ...this.emptyAmountWidths(), marker: 0 },
+      assertion: { ...this.emptyAmountWidths(), marker: 0 }
+    };
 
-  private layoutAmount(amount: Amount, parsed: ParsedDocument, options: Required<FormattingOptions>): amountLayout {
-    const commodity = this.findCommodity(amount.commodity, parsed);
-    let format: Format = {};
-    let declaredPrecision: number | undefined = undefined;
+    for (const posting of transaction.postings) {
+      widths.account = Math.max(widths.account, posting.account.length);
 
-    if (commodity && commodity.format) {
-      format = commodity.format;
-      declaredPrecision = commodity.format.precision ?? undefined;
-    } else if (amount.format) {
-      format = amount.format;
-    } else {
-      format = {};
-    }
-
-    // Determine the actual precision to use based on the rules:
-    // 1. Never reduce precision if posting has higher precision than declared
-    // 2. Add zeros to match declared precision when actual < declared
-    // 3. Don't change formatting when commodity is not declared
-    const actualPrecision = amount.format?.precision ?? undefined;
-    let targetPrecision: number | undefined = undefined;
-
-    if (declaredPrecision !== undefined) {
-      // Commodity is declared - use max of actual and declared precision
-      if (actualPrecision !== undefined) {
-        targetPrecision = Math.max(actualPrecision, declaredPrecision);
-      } else {
-        targetPrecision = declaredPrecision;
+      if (posting.amount && !posting.amount.inferred) {
+        const layout = getAmountLayout(posting.amount, parsed, options);
+        this.updateAmountWidths(widths.amount, layout);
       }
-    } else {
-      // Commodity is not declared - preserve original precision
-      targetPrecision = actualPrecision;
+
+      if (posting.cost && !posting.cost.inferred) {
+        const layout = getAmountLayout(posting.cost.amount, parsed, options);
+        this.updateAmountWidths(widths.cost, layout);
+        // Cost marker width (@ or @@) - " @" (2) or " @@" (3)
+        // We pad to min 3 or 4.
+        // Original code: `Math.max(..., posting.cost.type === 'unit' ? 3 : 4)`
+        widths.cost.marker = Math.max(widths.cost.marker, posting.cost.type === 'unit' ? 3 : 4);
+      }
+
+      if (posting.assertion) {
+        const layout = getAmountLayout(posting.assertion, parsed, options);
+        this.updateAmountWidths(widths.assertion, layout);
+        // Assertion marker " ="
+        widths.assertion.marker = Math.max(widths.assertion.marker, 3);
+      }
     }
+    return widths;
+  }
 
-    // Determine if negative sign should be before commodity symbol
-    // This only applies when commodity is on left
-
-    const symbolOnLeft = format.symbolOnLeft || false;
-    const negativeSignBefore = symbolOnLeft && options.signPosition === 'before-symbol';
-
+  private emptyAmountWidths(): AmountColumnWidths {
     return {
-      commodityBefore: format.symbolOnLeft ? format.symbol || '' : '',
-      isNegative: amount.quantity < 0,
-      negativeSignBefore,
-      amountIntegerString: this.formatIntegerAmount(amount, format),
-      amountDecimalString: this.formatDecimalAmount(amount, format, targetPrecision),
-      demicalMark: targetPrecision && targetPrecision > 0 ? (format.decimalMark || '.') : '',
-      spaceBetweenCommodityAndAmount: format.spaceBetween || false,
-      commodityAfter: !format.symbolOnLeft ? format.symbol || '' : ''
+      commodityBefore: 0,
+      spaceBetweenCommodityBeforeAndAmount: 0,
+      negativeSign: 0,
+      integer: 0,
+      decimalMark: 0,
+      decimal: 0,
+      spaceBetweenAmountAndCommodityAfter: 0,
+      commodityAfter: 0
     };
   }
 
-  private formatIntegerAmount(amount: Amount, format: Format): string {
-    const integerPart = Math.floor(Math.abs(amount.quantity)).toString();
+  private updateAmountWidths(widths: AmountColumnWidths, layout: AmountLayout) {
+    widths.commodityBefore = Math.max(widths.commodityBefore, layout.commodityBefore.length);
+    widths.spaceBetweenCommodityBeforeAndAmount = Math.max(widths.spaceBetweenCommodityBeforeAndAmount,
+      (layout.spaceBetweenCommodityAndAmount && layout.commodityBefore.length) ? 1 : 0
+    );
+    widths.negativeSign = Math.max(widths.negativeSign, layout.isNegative ? 1 : 0);
+    widths.integer = Math.max(widths.integer, layout.amountIntegerString.length);
+    widths.decimalMark = Math.max(widths.decimalMark, layout.amountDecimalString ? 1 : 0);
+    widths.decimal = Math.max(widths.decimal, layout.amountDecimalString.length);
+    widths.spaceBetweenAmountAndCommodityAfter = Math.max(widths.spaceBetweenAmountAndCommodityAfter,
+      (layout.spaceBetweenCommodityAndAmount && layout.commodityAfter.length) ? 1 : 0
+    );
+    widths.commodityAfter = Math.max(widths.commodityAfter, layout.commodityAfter.length);
+  }
 
-    // Format integer part with grouping if specified
-    let integerString = '';
-    if (format.thousandsSeparator) {
-      const regex = /\B(?=(\d{3})+(?!\d))/g;
-      integerString = integerPart.replace(regex, format.thousandsSeparator);
+  private formatAlignedAmount(
+    layout: AmountLayout,
+    widths: AmountColumnWidths,
+    options: Required<FormattingOptions>
+  ): string {
+    let segment = '';
+    if (layout.negativeSignBefore) {
+      segment += layout.isNegative ? '-'.padStart(widths.negativeSign, ' ') : ' '.repeat(widths.negativeSign);
+      segment += layout.commodityBefore.padStart(widths.commodityBefore, ' ');
     } else {
-      integerString = integerPart;
+      segment += layout.commodityBefore.padStart(widths.commodityBefore, ' ');
+      segment += layout.isNegative ? '-'.padStart(widths.negativeSign, ' ') : ' '.repeat(widths.negativeSign);
     }
+    segment += ' '.repeat(widths.spaceBetweenCommodityBeforeAndAmount);
+    segment += layout.amountIntegerString.padStart(widths.integer, ' ');
 
-    return integerString;
+    // Note: Alignment padding is handled by caller before this block if needed (for decimal alignment)
+
+    if (layout.demicalMark) {
+      segment += layout.demicalMark.padEnd(widths.decimalMark, ' ');
+      segment += layout.amountDecimalString.padEnd(widths.decimal, ' ');
+    } else {
+      segment += ' '.repeat(widths.decimalMark + widths.decimal);
+    }
+    segment += ' '.repeat(widths.spaceBetweenAmountAndCommodityAfter);
+    segment += layout.commodityAfter.padEnd(widths.commodityAfter, ' ');
+
+    return segment;
   }
 
-  private formatDecimalAmount(amount: Amount, format: Format, targetPrecision?: number): string {
-    const decimalPart = Math.abs(amount.quantity) % 1;
 
-    // Format decimal part based on target precision
-    let decimalString = '';
-    if (targetPrecision !== undefined && targetPrecision > 0) {
-      decimalString = decimalPart.toFixed(targetPrecision).substring(2); // Skip "0."
-    } else if (decimalPart > 0) {
-      decimalString = decimalPart.toString().substring(2); // Skip "0."
-    }
 
-    return decimalString;
-  }
 
 
   /**

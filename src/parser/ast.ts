@@ -526,7 +526,7 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amoun
     },
     {
       // Symbol on left
-      pattern: /^([^\d\s-]+)\s*([-]?\d[\d.,\s]*)$/,
+      pattern: /^([^\d\s-]+)\s*([-]?\s*\d[\d.,\s]*)$/,
       handler: (m: RegExpMatchArray) => {
         const rawAmount = m[2];
         const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
@@ -536,7 +536,7 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amoun
     },
     {
       // Symbol on right
-      pattern: /^([-]?\d[\d.,\s]*)\s*([^\d\s]+)$/,
+      pattern: /^([-]?\s*\d[\d.,\s]*)\s*([^\d\s]+)$/,
       handler: (m: RegExpMatchArray) => {
         const rawAmount = m[1];
         const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
@@ -546,7 +546,7 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amoun
     },
     {
       // No symbol
-      pattern: /^([-]?\d[\d.,\s]*)$/,
+      pattern: /^([-]?\s*\d[\d.,\s]*)$/,
       handler: (m: RegExpMatchArray) => {
         const rawAmount = m[1];
         const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
