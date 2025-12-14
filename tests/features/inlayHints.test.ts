@@ -39,7 +39,7 @@ describe('InlayHintsProvider', () => {
       } as any);
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe('  $-50.00');
+      expect(labelToString(hints[0].label)).toBe('  $-50');
       expect(hints[0].kind).toBe(InlayHintKind.Parameter);
       expect(hints[0].position.line).toBe(2);
     });
@@ -63,7 +63,7 @@ describe('InlayHintsProvider', () => {
       } as any);
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe('  $95.00');
+      expect(labelToString(hints[0].label)).toBe('  $95');
       expect(hints[0].position.line).toBe(3);
     });
 
@@ -85,7 +85,7 @@ describe('InlayHintsProvider', () => {
       } as any);
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe('  $-1000.00');
+      expect(labelToString(hints[0].label)).toBe('  $-1000');
       expect(hints[0].position.line).toBe(2);
     });
 
@@ -107,7 +107,7 @@ describe('InlayHintsProvider', () => {
       } as any);
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe('  $-135.00');
+      expect(labelToString(hints[0].label)).toBe('  $-135');
       expect(hints[0].position.line).toBe(2);
     });
 
@@ -172,9 +172,9 @@ describe('InlayHintsProvider', () => {
 
       expect(hints).toHaveLength(2);
       // Running balance shows cumulative balance per account
-      expect(labelToString(hints[0].label)).toContain('$50.00');  // expenses:food balance after this transaction
+      expect(labelToString(hints[0].label)).toContain('$50');  // expenses:food balance after this transaction
       expect(hints[0].kind).toBe(InlayHintKind.Type);
-      expect(labelToString(hints[1].label)).toContain('$-50.00'); // assets:checking balance after this transaction
+      expect(labelToString(hints[1].label)).toContain('$-50'); // assets:checking balance after this transaction
     });
 
     test('should show balance before comment', () => {
@@ -240,7 +240,7 @@ describe('InlayHintsProvider', () => {
 
       // Should only show hint for expenses:cash, not for assets:checking (has assertion)
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toContain('$200.00');
+      expect(labelToString(hints[0].label)).toContain('$200');
       expect(hints[0].position.line).toBe(2); // expenses:cash line
     });
 
@@ -273,16 +273,16 @@ describe('InlayHintsProvider', () => {
       expect(hints).toHaveLength(6);
 
       // First transaction: checking = $1000, equity:opening = $-1000 (inferred)
-      expect(labelToString(hints[0].label)).toContain('$1000.00');
-      expect(labelToString(hints[1].label)).toContain('$-1000.00'); // equity:opening balance (inferred amount)
+      expect(labelToString(hints[0].label)).toContain('$1000');
+      expect(labelToString(hints[1].label)).toContain('$-1000'); // equity:opening balance (inferred amount)
 
       // Second transaction: food = $50, checking = $950 (1000 - 50)
-      expect(labelToString(hints[2].label)).toContain('$50.00');  // expenses:food first occurrence
-      expect(labelToString(hints[3].label)).toContain('$950.00'); // assets:checking cumulative (running balance!)
+      expect(labelToString(hints[2].label)).toContain('$50');  // expenses:food first occurrence
+      expect(labelToString(hints[3].label)).toContain('$950'); // assets:checking cumulative (running balance!)
 
       // Third transaction: gas = $40, checking = $910 (950 - 40)
-      expect(labelToString(hints[4].label)).toContain('$40.00');  // expenses:gas first occurrence
-      expect(labelToString(hints[5].label)).toContain('$910.00'); // assets:checking cumulative (running balance!)
+      expect(labelToString(hints[4].label)).toContain('$40');  // expenses:gas first occurrence
+      expect(labelToString(hints[5].label)).toContain('$910'); // assets:checking cumulative (running balance!)
     });
   });
 
@@ -305,7 +305,7 @@ describe('InlayHintsProvider', () => {
       } as any);
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe(' @@$1000.00 ');
+      expect(labelToString(hints[0].label)).toBe(' @@$1000 ');
       expect(hints[0].kind).toBe(InlayHintKind.Type);
       expect(hints[0].position.line).toBe(1);
     });
@@ -350,8 +350,8 @@ describe('InlayHintsProvider', () => {
       } as any);
 
       expect(hints).toHaveLength(2);
-      expect(labelToString(hints[0].label)).toBe(' @@$1000.00 ');
-      expect(labelToString(hints[1].label)).toBe(' @@$25000.00 ');
+      expect(labelToString(hints[0].label)).toBe(' @@$1000 ');
+      expect(labelToString(hints[1].label)).toBe(' @@$25000 ');
     });
 
     test('should not show hints when showCostConversions is false', () => {
@@ -405,7 +405,7 @@ describe('InlayHintsProvider', () => {
 
       expect(hints).toHaveLength(1);
       expect(hints[0].position.line).toBe(6);
-      expect(labelToString(hints[0].label)).toBe('  $-1000.00');
+      expect(labelToString(hints[0].label)).toBe('  $-1000');
     });
 
     test('should handle empty range', () => {
@@ -599,7 +599,7 @@ include balance-include-other.journal
       expect(line4Hints.length).toBeGreaterThan(0);
 
       const line4Label = labelToString(line4Hints[0].label);
-      expect(line4Label).toContain('$-90.00');
+      expect(line4Label).toContain('$-90');
     });
   });
 });

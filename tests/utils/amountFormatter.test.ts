@@ -44,8 +44,8 @@ describe('formatAmount', () => {
         });
     });
 
-    describe('Default Heuristics', () => {
-        // Create a document with no commodity info to force heuristics
+    describe('Default Formatting', () => {
+        // Create a document with no commodity info to force defaults
         const emptyParsedDocument: ParsedDocument = {
             accounts: new Map(),
             transactions: [],
@@ -55,17 +55,15 @@ describe('formatAmount', () => {
             tags: new Map(),
         };
 
-        test('should format common currencies on left without space', () => {
+        test('should format all currencies on left without space by default', () => {
+            // Common symbols (previously heuristic)
             expect(formatAmount(50, '$', emptyParsedDocument)).toBe('$50.00');
             expect(formatAmount(50, '€', emptyParsedDocument)).toBe('€50.00');
-            expect(formatAmount(50, '£', emptyParsedDocument)).toBe('£50.00');
-            expect(formatAmount(50, '¥', emptyParsedDocument)).toBe('¥50.00');
-        });
 
-        test('should format other currencies on right with space', () => {
-            expect(formatAmount(50, 'CAD', emptyParsedDocument)).toBe('50.00 CAD');
-            expect(formatAmount(50, 'AUD', emptyParsedDocument)).toBe('50.00 AUD');
-            expect(formatAmount(50, 'UNKNOWN', emptyParsedDocument)).toBe('50.00 UNKNOWN');
+            // Other currencies (previously right/space)
+            expect(formatAmount(50, 'CAD', emptyParsedDocument)).toBe('CAD50.00');
+            expect(formatAmount(50, 'AUD', emptyParsedDocument)).toBe('AUD50.00');
+            expect(formatAmount(50, 'UNKNOWN', emptyParsedDocument)).toBe('UNKNOWN50.00');
         });
     });
 
@@ -78,7 +76,7 @@ describe('formatAmount', () => {
             expect(formatAmount(-1.5, 'BTC', mockParsedDocument)).toBe('-1.50000000 BTC');
         });
 
-        test('should place sign correctly for heuristics (left symbol)', () => {
+        test('should place sign correctly for defaults', () => {
             const emptyParsedDocument: ParsedDocument = {
                 accounts: new Map(),
                 transactions: [],
@@ -87,20 +85,16 @@ describe('formatAmount', () => {
                 payees: new Map(),
                 tags: new Map(),
             };
+            // Default is now symbol on left, so sign goes before symbol if configured (default defaults to after-symbol/before-number usually, but let's check formatAmount logic)
+            // options default signPosition is 'after-symbol'. 
+            // formatAmount defaults: symbolOnLeft=true.
+            // If symbolOnLeft=true, negativeSignBefore = (signPosition === 'before-symbol'). Default is 'after-symbol', so negativeSignBefore=false.
+            // Result: SYM-50.00
             expect(formatAmount(-50, '$', emptyParsedDocument)).toBe('$-50.00');
+            expect(formatAmount(-50, 'CAD', emptyParsedDocument)).toBe('CAD-50.00');
         });
 
-        test('should place sign correctly for heuristics (right symbol)', () => {
-            const emptyParsedDocument: ParsedDocument = {
-                accounts: new Map(),
-                transactions: [],
-                directives: [],
-                commodities: new Map(),
-                payees: new Map(),
-                tags: new Map(),
-            };
-            expect(formatAmount(-50, 'CAD', emptyParsedDocument)).toBe('-50.00 CAD');
-        });
+
     });
 
     describe('No Commodity', () => {

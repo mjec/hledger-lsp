@@ -146,7 +146,7 @@ describe('Validator', () => {
 
       const balanceErrors = result.diagnostics.filter(d => d.message.includes('does not balance'));
       expect(balanceErrors.length).toBeGreaterThan(0);
-      expect(balanceErrors[0].message).toContain('$5.00 off');
+      expect(balanceErrors[0].message).toContain('$5 off');
     });
 
     test('should validate transaction with multiple costs', () => {

@@ -28,6 +28,17 @@ export interface AmountLayout {
  * @param options - Formatting options (e.g. sign position)
  * @returns Formatted amount string (e.g., "$50.00", "50.00 USD")
  */
+export interface AmountWidths {
+  commodityBefore: number;
+  spaceBetweenCommodityBeforeAndAmount: number;
+  negativeSign: number;
+  integer: number;
+  decimalMark: number;
+  decimal: number;
+  spaceBetweenAmountAndCommodityAfter: number;
+  commodityAfter: number;
+}
+
 export function formatAmount(quantity: number, commodity: string, parsed: ParsedDocument, options?: FormattingOptions): string {
   // Construct a temporary Amount object to reuse the unified layout logic
   const amount: Amount = {
@@ -51,34 +62,7 @@ export function formatAmount(quantity: number, commodity: string, parsed: Parsed
   };
 
   const layout = getAmountLayout(amount, parsed, opts);
-
-  // Construct the string from layout
-  let result = '';
-  if (layout.negativeSignBefore) {
-    result += layout.isNegative ? '-' : '';
-    result += layout.commodityBefore;
-  } else {
-    result += layout.commodityBefore;
-    result += layout.isNegative ? '-' : '';
-  }
-
-  if (layout.spaceBetweenCommodityAndAmount && layout.commodityBefore) {
-    result += ' ';
-  }
-
-  result += layout.amountIntegerString;
-
-  if (layout.demicalMark) {
-    result += layout.demicalMark + layout.amountDecimalString;
-  }
-
-  if (layout.spaceBetweenCommodityAndAmount && layout.commodityAfter) {
-    result += ' ';
-  }
-
-  result += layout.commodityAfter;
-
-  return result;
+  return renderAmountLayout(layout);
 }
 
 /**
@@ -97,25 +81,13 @@ export function getAmountLayout(amount: Amount, parsed: ParsedDocument, options:
     if (formatPrecision !== null && formatPrecision !== undefined) {
       declaredPrecision = formatPrecision;
     }
-
-    // Apply heuristic defaults for common currency symbols in two cases:
-    // 1. If precision not specified at all (undefined)
-    // 2. If precision is null AND the amount being formatted doesn't have its own format
-    //    (meaning it's being created programmatically, like for inferred amounts)
-    if (formatPrecision === undefined || (formatPrecision === null && !amount.format)) {
-      const leftSymbols = ['$', '€', '£', '¥'];
-      if (leftSymbols.includes(amount.commodity)) {
-        declaredPrecision = 2;
-      }
-    }
   } else if (amount.format) {
     format = amount.format;
   } else {
     // If no format found, check some defaults or use empty
     if (!commodity && !amount.format) {
-      // Heuristic for common symbols if not declared
-      const leftSymbols = ['$', '€', '£', '¥'];
-      if (leftSymbols.includes(amount.commodity)) {
+      // Default for any undeclared commodity: Symbol on left, no space, precision 2
+      if (amount.commodity) {
         format = {
           symbolOnLeft: true,
           spaceBetween: false,
@@ -123,15 +95,8 @@ export function getAmountLayout(amount: Amount, parsed: ParsedDocument, options:
           precision: 2
         }
         declaredPrecision = 2;
-      } else if (amount.commodity) {
-        format = {
-          symbolOnLeft: false,
-          spaceBetween: true,
-          symbol: amount.commodity,
-          precision: 2
-        }
-        declaredPrecision = 2;
       }
+
     }
   }
 
@@ -201,3 +166,49 @@ export function getAmountLayout(amount: Amount, parsed: ParsedDocument, options:
     commodityAfter: !symbolOnLeft ? format?.symbol || amount.commodity || '' : ''
   };
 }
+
+/**
+ * Render the layout into a string, optionally using provided widths for alignment/padding.
+ * If widths are not provided, segments are joined without extra padding.
+ */
+export function renderAmountLayout(layout: AmountLayout, widths?: AmountWidths): string {
+  // If no widths provided, create minimal widths based on content
+  const effectiveWidths: AmountWidths = widths || {
+    commodityBefore: layout.commodityBefore.length,
+    spaceBetweenCommodityBeforeAndAmount: (layout.spaceBetweenCommodityAndAmount && layout.commodityBefore) ? 1 : 0,
+    negativeSign: layout.isNegative ? 1 : 0,
+    integer: layout.amountIntegerString.length,
+    decimalMark: layout.demicalMark.length,
+    decimal: layout.amountDecimalString.length,
+    spaceBetweenAmountAndCommodityAfter: (layout.spaceBetweenCommodityAndAmount && layout.commodityAfter) ? 1 : 0,
+    commodityAfter: layout.commodityAfter.length
+  };
+
+  let result = '';
+
+  if (layout.negativeSignBefore) {
+    result += layout.isNegative ? '-'.padStart(effectiveWidths.negativeSign, ' ') : ' '.repeat(effectiveWidths.negativeSign);
+    result += layout.commodityBefore.padStart(effectiveWidths.commodityBefore, ' ');
+  } else {
+    result += layout.commodityBefore.padStart(effectiveWidths.commodityBefore, ' ');
+    result += layout.isNegative ? '-'.padStart(effectiveWidths.negativeSign, ' ') : ' '.repeat(effectiveWidths.negativeSign);
+  }
+
+  result += ' '.repeat(effectiveWidths.spaceBetweenCommodityBeforeAndAmount);
+  result += layout.amountIntegerString.padStart(effectiveWidths.integer, ' ');
+
+  if (layout.demicalMark) {
+    result += layout.demicalMark.padEnd(effectiveWidths.decimalMark, ' ');
+    result += layout.amountDecimalString.padEnd(effectiveWidths.decimal, ' ');
+  } else {
+    // If there is no decimal mark in this specific amount, we still need to respect
+    // the reserved space for alignment if it exists.
+    result += ' '.repeat(effectiveWidths.decimalMark + effectiveWidths.decimal);
+  }
+
+  result += ' '.repeat(effectiveWidths.spaceBetweenAmountAndCommodityAfter);
+  result += layout.commodityAfter.padEnd(effectiveWidths.commodityAfter, ' ');
+
+  return result;
+}
+

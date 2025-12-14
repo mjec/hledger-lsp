@@ -4,10 +4,11 @@
 
 import { TextEdit, Range, Position, FormattingOptions as LSPFormattingOptions } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { Amount, ParsedDocument, Posting, Commodity, Format, Transaction } from '../types';
+import { ParsedDocument, Commodity, Transaction } from '../types';
 import { parseTransactionHeader } from '../parser/ast';
-import { isTransactionHeader, isPosting, isComment, isDirective } from '../utils/index';
-import { getAmountLayout, AmountLayout } from '../utils/amountFormatter';
+import { isTransactionHeader, isComment, isDirective } from '../utils/index';
+import { getAmountLayout, AmountLayout, renderAmountLayout, AmountWidths } from '../utils/amountFormatter';
+
 
 export interface FormattingOptions {
   /** Number of spaces for posting indentation (default: 4) */
@@ -28,26 +29,12 @@ export interface FormattingOptions {
   signPosition?: 'before-symbol' | 'after-symbol';
 }
 
-
-
-
-interface AmountColumnWidths {
-  commodityBefore: number;
-  spaceBetweenCommodityBeforeAndAmount: number;
-  negativeSign: number;
-  integer: number;
-  decimalMark: number;
-  decimal: number;
-  spaceBetweenAmountAndCommodityAfter: number;
-  commodityAfter: number;
-}
-
 interface TransactionColumnWidths {
   indent: number;
   account: number;
-  amount: AmountColumnWidths;
-  cost: AmountColumnWidths & { marker: number };
-  assertion: AmountColumnWidths & { marker: number };
+  amount: AmountWidths;
+  cost: AmountWidths & { marker: number };
+  assertion: AmountWidths & { marker: number };
 }
 
 const DEFAULT_OPTIONS: Required<FormattingOptions> = {
@@ -60,7 +47,6 @@ const DEFAULT_OPTIONS: Required<FormattingOptions> = {
   assertionDecimalAlignColumn: 70,
   signPosition: 'after-symbol'
 };
-
 
 export class FormattingProvider {
   /**
@@ -166,8 +152,8 @@ export class FormattingProvider {
 
       // 1. Amount
       if (posting.amount && !posting.amount.inferred) {
-        const layout = getAmountLayout(posting.amount, parsed, options);
-        const amountBlock = this.formatAlignedAmount(layout, widths.amount, options);
+        const layout: AmountLayout = getAmountLayout(posting.amount, parsed, options);
+        const amountBlock = renderAmountLayout(layout, widths.amount);
 
         // Calculate decimal alignment padding
         const preDecimalWidth = widths.amount.commodityBefore +
@@ -200,10 +186,10 @@ export class FormattingProvider {
 
       // 2. Cost
       if (posting.cost && !posting.cost.inferred) {
-        const layout = getAmountLayout(posting.cost.amount, parsed, options);
-        // Ensure marker (" @" or " @@") is padded to width
-        line += (posting.cost.type === 'unit' ? ' @' : ' @@').padEnd(widths.cost.marker, ' ');
-        line += this.formatAlignedAmount(layout, widths.cost, options);
+        line += (posting.cost.type === 'unit' ? ' @ ' : ' @@ ').padEnd(widths.cost.marker, ' ');
+        const layout: AmountLayout = getAmountLayout(posting.cost.amount, parsed, options);
+        line += renderAmountLayout(layout, widths.cost);
+
       } else {
         const totalWidth = widths.cost.marker +
           widths.cost.commodityBefore +
@@ -219,9 +205,10 @@ export class FormattingProvider {
 
       // 3. Assertion
       if (posting.assertion) {
+        line += ' = '.padEnd(widths.assertion.marker, ' ');
         const layout = getAmountLayout(posting.assertion, parsed, options);
-        line += ' ='.padEnd(widths.assertion.marker, ' ');
-        line += this.formatAlignedAmount(layout, widths.assertion, options);
+        line += renderAmountLayout(layout, widths.assertion);
+
       } else {
         const totalWidth = widths.assertion.marker +
           widths.assertion.commodityBefore +
@@ -267,6 +254,7 @@ export class FormattingProvider {
       indent: options.indentation,
       account: 0,
       amount: this.emptyAmountWidths(),
+
       cost: { ...this.emptyAmountWidths(), marker: 0 },
       assertion: { ...this.emptyAmountWidths(), marker: 0 }
     };
@@ -282,23 +270,20 @@ export class FormattingProvider {
       if (posting.cost && !posting.cost.inferred) {
         const layout = getAmountLayout(posting.cost.amount, parsed, options);
         this.updateAmountWidths(widths.cost, layout);
-        // Cost marker width (@ or @@) - " @" (2) or " @@" (3)
-        // We pad to min 3 or 4.
-        // Original code: `Math.max(..., posting.cost.type === 'unit' ? 3 : 4)`
         widths.cost.marker = Math.max(widths.cost.marker, posting.cost.type === 'unit' ? 3 : 4);
       }
 
       if (posting.assertion) {
         const layout = getAmountLayout(posting.assertion, parsed, options);
         this.updateAmountWidths(widths.assertion, layout);
-        // Assertion marker " ="
         widths.assertion.marker = Math.max(widths.assertion.marker, 3);
       }
     }
     return widths;
   }
 
-  private emptyAmountWidths(): AmountColumnWidths {
+  private emptyAmountWidths(): AmountWidths {
+
     return {
       commodityBefore: 0,
       spaceBetweenCommodityBeforeAndAmount: 0,
@@ -311,7 +296,8 @@ export class FormattingProvider {
     };
   }
 
-  private updateAmountWidths(widths: AmountColumnWidths, layout: AmountLayout) {
+  private updateAmountWidths(widths: AmountWidths, layout: AmountLayout) {
+
     widths.commodityBefore = Math.max(widths.commodityBefore, layout.commodityBefore.length);
     widths.spaceBetweenCommodityBeforeAndAmount = Math.max(widths.spaceBetweenCommodityBeforeAndAmount,
       (layout.spaceBetweenCommodityAndAmount && layout.commodityBefore.length) ? 1 : 0
@@ -325,40 +311,6 @@ export class FormattingProvider {
     );
     widths.commodityAfter = Math.max(widths.commodityAfter, layout.commodityAfter.length);
   }
-
-  private formatAlignedAmount(
-    layout: AmountLayout,
-    widths: AmountColumnWidths,
-    options: Required<FormattingOptions>
-  ): string {
-    let segment = '';
-    if (layout.negativeSignBefore) {
-      segment += layout.isNegative ? '-'.padStart(widths.negativeSign, ' ') : ' '.repeat(widths.negativeSign);
-      segment += layout.commodityBefore.padStart(widths.commodityBefore, ' ');
-    } else {
-      segment += layout.commodityBefore.padStart(widths.commodityBefore, ' ');
-      segment += layout.isNegative ? '-'.padStart(widths.negativeSign, ' ') : ' '.repeat(widths.negativeSign);
-    }
-    segment += ' '.repeat(widths.spaceBetweenCommodityBeforeAndAmount);
-    segment += layout.amountIntegerString.padStart(widths.integer, ' ');
-
-    // Note: Alignment padding is handled by caller before this block if needed (for decimal alignment)
-
-    if (layout.demicalMark) {
-      segment += layout.demicalMark.padEnd(widths.decimalMark, ' ');
-      segment += layout.amountDecimalString.padEnd(widths.decimal, ' ');
-    } else {
-      segment += ' '.repeat(widths.decimalMark + widths.decimal);
-    }
-    segment += ' '.repeat(widths.spaceBetweenAmountAndCommodityAfter);
-    segment += layout.commodityAfter.padEnd(widths.commodityAfter, ' ');
-
-    return segment;
-  }
-
-
-
-
 
   /**
    * Format a range of lines
@@ -453,12 +405,7 @@ export class FormattingProvider {
     return result;
   }
 
-  /**
-   * Find the commodity format from parsed document
-   */
-  private findCommodity(commodityName: string, parsed: ParsedDocument): Commodity | undefined {
-    return parsed.commodities.get(commodityName);
-  }
+
 }
 
 export const formattingProvider = new FormattingProvider();

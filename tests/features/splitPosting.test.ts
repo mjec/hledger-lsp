@@ -249,7 +249,7 @@ describe('Split Posting Code Actions', () => {
       const edits = splitAction!.edit!.changes![document.uri];
       const newText = edits[0].newText;
 
-      expect(newText).toContain('25.00 USD');
+      expect(newText).toContain('USD25.00');
     });
 
     it('should preserve indentation', () => {
