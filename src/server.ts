@@ -350,6 +350,11 @@ documents.onDidOpen(async e => {
     connection.console.log(`Lazy-initializing WorkspaceManager with directory: ${workspaceUri}`);
     await initializeWorkspaceManager([workspaceUri]);
   }
+
+  // Validate the newly opened document
+  // Note: If workspace was just initialized above, this document was already validated
+  // during initialization, but it's harmless to validate again
+  await validateTextDocument(e.document);
 });
 
 // Only keep settings for open documents
@@ -460,11 +465,22 @@ const fileReader: FileReader = (uri: URI) => {
 };
 
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
+  connection.console.log(`[validateTextDocument] Starting validation for: ${textDocument.uri}`);
+
   // Get document settings
   const settings = (await getDocumentSettings(URI.parse(textDocument.uri))) ?? defaultSettings;
 
   // Validation needs workspace state for balance assertions and full transaction history
   const parsedDoc = parseDocument(textDocument);
+
+  connection.console.log(`[validateTextDocument] Parsed ${parsedDoc.transactions.length} transactions`);
+  connection.console.log(`[validateTextDocument] Transaction sourceURIs (first 5):`);
+  for (const tx of parsedDoc.transactions.slice(0, 5)) {
+    connection.console.log(`  - ${tx.sourceUri?.toString() || 'null'} (line ${tx.line})`);
+  }
+  connection.console.log(`[validateTextDocument] Document URI: ${textDocument.uri}`);
+  const matchingTxCount = parsedDoc.transactions.filter(t => t.sourceUri?.toString() === textDocument.uri).length;
+  connection.console.log(`[validateTextDocument] Transactions matching document URI: ${matchingTxCount} / ${parsedDoc.transactions.length}`);
 
   // Track which files this document includes
   const includedFiles = new Set<URI>();
@@ -492,11 +508,18 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
     }
   });
 
+  connection.console.log(`[validateTextDocument] Found ${validationResult.diagnostics.length} diagnostics`);
+  for (const diag of validationResult.diagnostics.slice(0, 5)) {
+    connection.console.log(`  - Line ${diag.range.start.line}: ${diag.message}`);
+  }
+
   // Send diagnostics to the client
   connection.sendDiagnostics({
     uri: textDocument.uri,
     diagnostics: validationResult.diagnostics
   });
+
+  connection.console.log(`[validateTextDocument] Sent ${validationResult.diagnostics.length} diagnostics to client`);
 }
 
 // include path resolution moved to src/utils/uri.ts

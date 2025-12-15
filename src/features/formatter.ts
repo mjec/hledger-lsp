@@ -4,6 +4,7 @@
 
 import { TextEdit, Range, Position, FormattingOptions as LSPFormattingOptions } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { URI } from 'vscode-uri';
 import { ParsedDocument, Commodity, Transaction } from '../types';
 import { parseTransactionHeader } from '../parser/ast';
 import { isTransactionHeader, isComment, isDirective } from '../utils/index';
@@ -59,6 +60,8 @@ export class FormattingProvider {
     userOptions: Partial<FormattingOptions> = {}
   ): TextEdit[] {
     const options = { ...DEFAULT_OPTIONS, ...userOptions };
+    // Normalize document URI to ensure proper encoding
+    const documentUri = URI.parse(document.uri).toString();
     const text = document.getText();
     const lines = text.split('\n');
 
@@ -78,7 +81,7 @@ export class FormattingProvider {
         // to get inferred costs and other parsing results
 
 
-        const transaction = parsed.transactions.find(t => (t.line === i && t.sourceUri?.toString() === document.uri));
+        const transaction = parsed.transactions.find(t => (t.line === i && t.sourceUri?.toString() === documentUri));
 
         // Collect and format all postings in this transaction
         const transactionLines: string[] = [];

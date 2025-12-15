@@ -79,6 +79,10 @@ export class Validator {
     const diagnostics: Diagnostic[] = [];
     const settings = options?.settings;
 
+    // Normalize document URI to ensure proper encoding (e.g., @ -> %40)
+    // This fixes issues where clients (like Neovim) send partially-encoded URIs
+    const documentUri = URI.parse(document.uri).toString();
+
     // Helper to check if validation is enabled
     // Uses provided settings, or falls back to default settings
     const isEnabled = (key: keyof NonNullable<ValidationSettings['validation']>): boolean => {
@@ -95,7 +99,7 @@ export class Validator {
     for (const transaction of parsedDoc.transactions) {
       // Only validate transactions in the current document
       // (workspace parsing may include transactions from other files)
-      if (transaction.sourceUri?.toString() !== document.uri) {
+      if (transaction.sourceUri?.toString() !== documentUri) {
         continue;
       }
 
@@ -245,6 +249,9 @@ export class Validator {
   ): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
+    // Normalize document URI to ensure proper encoding
+    const documentUri = URI.parse(document.uri).toString();
+
     // Helper to convert severity string to DiagnosticSeverity
     const getSeverity = (severityStr?: string): DiagnosticSeverity => {
       switch (severityStr) {
@@ -273,7 +280,7 @@ export class Validator {
         // Iterate through transactions to find account usage locations
         for (const transaction of parsedDoc.transactions) {
           // Only process transactions from the current document
-          if (transaction.sourceUri && transaction.sourceUri.toString() !== document.uri) {
+          if (transaction.sourceUri && transaction.sourceUri.toString() !== documentUri) {
             continue;
           }
 
@@ -330,7 +337,7 @@ export class Validator {
         // Iterate through transactions to find payee usage locations
         for (const transaction of parsedDoc.transactions) {
           // Only process transactions from the current document
-          if (transaction.sourceUri && transaction.sourceUri.toString() !== document.uri) {
+          if (transaction.sourceUri && transaction.sourceUri.toString() !== documentUri) {
             continue;
           }
 
@@ -376,7 +383,7 @@ export class Validator {
         // Iterate through transactions to find commodity usage locations
         for (const transaction of parsedDoc.transactions) {
           // Only process transactions from the current document
-          if (transaction.sourceUri && transaction.sourceUri.toString() !== document.uri) {
+          if (transaction.sourceUri && transaction.sourceUri.toString() !== documentUri) {
             continue;
           }
 
@@ -495,7 +502,7 @@ export class Validator {
         // Iterate through transactions to find tag usage locations
         for (const transaction of parsedDoc.transactions) {
           // Only process transactions from the current document
-          if (transaction.sourceUri && transaction.sourceUri.toString() !== document.uri) {
+          if (transaction.sourceUri && transaction.sourceUri.toString() !== documentUri) {
             continue;
           }
 
@@ -630,8 +637,11 @@ export class Validator {
   private validateDateOrdering(transactions: Transaction[], document: TextDocument): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
+    // Normalize document URI to ensure proper encoding
+    const documentUri = URI.parse(document.uri).toString();
+
     // Only validate transactions in the current document
-    const documentTransactions = transactions.filter(t => t.sourceUri?.toString() === document.uri);
+    const documentTransactions = transactions.filter(t => t.sourceUri?.toString() === documentUri);
 
     for (let i = 1; i < documentTransactions.length; i++) {
       const prevDate = this.parseDate(documentTransactions[i - 1].date);
@@ -662,6 +672,9 @@ export class Validator {
   ): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
+    // Normalize document URI to ensure proper encoding
+    const documentUri = URI.parse(document.uri).toString();
+
     // Use the shared running balance calculator
     // This ensures balances are calculated in chronological order (by date),
     // not parse order, which is critical for multi-file journals
@@ -688,7 +701,7 @@ export class Validator {
         }
 
         // Check assertion - but only create diagnostics for assertions in the current document
-        if (posting.assertion && transaction.sourceUri?.toString() === document.uri) {
+        if (posting.assertion && transaction.sourceUri?.toString() === documentUri) {
           const accountBalances = runningBalances.get(posting.account);
           const commodity = posting.assertion.commodity || '';
           const expectedBalance = posting.assertion.quantity;

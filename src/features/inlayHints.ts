@@ -9,6 +9,7 @@
 
 import { InlayHint, InlayHintKind, InlayHintLabelPart, Position, Range, Command } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { URI } from 'vscode-uri';
 import { ParsedDocument, Transaction, Posting } from '../types';
 import { formatAmount } from '../utils/amountFormatter';
 import { calculateTransactionBalance } from '../utils/balanceCalculator';
@@ -44,6 +45,8 @@ export class InlayHintsProvider {
   ): InlayHint[] {
     const config = { ...DEFAULT_SETTINGS, ...settings?.inlayHints };
     const hints: InlayHint[] = [];
+    // Normalize document URI to ensure proper encoding
+    const documentUri = URI.parse(document.uri).toString();
 
     // If showing running balances, we need to process all transactions to accumulate balances
     // Otherwise, only process transactions within the requested range
@@ -54,8 +57,7 @@ export class InlayHintsProvider {
     // Only process transactions within the requested range
     for (const transaction of parsed.transactions) {
       // Only show inlay hints for transactions in the current document
-      // Normalize document URI to match internal storage format (decoded spaces, etc.)
-      if (transaction.sourceUri?.toString() !== document.uri) {
+      if (transaction.sourceUri?.toString() !== documentUri) {
         continue;
       }
 
