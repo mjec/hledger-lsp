@@ -58,7 +58,8 @@ export class FormattingProvider {
     document: TextDocument,
     parsed: ParsedDocument,
     _lspOptions: LSPFormattingOptions,
-    userOptions: Partial<FormattingOptions> = {}
+    userOptions: Partial<FormattingOptions> = {},
+    hledgerSettings?: HledgerSettings
   ): TextEdit[] {
     const options = { ...DEFAULT_OPTIONS, ...userOptions };
     // Normalize document URI to ensure proper encoding
@@ -102,7 +103,7 @@ export class FormattingProvider {
         }
 
         // Format all postings in the transaction together for alignment
-        formattedLines.push(...this.formatTransactionLines(transactionLines, transaction, parsed, options));
+        formattedLines.push(...this.formatTransactionLines(transactionLines, transaction, parsed, options, hledgerSettings));
 
         // Don't increment i here as we've already moved past the transaction
         continue;
@@ -134,9 +135,11 @@ export class FormattingProvider {
   private formatTransactionLines(
     lines: string[],
     transaction: Transaction | undefined, parsed: ParsedDocument,
-    options: Required<FormattingOptions>
+    options: Required<FormattingOptions>,
+    hledgerSettings?: HledgerSettings
   ): string[] {
     let formattedLines: string[] = [];
+    let postingHasInlayHintsArray: boolean[] = [];
 
     if (!transaction) {
       // No transaction info, just trim lines
@@ -153,7 +156,8 @@ export class FormattingProvider {
       let line = ' '.repeat(options.indentation);
       line += posting.account.padEnd(widths.account, ' ');
       line += ' '.repeat(options.minSpacing);
-
+      const postingHasInlayHints = (hledgerSettings?.inlayHints?.showInferredAmounts && posting.amount?.inferred) ||
+        (hledgerSettings?.inlayHints?.showCostConversions && posting.cost?.inferred) || (hledgerSettings?.inlayHints?.showRunningBalances) || false;
       // 1. Amount
       if (posting.amount && !posting.amount.inferred) {
         const layout: AmountLayout = getAmountLayout(posting.amount, parsed, options);
@@ -227,11 +231,14 @@ export class FormattingProvider {
       }
 
       if (posting.comment) {
-        line = line.trimEnd();
+        if (!postingHasInlayHints) {
+          line = line.trimEnd();
+        }
         line += ';' + posting.comment.trim();
       }
 
       formattedPostingLines.push(line);
+      postingHasInlayHintsArray.push(postingHasInlayHints);
     }
 
     // Third pass: Reintegrate with comments from original lines
@@ -241,7 +248,11 @@ export class FormattingProvider {
       if (isComment(trimmed) || trimmed === '') {
         formattedLines.push(line.trimEnd());
       } else {
-        formattedLines.push(formattedPostingLines[postingIndex].trimEnd());
+        if (!postingHasInlayHintsArray[postingIndex]) {
+          formattedLines.push(formattedPostingLines[postingIndex].trimEnd());
+        } else {
+          formattedLines.push(formattedPostingLines[postingIndex]);
+        }
         postingIndex++;
       }
     }
@@ -324,11 +335,12 @@ export class FormattingProvider {
     _range: Range,
     parsed: ParsedDocument,
     _lspOptions: LSPFormattingOptions,
-    userOptions: Partial<FormattingOptions> = {}
+    userOptions: Partial<FormattingOptions> = {},
+    hledgerSettings: HledgerSettings
   ): TextEdit[] {
     // For range formatting, we format the entire document and then extract the range
     // This ensures consistency when formatting partial selections
-    return this.formatDocument(document, parsed, _lspOptions, userOptions);
+    return this.formatDocument(document, parsed, _lspOptions, userOptions, hledgerSettings);
   }
 
   /**
@@ -340,7 +352,8 @@ export class FormattingProvider {
     ch: string,
     parsed: ParsedDocument,
     _lspOptions: LSPFormattingOptions,
-    userOptions: Partial<FormattingOptions> = {}
+    userOptions: Partial<FormattingOptions> = {},
+    hledgerSettings?: HledgerSettings
   ): TextEdit[] {
     // Only format on newline
     if (ch !== '\n') {
@@ -348,7 +361,7 @@ export class FormattingProvider {
     }
 
     // Format the entire document to maintain alignment
-    return this.formatDocument(document, parsed, _lspOptions, userOptions);
+    return this.formatDocument(document, parsed, _lspOptions, userOptions, hledgerSettings);
   }
 
   /**

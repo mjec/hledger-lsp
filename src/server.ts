@@ -465,23 +465,11 @@ const fileReader: FileReader = (uri: URI) => {
 };
 
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
-  connection.console.log(`[validateTextDocument] Starting validation for: ${textDocument.uri}`);
-
   // Get document settings
   const settings = (await getDocumentSettings(URI.parse(textDocument.uri))) ?? defaultSettings;
 
   // Validation needs workspace state for balance assertions and full transaction history
   const parsedDoc = parseDocument(textDocument);
-
-  connection.console.log(`[validateTextDocument] Parsed ${parsedDoc.transactions.length} transactions`);
-  connection.console.log(`[validateTextDocument] Transaction sourceURIs (first 5):`);
-  for (const tx of parsedDoc.transactions.slice(0, 5)) {
-    connection.console.log(`  - ${tx.sourceUri?.toString() || 'null'} (line ${tx.line})`);
-  }
-  connection.console.log(`[validateTextDocument] Document URI: ${textDocument.uri}`);
-  const matchingTxCount = parsedDoc.transactions.filter(t => t.sourceUri?.toString() === textDocument.uri).length;
-  connection.console.log(`[validateTextDocument] Transactions matching document URI: ${matchingTxCount} / ${parsedDoc.transactions.length}`);
-
   // Track which files this document includes
   const includedFiles = new Set<URI>();
   for (const directive of parsedDoc.directives) {
@@ -508,18 +496,11 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
     }
   });
 
-  connection.console.log(`[validateTextDocument] Found ${validationResult.diagnostics.length} diagnostics`);
-  for (const diag of validationResult.diagnostics.slice(0, 5)) {
-    connection.console.log(`  - Line ${diag.range.start.line}: ${diag.message}`);
-  }
-
   // Send diagnostics to the client
   connection.sendDiagnostics({
     uri: textDocument.uri,
     diagnostics: validationResult.diagnostics
   });
-
-  connection.console.log(`[validateTextDocument] Sent ${validationResult.diagnostics.length} diagnostics to client`);
 }
 
 // include path resolution moved to src/utils/uri.ts
@@ -676,7 +657,7 @@ connection.onDocumentRangeFormatting(async (params) => {
     const settings = await getDocumentSettings(URI.parse(params.textDocument.uri));
     const formattingOptions = settings?.formatting || {};
 
-    return formattingProvider.formatRange(document, params.range, parsed, params.options, formattingOptions);
+    return formattingProvider.formatRange(document, params.range, parsed, params.options, formattingOptions, settings);
   } catch (error) {
     connection.console.error(`Error in range formatting: ${error}`);
     return [];
@@ -702,7 +683,8 @@ connection.onDocumentOnTypeFormatting(async (params) => {
       params.ch,
       parsed,
       params.options,
-      formattingOptions
+      formattingOptions,
+      settings
     );
   } catch (error) {
     connection.console.error(`Error in on-type formatting: ${error}`);
@@ -1052,6 +1034,9 @@ connection.onExecuteCommand(async (params) => {
       // connection.window.showErrorMessage('Workspace manager not initialized');
       return [];
     }
+  } else if (params.command === 'hledger.insertCost') {
+    // Future command implementation placeholder
+    connection.console.log(`[ExecuteCommand] insertCost command not yet implemented`);
   }
 });
 
