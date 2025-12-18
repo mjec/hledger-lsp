@@ -69,7 +69,9 @@ describe('Cross-Platform Compatibility Tests', () => {
         // URI should use forward slashes
         const uriString = uri.toString();
         expect(uriString).toContain('file:///');
-        expect(uriString.toLowerCase()).toContain('c:/users/name/documents/test.journal');
+        // On Windows, the colon is URL-encoded as %3a or %3A
+        const lowerUri = uriString.toLowerCase();
+        expect(lowerUri).toMatch(/c(%3a|:)\/users\/name\/documents\/test\.journal/);
         expect(uriString).not.toContain('\\');
       });
 
@@ -79,7 +81,8 @@ describe('Cross-Platform Compatibility Tests', () => {
 
         // Should normalize to forward slashes in URI
         const uriString = uri.toString();
-        expect(uriString).toMatch(/file:\/\/\/[Cc]:\/Users\/Name\/Documents\/test\.journal/);
+        // On Windows, the colon is URL-encoded as %3a or %3A
+        expect(uriString).toMatch(/file:\/\/\/[Cc](%3a|%3A|:)\/Users\/Name\/Documents\/test\.journal/);
         expect(uriString).not.toContain('\\');
       });
     }

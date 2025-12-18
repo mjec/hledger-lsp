@@ -223,7 +223,7 @@ export function loadConfigFile(configPath: URI): ConfigLoadResult {
     }
   }
 
-  const configDir = URI.parse(path.dirname(toFilePath(configPath)));
+  const configDir = URI.file(path.dirname(toFilePath(configPath)));
 
   return {
     config,
