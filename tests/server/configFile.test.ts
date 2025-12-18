@@ -17,6 +17,14 @@ import {
 
 describe('ConfigFile', () => {
   let tempDir: string;
+  const isWindows = process.platform === 'win32';
+
+  // Helper to normalize paths for comparison on Windows (case-insensitive drive letters)
+  const normalizePath = (p: string): string => {
+    if (!isWindows) return p;
+    // Convert drive letter to lowercase for consistent comparison
+    return p.replace(/^([A-Z]):/, (match, letter) => letter.toLowerCase() + ':');
+  };
 
   beforeEach(() => {
     // Create a temporary directory for test files
@@ -38,7 +46,7 @@ describe('ConfigFile', () => {
       fs.writeFileSync(docPath, '');
 
       const found = discoverConfigFile(URI.file(docPath));
-      expect(found?.fsPath).toBe(configPath);
+      expect(normalizePath(found?.fsPath || '')).toBe(normalizePath(configPath));
     });
 
     it('should find config file in parent directory', () => {
@@ -51,7 +59,7 @@ describe('ConfigFile', () => {
       fs.writeFileSync(docPath, '');
 
       const found = discoverConfigFile(URI.file(docPath));
-      expect(found?.fsPath).toBe(configPath);
+      expect(normalizePath(found?.fsPath || '')).toBe(normalizePath(configPath));
     });
 
     it('should find config file in grandparent directory', () => {
@@ -66,7 +74,7 @@ describe('ConfigFile', () => {
       fs.writeFileSync(docPath, '');
 
       const found = discoverConfigFile(URI.file(docPath));
-      expect(found?.fsPath).toBe(configPath);
+      expect(normalizePath(found?.fsPath || '')).toBe(normalizePath(configPath));
     });
 
     it('should return null if no config file found', () => {
@@ -105,7 +113,7 @@ describe('ConfigFile', () => {
       fs.writeFileSync(docPath, '');
 
       const found = discoverConfigFile(URI.file(docPath), URI.file(workspaceRoot));
-      expect(found?.fsPath).toBe(configPath);
+      expect(normalizePath(found?.fsPath || '')).toBe(normalizePath(configPath));
     });
   });
 
@@ -116,8 +124,8 @@ describe('ConfigFile', () => {
 
       const result = loadConfigFile(URI.file(configPath));
       expect(result.config).toEqual({});
-      expect(result.configPath.fsPath).toBe(configPath);
-      expect(result.configDir.fsPath).toBe(tempDir);
+      expect(normalizePath(result.configPath.fsPath)).toBe(normalizePath(configPath));
+      expect(normalizePath(result.configDir.fsPath)).toBe(normalizePath(tempDir));
       expect(result.warnings).toEqual([]);
     });
 

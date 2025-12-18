@@ -5,23 +5,30 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 describe('URI utilities', () => {
+  const isWindows = process.platform === 'win32';
+
   describe('toFilePath', () => {
+    // Skip Unix path tests on Windows (vscode-uri converts Unix paths to Windows format)
     test('converts file:// URI to path', () => {
+      if (isWindows) return;
       const uri = URI.parse('file:///home/user/test.journal');
       expect(toFilePath(uri)).toBe('/home/user/test.journal');
     });
 
     test('decodes URI-encoded characters (spaces)', () => {
+      if (isWindows) return;
       const uri = URI.parse('file:///home/user/Cloud%20Storage/test.journal');
       expect(toFilePath(uri)).toBe('/home/user/Cloud Storage/test.journal');
     });
 
     test('decodes URI-encoded characters (parentheses and special chars)', () => {
+      if (isWindows) return;
       const uri = URI.parse('file:///home/user/My%20Documents%20(2025)/test.journal');
       expect(toFilePath(uri)).toBe('/home/user/My Documents (2025)/test.journal');
     });
 
     test('decodes complex path with multiple encoded characters', () => {
+      if (isWindows) return;
       const uri = URI.parse('file:///home/user/Sync/user@example.com/Cloud%20Storage/My%20Documents%20(2025)/Reports/Week44/User/work.journal');
       const expected = '/home/user/Sync/user@example.com/Cloud Storage/My Documents (2025)/Reports/Week44/User/work.journal';
       expect(toFilePath(uri)).toBe(expected);
@@ -52,17 +59,21 @@ describe('URI utilities', () => {
   });
 
   describe('toFilePath and toFileUri are inverses', () => {
+    // Skip Unix path tests on Windows (vscode-uri converts Unix paths to Windows format)
     test('roundtrip with spaces', () => {
+      if (isWindows) return;
       const path = '/home/user/Cloud Storage/test.journal';
       expect(toFilePath(toFileUri(path))).toBe(path);
     });
 
     test('roundtrip with parentheses', () => {
+      if (isWindows) return;
       const path = '/home/user/My Documents (2025)/test.journal';
       expect(toFilePath(toFileUri(path))).toBe(path);
     });
 
     test('roundtrip with complex path', () => {
+      if (isWindows) return;
       const path = '/home/user/Sync/user@example.com/Cloud Storage/My Documents (2025)/Reports/Week44/User/work.journal';
       expect(toFilePath(toFileUri(path))).toBe(path);
     });

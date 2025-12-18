@@ -9,10 +9,12 @@ import { parser } from '../../src/parser';
 import { defaultFileReader } from '../../src/utils/uri';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 
 describe('Validator Include Directives', () => {
   const fixturesPath = path.join(__dirname, '..', 'fixtures');
   const absoluteTestPath = path.join(fixturesPath, 'absolute-test.journal');
+  const isWindows = process.platform === 'win32';
 
   test('should not error on valid absolute path include', () => {
     const content = `; Test absolute path
@@ -23,15 +25,15 @@ include ${absoluteTestPath}
     Expenses:Test $-100
 `;
 
-    const uri = 'file://' + path.join(fixturesPath, 'validator-test.journal');
-    const doc = TextDocument.create(uri, 'hledger', 1, content);
+    const uri = URI.file(path.join(fixturesPath, 'validator-test.journal'));
+    const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
     const parsed = parser.parse(doc, {
-      baseUri: URI.parse(uri),
+      baseUri: uri,
       fileReader: defaultFileReader
     });
 
     const result = validator.validate(doc, parsed, {
-      baseUri: URI.parse(uri),
+      baseUri: uri,
       fileReader: defaultFileReader,
       settings: {
         validation: {
@@ -48,7 +50,7 @@ include ${absoluteTestPath}
   });
 
   test('should not error on valid file:// URI include', () => {
-    const fileUri = 'file://' + absoluteTestPath;
+    const fileUri = URI.file(absoluteTestPath).toString();
     const content = `; Test file:// URI
 include ${fileUri}
 
@@ -57,7 +59,7 @@ include ${fileUri}
     Expenses:Test $-50
 `;
 
-    const uri = URI.parse('file://' + path.join(fixturesPath, 'validator-uri-test.journal'));
+    const uri = URI.file(path.join(fixturesPath, 'validator-uri-test.journal'));
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
     const parsed = parser.parse(doc, {
       baseUri: uri,
@@ -89,7 +91,7 @@ include ../parent.journal
     Expenses:Test $-30
 `;
 
-    const uri = URI.parse('file://' + path.join(fixturesPath, 'nested', 'validator-relative-test.journal'));
+    const uri = URI.file(path.join(fixturesPath, 'nested', 'validator-relative-test.journal'));
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
     const parsed = parser.parse(doc, {
       baseUri: uri,
@@ -113,7 +115,7 @@ include ../parent.journal
   });
 
   test('should error on non-existent absolute path include', () => {
-    const nonExistentPath = '/tmp/does-not-exist-validator-test.journal';
+    const nonExistentPath = path.join(os.tmpdir(), 'does-not-exist-validator-test.journal');
     const content = `; Test non-existent absolute path
 include ${nonExistentPath}
 
@@ -122,7 +124,7 @@ include ${nonExistentPath}
     Expenses:Test $-40
 `;
 
-    const uri = URI.parse('file://' + path.join(fixturesPath, 'validator-nonexistent.journal'));
+    const uri = URI.file(path.join(fixturesPath, 'validator-nonexistent.journal'));
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
     const parsed = parser.parse(doc, {
       baseUri: uri,
@@ -166,7 +168,7 @@ include ~/.hledger-validator-test.journal
     Assets:Temp   $-25
 `;
 
-    const uri = URI.parse('file://' + path.join(fixturesPath, 'validator-tilde.journal'));
+    const uri = URI.file(path.join(fixturesPath, 'validator-tilde.journal'));
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
     const parsed = parser.parse(doc, {
       baseUri: uri,
@@ -201,7 +203,7 @@ include ~/.hledger-validator-test.journal
     }
 
     const content = fs.readFileSync(integrationTestPath, 'utf8');
-    const uri = URI.parse('file://' + integrationTestPath);
+    const uri = URI.file(integrationTestPath);
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
     const parsed = parser.parse(doc, {
@@ -241,7 +243,7 @@ include ~/.hledger-validator-test.journal
     }
 
     const content = fs.readFileSync(mainJournalPath, 'utf8');
-    const uri = URI.parse('file://' + mainJournalPath);
+    const uri = URI.file(mainJournalPath);
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
     const parsed = parser.parse(doc, {
@@ -276,7 +278,7 @@ include nonexistent/*.journal
     Expenses:Test $-100
 `;
 
-    const uri = URI.parse('file://' + path.join(fixturesPath, 'validator-glob-empty.journal'));
+    const uri = URI.file(path.join(fixturesPath, 'validator-glob-empty.journal'));
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
     const parsed = parser.parse(doc, {
       baseUri: uri,
@@ -315,7 +317,7 @@ include 2023/*.journal
     const testWorkspace2 = path.join(__dirname, '..', 'fixtures', 'test-workspace-2');
     const testPath = path.join(testWorkspace2, 'validator-multi-glob.journal');
 
-    const uri = URI.parse('file://' + testPath);
+    const uri = URI.file(testPath);
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
     const parsed = parser.parse(doc, {
       baseUri: uri,

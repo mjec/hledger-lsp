@@ -5,6 +5,7 @@
 import { CompletionProvider } from '../../src/features/completion';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { CompletionItemKind } from 'vscode-languageserver';
+import { URI } from 'vscode-uri';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -19,7 +20,7 @@ describe('Include Path Completion', () => {
 
   test('should complete files in current directory', () => {
     const doc = TextDocument.create(
-      'file://' + path.join(nestedPath, 'test.journal'),
+      URI.file(path.join(nestedPath, 'test.journal')).toString(),
       'hledger',
       1,
       'include '
@@ -34,7 +35,7 @@ describe('Include Path Completion', () => {
 
   test('should complete parent directory with ../', () => {
     const doc = TextDocument.create(
-      'file://' + path.join(nestedPath, 'test.journal'),
+      URI.file(path.join(nestedPath, 'test.journal')).toString(),
       'hledger',
       1,
       'include ../'
@@ -52,7 +53,7 @@ describe('Include Path Completion', () => {
 
   test('should complete parent directory when typing just ..', () => {
     const doc = TextDocument.create(
-      'file://' + path.join(nestedPath, 'test.journal'),
+      URI.file(path.join(nestedPath, 'test.journal')).toString(),
       'hledger',
       1,
       'include ..'
@@ -79,7 +80,7 @@ describe('Include Path Completion', () => {
     }
 
     const doc = TextDocument.create(
-      'file://' + path.join(nestedPath, 'test.journal'),
+      URI.file(path.join(nestedPath, 'test.journal')).toString(),
       'hledger',
       1,
       'include ../sibling/'
@@ -100,7 +101,7 @@ describe('Include Path Completion', () => {
 
   test('should complete subdirectory of parent with ../monthly/', () => {
     const doc = TextDocument.create(
-      'file://' + path.join(nestedPath, 'test.journal'),
+      URI.file(path.join(nestedPath, 'test.journal')).toString(),
       'hledger',
       1,
       'include ../monthly/'
@@ -115,7 +116,7 @@ describe('Include Path Completion', () => {
 
   test('should show directories with trailing slash', () => {
     const doc = TextDocument.create(
-      'file://' + path.join(nestedPath, 'test.journal'),
+      URI.file(path.join(nestedPath, 'test.journal')).toString(),
       'hledger',
       1,
       'include ../'

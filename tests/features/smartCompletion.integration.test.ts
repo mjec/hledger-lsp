@@ -23,7 +23,7 @@ describe('Smart Completion Integration Tests', () => {
   describe('with real journal file', () => {
     test('should load and parse main journal with includes', () => {
       const content = fs.readFileSync(mainJournalPath, 'utf8');
-      const uri = URI.parse('file://' + mainJournalPath);
+      const uri = URI.file(mainJournalPath);
       const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
       const parsed = parser.parse(doc, {
         baseUri: uri,
@@ -42,7 +42,7 @@ describe('Smart Completion Integration Tests', () => {
 
     test('should suggest Whole Foods accounts based on history', () => {
       const content = fs.readFileSync(mainJournalPath, 'utf8');
-      const uri = URI.parse('file://' + mainJournalPath);
+      const uri = URI.file(mainJournalPath);
 
       // Add a new transaction with Whole Foods at the end
       const modifiedContent = content + '\n\n2024-03-01 * Whole Foods\n    ';
@@ -91,7 +91,7 @@ describe('Smart Completion Integration Tests', () => {
 
     test('should suggest Shell Gas Station accounts based on history', () => {
       const content = fs.readFileSync(mainJournalPath, 'utf8');
-      const uri = URI.parse('file://' + mainJournalPath);
+      const uri = URI.file(mainJournalPath);
 
       // Add a new transaction with Shell Gas Station
       const modifiedContent = content + '\n\n2024-03-05 * Shell Gas Station\n    ';
@@ -124,7 +124,7 @@ describe('Smart Completion Integration Tests', () => {
 
     test('should suggest Uber accounts based on history', () => {
       const content = fs.readFileSync(mainJournalPath, 'utf8');
-      const uri = URI.parse('file://' + mainJournalPath);
+      const uri = URI.file(mainJournalPath);
 
       const modifiedContent = content + '\n\n2024-03-10 * Uber\n    ';
 
@@ -157,7 +157,7 @@ describe('Smart Completion Integration Tests', () => {
 
     test('should show correct frequency counts', () => {
       const content = fs.readFileSync(mainJournalPath, 'utf8');
-      const uri = URI.parse('file://' + mainJournalPath);
+      const uri = URI.file(mainJournalPath);
 
       const modifiedContent = content + '\n\n2024-03-01 * Whole Foods\n    ';
 
@@ -184,7 +184,7 @@ describe('Smart Completion Integration Tests', () => {
 
     test('should handle new payee without history', () => {
       const content = fs.readFileSync(mainJournalPath, 'utf8');
-      const uri = URI.parse('file://' + mainJournalPath);
+      const uri = URI.file(mainJournalPath);
 
       // Add transaction with a new payee
       const modifiedContent = content + '\n\n2024-03-15 * Target\n    ';
@@ -218,7 +218,7 @@ describe('Smart Completion Integration Tests', () => {
 
     test('should work with incomplete transactions', () => {
       const content = fs.readFileSync(mainJournalPath, 'utf8');
-      const uri = URI.parse('file://' + mainJournalPath);
+      const uri = URI.file(mainJournalPath);
 
       // Add incomplete transaction
       const modifiedContent = content + '\n\n2024-03-20 * Safeway\n    Expenses:Food:Groceries       $45.00\n    ';
@@ -246,7 +246,7 @@ describe('Smart Completion Integration Tests', () => {
 
     test('should handle payee with different account combinations', () => {
       const content = fs.readFileSync(mainJournalPath, 'utf8');
-      const uri = URI.parse('file://' + mainJournalPath);
+      const uri = URI.file(mainJournalPath);
 
       // ACME Corp uses different accounts (Income:Salary instead of Expenses)
       const modifiedContent = content + '\n\n2024-03-31 * ACME Corp\n    ';
@@ -281,7 +281,7 @@ describe('Smart Completion Integration Tests', () => {
   describe('global frequency ordering', () => {
     test('should sort accounts by global frequency when no payee match', () => {
       const content = fs.readFileSync(mainJournalPath, 'utf8');
-      const uri = URI.parse('file://' + mainJournalPath);
+      const uri = URI.file(mainJournalPath);
 
       // Add transaction with unknown payee
       const modifiedContent = content + '\n\n2024-03-25 * Random Store\n    ';

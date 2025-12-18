@@ -13,6 +13,13 @@ import { HledgerParser } from '../../src/parser/index';
 
 describe('Cross-Platform Compatibility Tests', () => {
   const isWindows = process.platform === 'win32';
+
+  // Helper to normalize paths for comparison on Windows (case-insensitive drive letters)
+  const normalizePath = (p: string): string => {
+    if (!isWindows) return p;
+    // Convert drive letter to lowercase for consistent comparison
+    return p.replace(/^([A-Z]):/, (match, letter) => letter.toLowerCase() + ':');
+  };
   const isMac = process.platform === 'darwin';
   const isLinux = process.platform === 'linux';
 
@@ -35,11 +42,11 @@ describe('Cross-Platform Compatibility Tests', () => {
         const uri = URI.parse('file:///C:/Users/Name/Documents/test.journal');
         const result = toFilePath(uri);
 
-        // Should be C:\Users\Name\Documents\test.journal
-        expect(result).toMatch(/^[A-Z]:[\\\/]/);
+        // Should be C:\Users\Name\Documents\test.journal (or c:\ on Windows)
+        expect(result).toMatch(/^[A-Za-z]:[\\\/]/);
         expect(result).toContain('Users');
         expect(result).toContain('test.journal');
-        expect(result).not.toMatch(/^[\\\/][A-Z]:/); // Should NOT have leading slash
+        expect(result).not.toMatch(/^[\\\/][A-Za-z]:/); // Should NOT have leading slash
       });
 
       test('should handle Windows file:// URIs with different drive letters', () => {
@@ -49,8 +56,9 @@ describe('Cross-Platform Compatibility Tests', () => {
           const uri = URI.parse(`file:///${drive}:/path/to/file.journal`);
           const result = toFilePath(uri);
 
-          expect(result).toMatch(new RegExp(`^${drive}:[\\\\\/]`));
-          expect(result).not.toMatch(/^[\\\/][A-Z]:/);
+          // Accept both uppercase and lowercase drive letters
+          expect(result).toMatch(new RegExp(`^${drive}:[\\\\\/]`, 'i'));
+          expect(result).not.toMatch(/^[\\\/][A-Za-z]:/);
         }
       });
 
@@ -59,9 +67,10 @@ describe('Cross-Platform Compatibility Tests', () => {
         const uri = toFileUri(winPath);
 
         // URI should use forward slashes
-        expect(uri).toContain('file:///');
-        expect(uri).toContain('C:/Users/Name/Documents/test.journal');
-        expect(uri).not.toContain('\\');
+        const uriString = uri.toString();
+        expect(uriString).toContain('file:///');
+        expect(uriString.toLowerCase()).toContain('c:/users/name/documents/test.journal');
+        expect(uriString).not.toContain('\\');
       });
 
       test('should handle mixed forward and backslashes', () => {
@@ -69,8 +78,9 @@ describe('Cross-Platform Compatibility Tests', () => {
         const uri = toFileUri(mixedPath);
 
         // Should normalize to forward slashes in URI
-        expect(uri).toMatch(/file:\/\/\/C:\/Users\/Name\/Documents\/test\.journal/);
-        expect(uri).not.toContain('\\');
+        const uriString = uri.toString();
+        expect(uriString).toMatch(/file:\/\/\/[Cc]:\/Users\/Name\/Documents\/test\.journal/);
+        expect(uriString).not.toContain('\\');
       });
     }
 
@@ -82,11 +92,11 @@ describe('Cross-Platform Compatibility Tests', () => {
       const uri = toFileUri(testPath);
       const backToPath = toFilePath(uri);
 
-      // Round-trip should preserve the path (with normalized separators)
+      // Round-trip should preserve the path (with normalized separators and drive letter casing)
       if (isWindows) {
-        // Normalize both to use same separator for comparison
-        const normalizedOriginal = testPath.replace(/\//g, path.sep);
-        const normalizedResult = backToPath.replace(/\//g, path.sep);
+        // Normalize both to use same separator and lowercase drive letter for comparison
+        const normalizedOriginal = normalizePath(testPath.replace(/\//g, path.sep));
+        const normalizedResult = normalizePath(backToPath.replace(/\//g, path.sep));
         expect(normalizedResult).toBe(normalizedOriginal);
       } else {
         expect(backToPath).toBe(testPath);
@@ -115,9 +125,9 @@ describe('Cross-Platform Compatibility Tests', () => {
         const uri = toFileUri(testPath);
         const backToPath = toFilePath(uri);
 
-        // Round-trip should work
-        const normalized = backToPath.replace(/\//g, path.sep);
-        const originalNormalized = testPath.replace(/\//g, path.sep);
+        // Round-trip should work (normalize drive letter casing on Windows)
+        const normalized = normalizePath(backToPath.replace(/\//g, path.sep));
+        const originalNormalized = normalizePath(testPath.replace(/\//g, path.sep));
         expect(normalized).toBe(originalNormalized);
       }
     });
@@ -149,7 +159,7 @@ describe('Cross-Platform Compatibility Tests', () => {
       const resolvedPath = toFilePath(resolved);
 
       if (isWindows) {
-        expect(resolvedPath).toMatch(/^[A-Z]:/);
+        expect(resolvedPath).toMatch(/^[A-Za-z]:/);
         expect(resolvedPath).toContain('Ledgers');
       } else {
         expect(resolvedPath).toBe('/etc/ledgers/included.journal');
@@ -164,9 +174,9 @@ describe('Cross-Platform Compatibility Tests', () => {
       const resolved = resolveIncludePath(tildeInclude, baseUri);
       const resolvedPath = toFilePath(resolved);
 
-      // Should expand to home directory
-      const normalizedResolved = resolvedPath.replace(/\//g, path.sep);
-      const normalizedHome = homeDir.replace(/\//g, path.sep);
+      // Should expand to home directory (normalize drive letter casing on Windows)
+      const normalizedResolved = normalizePath(resolvedPath.replace(/\//g, path.sep));
+      const normalizedHome = normalizePath(homeDir.replace(/\//g, path.sep));
       expect(normalizedResolved.startsWith(normalizedHome)).toBe(true);
       expect(normalizedResolved).toContain('ledgers');
       expect(normalizedResolved).toContain('test.journal');
@@ -418,8 +428,8 @@ describe('Cross-Platform Compatibility Tests', () => {
 
       // Normalized path should use platform-specific separators
       if (isWindows) {
-        // Could be either forward or back slashes on Windows
-        expect(backToPath).toMatch(/^[A-Z]:[\\\/]/);
+        // Could be either forward or back slashes on Windows (accept lowercase drive letter)
+        expect(backToPath).toMatch(/^[A-Za-z]:[\\\/]/);
       } else {
         expect(backToPath).toMatch(/^\//);
       }
