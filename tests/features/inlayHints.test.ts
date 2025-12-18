@@ -355,8 +355,9 @@ describe('InlayHintsProvider', () => {
 
       const hints = provider.provideInlayHints(doc, range, parsed);
 
-      // Default: all hints disabled by default
-      expect(hints).toHaveLength(0);
+      // Default: showInferredAmounts is enabled by default, so we should see 1 hint
+      expect(hints).toHaveLength(1);
+      expect(hints[0].kind).toBe(InlayHintKind.Parameter); // Inferred amount hint
     });
   });
 

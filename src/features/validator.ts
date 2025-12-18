@@ -13,7 +13,7 @@ import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction, Posting, FileReader } from '../types';
 import { resolveIncludePath, resolveIncludePaths, toFilePath, toFileUri } from '../utils/uri';
-import { defaultSettings } from '../server/settings';
+import { HledgerSettings, ValidationOptions, SeverityOptions, defaultSettings } from '../server/settings';
 import { calculateTransactionBalance } from '../utils/balanceCalculator';
 import { formatAmount } from '../utils/amountFormatter';
 import { calculateAccountBalances } from '../utils/runningBalanceCalculator';
@@ -23,38 +23,9 @@ export interface ValidationResult {
 }
 
 /**
- * Validation settings
+ * Options for validator
  */
-export interface ValidationSettings {
-  validation?: {
-    balance?: boolean;
-    missingAmounts?: boolean;
-    undeclaredAccounts?: boolean;
-    undeclaredPayees?: boolean;
-    undeclaredCommodities?: boolean;
-    undeclaredTags?: boolean;
-    dateOrdering?: boolean;
-    balanceAssertions?: boolean;
-    emptyTransactions?: boolean;
-    invalidDates?: boolean;
-    futureDates?: boolean;
-    emptyDescriptions?: boolean;
-    includeFiles?: boolean;
-    circularIncludes?: boolean;
-    markAllUndeclaredInstances?: boolean;
-  };
-  severity?: {
-    undeclaredAccounts?: 'error' | 'warning' | 'information' | 'hint';
-    undeclaredPayees?: 'error' | 'warning' | 'information' | 'hint';
-    undeclaredCommodities?: 'error' | 'warning' | 'information' | 'hint';
-    undeclaredTags?: 'error' | 'warning' | 'information' | 'hint';
-  };
-}
-
-/**
- * Options for validation
- */
-export interface ValidationOptions {
+export interface ValidatorOptions {
   /**
    * Base URI for resolving include paths
    */
@@ -68,14 +39,17 @@ export interface ValidationOptions {
   /**
    * Validation settings from user configuration
    */
-  settings?: ValidationSettings;
+  settings?: {
+    validation?: Partial<ValidationOptions>;
+    severity?: Partial<SeverityOptions>;
+  };
 }
 
 export class Validator {
   /**
    * Validate a parsed hledger document
    */
-  validate(document: TextDocument, parsedDoc: ParsedDocument, options?: ValidationOptions): ValidationResult {
+  validate(document: TextDocument, parsedDoc: ParsedDocument, options?: ValidatorOptions): ValidationResult {
     const diagnostics: Diagnostic[] = [];
     const settings = options?.settings;
 
@@ -85,13 +59,13 @@ export class Validator {
 
     // Helper to check if validation is enabled
     // Uses provided settings, or falls back to default settings
-    const isEnabled = (key: keyof NonNullable<ValidationSettings['validation']>): boolean => {
+    const isEnabled = (key: keyof ValidationOptions): boolean => {
       // If settings are provided, use them
       if (settings?.validation?.[key] !== undefined) {
         return settings.validation[key] === true;
       }
       // Otherwise use defaults
-      return defaultSettings.validation?.[key] ?? true;
+      return defaultSettings.validation[key];
     };
 
 
@@ -241,7 +215,7 @@ export class Validator {
   private validateUndeclaredItems(
     document: TextDocument,
     parsedDoc: ParsedDocument,
-    settings: ValidationSettings | undefined,
+    settings: { validation?: Partial<ValidationOptions>; severity?: Partial<SeverityOptions> } | undefined,
     checkAccounts: boolean = true,
     checkPayees: boolean = true,
     checkCommodities: boolean = true,
@@ -264,7 +238,7 @@ export class Validator {
     };
 
     // Check if we should mark all instances or just the first one
-    const markAllInstances = settings?.validation?.markAllUndeclaredInstances ?? defaultSettings.validation?.markAllUndeclaredInstances ?? true;
+    const markAllInstances = settings?.validation?.markAllUndeclaredInstances ?? defaultSettings.validation.markAllUndeclaredInstances;
 
     // Check undeclared accounts (if enabled)
     if (checkAccounts) {
@@ -927,7 +901,7 @@ export class Validator {
   private validateIncludeDirectives(
     document: TextDocument,
     parsedDoc: ParsedDocument,
-    options: ValidationOptions,
+    options: ValidatorOptions,
     checkMissingFiles: boolean = true,
     checkCircularIncludes: boolean = true
   ): Diagnostic[] {

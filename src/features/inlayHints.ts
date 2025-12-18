@@ -11,27 +11,16 @@ import { InlayHint, InlayHintKind, InlayHintLabelPart, Position, Range, Command 
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 import { ParsedDocument, Transaction, Posting, Amount } from '../types';
-import { formatAmount, getAmountLayout, type FormattingOptions } from '../utils/amountFormatter';
+import { formatAmount, getAmountLayout } from '../utils/amountFormatter';
 import { calculateTransactionBalance } from '../utils/balanceCalculator';
 import { calculateRunningBalances, RunningBalanceMap } from '../utils/runningBalanceCalculator';
-
-
-export interface InlayHintsSettings {
-  /** Show inferred amounts on postings without explicit amounts */
-  showInferredAmounts?: boolean;
-  /** Show running balance after each posting */
-  showRunningBalances?: boolean;
-  /** Show cost conversions (e.g., "= $135") */
-  showCostConversions?: boolean;
-}
-
-const DEFAULT_SETTINGS: Required<InlayHintsSettings> = {
-  showInferredAmounts: false,
-  showRunningBalances: false,
-  showCostConversions: false
-};
-
-import { HledgerSettings } from '../server/settings';
+import {
+  DEFAULT_FORMATTING_OPTIONS,
+  DEFAULT_INLAY_HINTS_OPTIONS,
+  type FormattingOptions,
+  type InlayHintsOptions,
+  type HledgerSettings
+} from '../server/settings';
 
 export class InlayHintsProvider {
   /**
@@ -43,7 +32,7 @@ export class InlayHintsProvider {
     parsed: ParsedDocument,
     settings?: HledgerSettings
   ): InlayHint[] {
-    const config = { ...DEFAULT_SETTINGS, ...settings?.inlayHints };
+    const config = { ...DEFAULT_INLAY_HINTS_OPTIONS, ...settings?.inlayHints };
     const hints: InlayHint[] = [];
     // Normalize document URI to ensure proper encoding
     const documentUri = URI.parse(document.uri).toString();
@@ -97,15 +86,8 @@ export class InlayHintsProvider {
     parsed: ParsedDocument,
     settings?: HledgerSettings
   ): number {
-    const options: Required<FormattingOptions> = {
-      indentation: 4,
-      maxAccountWidth: 42,
-      maxCommodityWidth: 4,
-      maxAmountWidth: 12,
-      minSpacing: 2,
-      decimalAlignColumn: 52,
-      assertionDecimalAlignColumn: 70,
-      signPosition: 'after-symbol',
+    const options: FormattingOptions = {
+      ...DEFAULT_FORMATTING_OPTIONS,
       ...settings?.formatting
     };
 
@@ -135,15 +117,8 @@ export class InlayHintsProvider {
     parsed: ParsedDocument,
     settings?: HledgerSettings
   ): number {
-    const options: Required<FormattingOptions> = {
-      indentation: 4,
-      maxAccountWidth: 42,
-      maxCommodityWidth: 4,
-      maxAmountWidth: 12,
-      minSpacing: 2,
-      decimalAlignColumn: 52,
-      assertionDecimalAlignColumn: 70,
-      signPosition: 'after-symbol',
+    const options: FormattingOptions = {
+      ...DEFAULT_FORMATTING_OPTIONS,
       ...settings?.formatting
     };
 
@@ -163,15 +138,8 @@ export class InlayHintsProvider {
     parsed: ParsedDocument,
     settings?: HledgerSettings
   ): number {
-    const options: Required<FormattingOptions> = {
-      indentation: 4,
-      maxAccountWidth: 42,
-      maxCommodityWidth: 4,
-      maxAmountWidth: 12,
-      minSpacing: 2,
-      decimalAlignColumn: 52,
-      assertionDecimalAlignColumn: 70,
-      signPosition: 'after-symbol',
+    const options: FormattingOptions = {
+      ...DEFAULT_FORMATTING_OPTIONS,
       ...settings?.formatting
     };
 

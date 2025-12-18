@@ -3,10 +3,7 @@
  */
 
 import { ParsedDocument, Amount, Format } from '../types';
-import { HledgerSettings } from '../server/settings';
-
-// Type alias to avoid circular dependency issues if HledgerSettings imports from elsewhere
-export type FormattingOptions = HledgerSettings['formatting'];
+import { FormattingOptions, DEFAULT_FORMATTING_OPTIONS } from '../server/settings';
 
 export interface AmountLayout {
   commodityBefore: string;
@@ -39,7 +36,7 @@ export interface AmountWidths {
   commodityAfter: number;
 }
 
-export function formatAmount(quantity: number, commodity: string, parsed: ParsedDocument, options?: FormattingOptions): string {
+export function formatAmount(quantity: number, commodity: string, parsed: ParsedDocument, options?: Partial<FormattingOptions>): string {
   // Construct a temporary Amount object to reuse the unified layout logic
   const amount: Amount = {
     quantity,
@@ -49,15 +46,8 @@ export function formatAmount(quantity: number, commodity: string, parsed: Parsed
   };
 
   // Safe defaults for options if not provided
-  const opts: Required<FormattingOptions> = {
-    indentation: 4,
-    maxAccountWidth: 42,
-    maxCommodityWidth: 4,
-    maxAmountWidth: 12,
-    minSpacing: 2,
-    decimalAlignColumn: 52,
-    assertionDecimalAlignColumn: 70,
-    signPosition: 'after-symbol',
+  const opts: FormattingOptions = {
+    ...DEFAULT_FORMATTING_OPTIONS,
     ...options
   };
 
@@ -68,7 +58,7 @@ export function formatAmount(quantity: number, commodity: string, parsed: Parsed
 /**
  * Calculate the layout components for an amount
  */
-export function getAmountLayout(amount: Amount, parsed: ParsedDocument, options: Required<FormattingOptions>): AmountLayout {
+export function getAmountLayout(amount: Amount, parsed: ParsedDocument, options: FormattingOptions): AmountLayout {
   const commodity = parsed.commodities.get(amount.commodity);
   let format: Format = {};
   let declaredPrecision: number | undefined = undefined;

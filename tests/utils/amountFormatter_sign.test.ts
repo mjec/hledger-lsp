@@ -16,11 +16,11 @@ describe('formatAmount with signPosition', () => {
         directives: []
     };
 
-    const optionsDefault: HledgerSettings['formatting'] = {
+    const optionsDefault: Partial<HledgerSettings['formatting']> = {
         signPosition: 'after-symbol'
     };
 
-    const optionsBefore: HledgerSettings['formatting'] = {
+    const optionsBefore: Partial<HledgerSettings['formatting']> = {
         signPosition: 'before-symbol'
     };
 

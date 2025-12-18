@@ -19,13 +19,7 @@ import { toFilePath } from '../utils/uri';
 import { ParsedDocument } from '../types';
 import { transactionAnalyzer } from './transactionAnalyzer';
 import { URI } from 'vscode-uri';
-
-interface CompletionSettings {
-  onlyDeclaredAccounts?: boolean;
-  onlyDeclaredPayees?: boolean;
-  onlyDeclaredCommodities?: boolean;
-  onlyDeclaredTags?: boolean;
-}
+import { type CompletionOptions } from '../server/settings';
 
 export class CompletionProvider {
   private accounts: Array<{ name: string; declared: boolean }> = [];
@@ -68,7 +62,7 @@ export class CompletionProvider {
     document: TextDocument,
     position: Position,
     parsed?: ParsedDocument,
-    settings?: CompletionSettings
+    settings?: Partial<CompletionOptions>
   ): CompletionItem[] {
     const line = document.getText({
       start: { line: position.line, character: 0 },
@@ -137,7 +131,7 @@ export class CompletionProvider {
   /**
    * Get account name completions
    */
-  private getAccountCompletions(settings?: CompletionSettings, range?: Range): CompletionItem[] {
+  private getAccountCompletions(settings?: Partial<CompletionOptions>, range?: Range): CompletionItem[] {
     const onlyDeclared = settings?.onlyDeclaredAccounts ?? true;
     const filtered = onlyDeclared ? this.accounts.filter(a => a.declared) : this.accounts;
 
@@ -152,7 +146,7 @@ export class CompletionProvider {
   /**
    * Get payee completions
    */
-  private getPayeeCompletions(settings?: CompletionSettings): CompletionItem[] {
+  private getPayeeCompletions(settings?: Partial<CompletionOptions>): CompletionItem[] {
     const onlyDeclared = settings?.onlyDeclaredPayees ?? true;
     const filtered = onlyDeclared ? this.payees.filter(p => p.declared) : this.payees;
 
@@ -186,7 +180,7 @@ export class CompletionProvider {
   /**
    * Get commodity completions
    */
-  getCommodityCompletions(settings?: CompletionSettings): CompletionItem[] {
+  getCommodityCompletions(settings?: Partial<CompletionOptions>): CompletionItem[] {
     const onlyDeclared = settings?.onlyDeclaredCommodities ?? true;
     const filtered = onlyDeclared ? this.commodities.filter(c => c.declared) : this.commodities;
 
@@ -200,7 +194,7 @@ export class CompletionProvider {
   /**
    * Get tag name completions
    */
-  getTagCompletions(settings?: CompletionSettings): CompletionItem[] {
+  getTagCompletions(settings?: Partial<CompletionOptions>): CompletionItem[] {
     const onlyDeclared = settings?.onlyDeclaredTags ?? true;
     const filtered = onlyDeclared ? this.tags.filter(t => t.declared) : this.tags;
 
@@ -310,7 +304,7 @@ export class CompletionProvider {
   private getSmartAccountCompletions(
     payee: string,
     parsed: ParsedDocument,
-    settings?: CompletionSettings,
+    settings?: Partial<CompletionOptions>,
     range?: Range
   ): CompletionItem[] {
     // Analyze the parsed document to build patterns

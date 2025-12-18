@@ -933,14 +933,6 @@ connection.onExecuteCommand(async (params) => {
     const { getAmountLayout, formatAmount } = await import('./utils/amountFormatter');
 
     const options = {
-      indentation: 4,
-      maxAccountWidth: 42,
-      maxCommodityWidth: 4,
-      maxAmountWidth: 12,
-      minSpacing: 2,
-      decimalAlignColumn: 52,
-      assertionDecimalAlignColumn: 70,
-      signPosition: 'after-symbol' as const,
       ...settings?.formatting
     };
 

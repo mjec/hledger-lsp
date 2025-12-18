@@ -12,16 +12,7 @@ import { CodeLens, Position, Range } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 import { ParsedDocument, Transaction } from '../types';
-
-
-export interface CodeLensSettings {
-  /** Show transaction count for each account */
-  showTransactionCounts?: boolean;
-}
-
-const DEFAULT_SETTINGS: Required<CodeLensSettings> = {
-  showTransactionCounts: false
-};
+import { DEFAULT_CODE_LENS_OPTIONS, type CodeLensOptions } from '../server/settings';
 
 export class CodeLensProvider {
   /**
@@ -72,9 +63,9 @@ export class CodeLensProvider {
   provideCodeLenses(
     document: TextDocument,
     parsed: ParsedDocument,
-    settings?: CodeLensSettings
+    settings?: Partial<CodeLensOptions>
   ): CodeLens[] {
-    const config = { ...DEFAULT_SETTINGS, ...settings };
+    const config = { ...DEFAULT_CODE_LENS_OPTIONS, ...settings };
     const lenses: CodeLens[] = [];
     // Normalize document URI to ensure proper encoding
     const documentUri = URI.parse(document.uri).toString();

@@ -9,27 +9,7 @@ import { ParsedDocument, Commodity, Transaction } from '../types';
 import { parseTransactionHeader } from '../parser/ast';
 import { isTransactionHeader, isComment, isDirective } from '../utils/index';
 import { getAmountLayout, AmountLayout, renderAmountLayout, AmountWidths } from '../utils/amountFormatter';
-import { HledgerSettings } from '../server/settings';
-
-
-export interface FormattingOptions {
-  /** Number of spaces for posting indentation (default: 4) */
-  indentation?: number;
-  /** Maximum width for account names (default: 42) */
-  maxAccountWidth?: number;
-  /** Maximum width for commodity symbols (default: 4) */
-  maxCommodityWidth?: number;
-  /** Maximum width for amount numbers (default: 12) */
-  maxAmountWidth?: number;
-  /** Minimum spaces between account and amount (default: 2) */
-  minSpacing?: number;
-  /** Target column for decimal alignment (default: 52) */
-  decimalAlignColumn?: number;
-  /** Target column for assertion decimal alignment (default: 70) */
-  assertionDecimalAlignColumn?: number;
-  /** Placement of negative sign for prefix commodities (default: 'after-symbol') */
-  signPosition?: 'before-symbol' | 'after-symbol';
-}
+import { HledgerSettings, FormattingOptions, DEFAULT_FORMATTING_OPTIONS } from '../server/settings';
 
 interface TransactionColumnWidths {
   indent: number;
@@ -38,17 +18,6 @@ interface TransactionColumnWidths {
   cost: AmountWidths & { marker: number };
   assertion: AmountWidths & { marker: number };
 }
-
-const DEFAULT_OPTIONS: Required<FormattingOptions> = {
-  indentation: 4,
-  maxAccountWidth: 42,
-  maxCommodityWidth: 4,
-  maxAmountWidth: 12,
-  minSpacing: 2,
-  decimalAlignColumn: 52,
-  assertionDecimalAlignColumn: 70,
-  signPosition: 'after-symbol'
-};
 
 export class FormattingProvider {
   /**
@@ -61,7 +30,7 @@ export class FormattingProvider {
     userOptions: Partial<FormattingOptions> = {},
     hledgerSettings?: HledgerSettings
   ): TextEdit[] {
-    const options = { ...DEFAULT_OPTIONS, ...userOptions };
+    const options = { ...DEFAULT_FORMATTING_OPTIONS, ...userOptions };
     // Normalize document URI to ensure proper encoding
     const documentUri = URI.parse(document.uri).toString();
     const text = document.getText();
@@ -135,7 +104,7 @@ export class FormattingProvider {
   private formatTransactionLines(
     lines: string[],
     transaction: Transaction | undefined, parsed: ParsedDocument,
-    options: Required<FormattingOptions>,
+    options: FormattingOptions,
     hledgerSettings?: HledgerSettings
   ): string[] {
     let formattedLines: string[] = [];
@@ -263,7 +232,7 @@ export class FormattingProvider {
   private calculateTransactionWidths(
     transaction: Transaction,
     parsed: ParsedDocument,
-    options: Required<FormattingOptions>
+    options: FormattingOptions
   ): TransactionColumnWidths {
     const widths: TransactionColumnWidths = {
       indent: options.indentation,
