@@ -176,7 +176,7 @@ describe('Semantic Tokens - Balance Assertions', () => {
     const line1Numbers = line1Tokens.filter(t => t.tokenType === 'number');
 
     // Extract actual text for each number token
-    const line1Text = content.split('\n')[1]
+    const line1Text = content.split('\n')[1];
 
     expect(line1Numbers.length).toBe(2);
     // First number: "200"

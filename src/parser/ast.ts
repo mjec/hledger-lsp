@@ -489,9 +489,9 @@ function parseNumberWithFormat(numStr: string, mark: string | undefined): number
 
   let cleanStr = numStr;
   if (mark) {
-    // Remove everything that is NOT the decimal mark, digit, or minus
+    // Remove everything that is NOT the decimal mark, digit, or sign (+/-)
     // This effectively removes thousands separators
-    const regex = new RegExp(`[^0-9${mark === '.' ? '\\.' : ','}-]`, 'g');
+    const regex = new RegExp(`[^0-9${mark === '.' ? '\\.' : ','}+-]`, 'g');
     cleanStr = numStr.replace(regex, '');
     // Replace decimal mark with dot for JS parseFloat
     if (mark === ',') {
@@ -499,7 +499,7 @@ function parseNumberWithFormat(numStr: string, mark: string | undefined): number
     }
   } else {
     // No separators found, just parse
-    cleanStr = numStr.replace(/[^0-9.-]/g, '');
+    cleanStr = numStr.replace(/[^0-9.+-]/g, '');
   }
   return parseFloat(cleanStr);
 }
@@ -515,44 +515,46 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amoun
 
   const patterns = [
     {
-      // Symbol on left, negative (e.g. -$100 or - $100)
-      pattern: /^-\s*([^\d\s-]+)\s*([-]?\d[\d.,\s]*)$/,
+      // Symbol on left, with sign prefix (e.g. -$100, +$100, - $100, + $100)
+      pattern: /^([+-])\s*([^\d\s+-]+)\s*([+-]?\d[\d.,\s]*)$/,
       handler: (m: RegExpMatchArray) => {
-        const rawAmount = m[2];
+        const sign = m[1];
+        const rawAmount = m[3];
         const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
-        return { quantity: -Math.abs(parseNumberWithFormat(rawAmount, mark || undefined)), commodity: m[1], rawAmount };
+        const quantity = parseNumberWithFormat(rawAmount, mark || undefined);
+        return { quantity: sign === '-' ? -Math.abs(quantity) : Math.abs(quantity), commodity: m[2], rawAmount };
       },
-      cleaner: (m: RegExpMatchArray, s: string) => s.replace(/^-/, '')
+      cleaner: (m: RegExpMatchArray, s: string) => s.replace(/^[+-]/, '')
     },
     {
       // Symbol on left
-      pattern: /^([^\d\s-]+)\s*([-]?\s*\d[\d.,\s]*)$/,
+      pattern: /^([^\d\s+-]+)\s*([+-]?\s*\d[\d.,\s]*)$/,
       handler: (m: RegExpMatchArray) => {
         const rawAmount = m[2];
         const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
         return { quantity: parseNumberWithFormat(rawAmount, mark || undefined), commodity: m[1], rawAmount };
       },
-      cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[2], m[2].replace('-', ''))
+      cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[2], m[2].replace(/[+-]/, ''))
     },
     {
       // Symbol on right
-      pattern: /^([-]?\s*\d[\d.,\s]*)\s*([^\d\s]+)$/,
+      pattern: /^([+-]?\s*\d[\d.,\s]*)\s*([^\d\s]+)$/,
       handler: (m: RegExpMatchArray) => {
         const rawAmount = m[1];
         const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
         return { quantity: parseNumberWithFormat(rawAmount, mark || undefined), commodity: m[2], rawAmount };
       },
-      cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[1], m[1].replace('-', ''))
+      cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[1], m[1].replace(/[+-]/, ''))
     },
     {
       // No symbol
-      pattern: /^([-]?\s*\d[\d.,\s]*)$/,
+      pattern: /^([+-]?\s*\d[\d.,\s]*)$/,
       handler: (m: RegExpMatchArray) => {
         const rawAmount = m[1];
         const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
         return { quantity: parseNumberWithFormat(rawAmount, mark || undefined), commodity: '', rawAmount };
       },
-      cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[1], m[1].replace('-', ''))
+      cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[1], m[1].replace(/[+-]/, ''))
     }
   ];
 
