@@ -10,8 +10,8 @@
 import { InlayHint, InlayHintKind, InlayHintLabelPart, Position, Range, Command } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
-import { ParsedDocument, Transaction, Posting } from '../types';
-import { formatAmount } from '../utils/amountFormatter';
+import { ParsedDocument, Transaction, Posting, Amount } from '../types';
+import { formatAmount, getAmountLayout, type FormattingOptions } from '../utils/amountFormatter';
 import { calculateTransactionBalance } from '../utils/balanceCalculator';
 import { calculateRunningBalances, RunningBalanceMap } from '../utils/runningBalanceCalculator';
 
@@ -88,6 +88,75 @@ export class InlayHintsProvider {
   }
 
   /**
+   * Calculate insertion position for inferred amount hint
+   * When formatter has added padding (showInferredAmounts enabled), insert at decimal alignment position
+   * Otherwise, calculate padding to align with explicit amounts
+   */
+  private calculateInferredAmountPadding(
+    line: string,
+    accountEnd: number,
+    amount: Amount,
+    parsed: ParsedDocument,
+    settings?: HledgerSettings
+  ): { padding: string; insertPosition: number } {
+    const options: Required<FormattingOptions> = {
+      indentation: 4,
+      maxAccountWidth: 42,
+      maxCommodityWidth: 4,
+      maxAmountWidth: 12,
+      minSpacing: 2,
+      decimalAlignColumn: 52,
+      assertionDecimalAlignColumn: 70,
+      signPosition: 'after-symbol',
+      ...settings?.formatting
+    };
+
+    // Get amount layout to determine pre-decimal width
+    const layout = getAmountLayout(amount, parsed, options);
+    const preDecimalWidth =
+      layout.commodityBefore.length +
+      (layout.spaceBetweenCommodityAndAmount && layout.commodityBefore ? 1 : 0) +
+      (layout.isNegative ? 1 : 0) +
+      layout.amountIntegerString.length;
+
+    // Calculate the target position for the start of the amount (before the decimal)
+    const targetColumn = options.decimalAlignColumn;
+    const amountStartColumn = targetColumn - preDecimalWidth;
+
+    // Find where we are on the line
+    const trimmedLine = line.trimEnd();
+    const commentMatch = line.match(/\s*[;#]/);
+    const endOfContent = commentMatch && commentMatch.index !== undefined
+      ? commentMatch.index
+      : trimmedLine.length;
+
+    // Calculate how much whitespace exists after account
+    const afterAccount = line.substring(accountEnd, endOfContent);
+    const existingWhitespace = afterAccount.length;
+    const currentEndColumn = accountEnd + existingWhitespace;
+
+    // Check if formatter has already added sufficient padding
+    // If the line has enough whitespace to reach the target position, insert there with no padding
+    if (currentEndColumn >= amountStartColumn) {
+      // Formatter has added padding - insert at the calculated position without additional padding
+      return {
+        padding: '',
+        insertPosition: amountStartColumn
+      };
+    } else {
+      // Not enough space - add padding to reach the target position
+      const requiredPadding = Math.max(
+        options.minSpacing,
+        amountStartColumn - accountEnd
+      );
+      return {
+        padding: ' '.repeat(requiredPadding),
+        insertPosition: accountEnd
+      };
+    }
+  }
+
+  /**
    * Get hints for inferred amounts (postings with amounts marked as inferred)
    */
   private getInferredAmountHints(document: TextDocument, transaction: Transaction, parsed: ParsedDocument, settings?: HledgerSettings): InlayHint[] {
@@ -108,6 +177,32 @@ export class InlayHintsProvider {
         // Find end of account name
         const accountEnd = line.indexOf(posting.account) + posting.account.length;
 
+        // Check if non-whitespace content exists after account (before comment)
+        const afterAccount = line.substring(accountEnd);
+        const commentPos = afterAccount.search(/[;#]/);
+        const beforeComment = commentPos >= 0
+          ? afterAccount.substring(0, commentPos)
+          : afterAccount;
+
+        const hasContentAfterAccount = beforeComment.trim().length > 0;
+
+        // Skip hint if non-whitespace, non-comment content exists after account
+        // This prevents hints from appearing when amounts, costs, or assertions are present
+        if (hasContentAfterAccount) {
+          postingIndex++;
+          continue;
+        }
+
+        // Calculate alignment padding and insertion position
+        const { padding, insertPosition } = this.calculateInferredAmountPadding(
+          line,
+          accountEnd,
+          posting.amount,
+          parsed,
+          settings
+        );
+
+        // Format amount without extra padding (padding handled separately)
         const amountText = formatAmount(
           posting.amount.quantity,
           posting.amount.commodity,
@@ -117,24 +212,25 @@ export class InlayHintsProvider {
 
         // Create clickable label part with command to insert the amount
         const labelPart: InlayHintLabelPart = {
-          value: `  ${amountText}`,
+          value: `${padding}${amountText}`,
           command: {
             title: 'Insert inferred amount',
             command: 'hledger.insertInferredAmount',
             arguments: [
               document.uri,
               lineNum,
-              posting.account,
-              amountText
+              accountEnd,
+              posting.amount.quantity,
+              posting.amount.commodity
             ]
           }
         };
 
         hints.push({
-          position: Position.create(lineNum, accountEnd),
+          position: Position.create(lineNum, insertPosition),
           label: [labelPart],
           kind: InlayHintKind.Parameter,
-          paddingLeft: true,
+          paddingLeft: false,  // We handle padding ourselves
           tooltip: 'Click to insert this inferred amount into the document'
         });
       }
@@ -182,11 +278,26 @@ export class InlayHintsProvider {
           end: { line: lineNum, character: Number.MAX_SAFE_INTEGER }
         });
 
-        // Find end of line (before comment if any)
-        let endPos = line.length;
+        // Find end of non-whitespace content (before comment)
         const commentPos = line.search(/[;#]/);
-        if (commentPos >= 0) {
-          endPos = commentPos;
+        const beforeComment = commentPos >= 0
+          ? line.substring(0, commentPos)
+          : line;
+
+        const trimmedLine = beforeComment.trimEnd();
+        const contentEnd = trimmedLine.length;
+
+        // Check if there's only whitespace between content end and a reasonable position
+        const afterContent = beforeComment.substring(contentEnd);
+        const hasOnlyWhitespace = afterContent.trim().length === 0;
+
+        let insertPosition: number;
+        if (hasOnlyWhitespace && beforeComment.length > contentEnd + 2) {
+          // Insert at a position with some spacing from content
+          insertPosition = contentEnd + 2;  // Add 2 spaces after content
+        } else {
+          // Insert at end of content (or before comment if present)
+          insertPosition = commentPos >= 0 ? commentPos : line.trimEnd().length;
         }
 
         // Format all commodity balances for this posting
@@ -215,10 +326,10 @@ export class InlayHintsProvider {
         };
 
         hints.push({
-          position: Position.create(lineNum, endPos),
+          position: Position.create(lineNum, insertPosition),
           label: [labelPart],
           kind: InlayHintKind.Type,
-          paddingLeft: true,
+          paddingLeft: false,  // No LSP padding
           tooltip: `Click to insert balance assertion for ${posting.account}`
         });
       }
@@ -248,10 +359,27 @@ export class InlayHintsProvider {
           end: { line: lineNum, character: Number.MAX_SAFE_INTEGER }
         });
 
-        // Find position after cost notation
-        const costMatch = line.match(/@@?[^;#]*/);
-        if (costMatch) {
-          const costEnd = line.indexOf(costMatch[0]) + costMatch[0].length;
+        // Find where the cost ends
+        const costMatch = line.match(/@\s*[^\s;#]+/);
+        if (costMatch && costMatch.index !== undefined) {
+          const costEnd = costMatch.index + costMatch[0].length;
+
+          // Check what comes after the cost
+          const commentPos = line.search(/[;#]/);
+          const afterCost = commentPos >= 0
+            ? line.substring(costEnd, commentPos)
+            : line.substring(costEnd);
+
+          const hasOnlyWhitespace = afterCost.trim().length === 0;
+
+          let insertPosition: number;
+          if (hasOnlyWhitespace && afterCost.length > 2) {
+            // Insert with some spacing
+            insertPosition = costEnd + 2;
+          } else {
+            // Insert at end of cost or before comment
+            insertPosition = commentPos >= 0 ? commentPos : line.trimEnd().length;
+          }
 
           const formattedCost = formatAmount(totalCost, posting.cost.amount.commodity || '', parsed);
 
@@ -271,10 +399,10 @@ export class InlayHintsProvider {
           };
 
           hints.push({
-            position: Position.create(lineNum, costEnd),
+            position: Position.create(lineNum, insertPosition),
             label: [labelPart],
             kind: InlayHintKind.Type,
-            paddingLeft: true,
+            paddingLeft: false,
             tooltip: 'Click to convert unit cost (@) to total cost (@@)'
           });
         }

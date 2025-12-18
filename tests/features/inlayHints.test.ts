@@ -39,7 +39,7 @@ describe('InlayHintsProvider', () => {
       } as any);
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe('  $-50');
+      expect(labelToString(hints[0].label)).toContain('$-50');
       expect(hints[0].kind).toBe(InlayHintKind.Parameter);
       expect(hints[0].position.line).toBe(2);
     });
@@ -63,7 +63,7 @@ describe('InlayHintsProvider', () => {
       } as any);
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe('  $95');
+      expect(labelToString(hints[0].label)).toContain('$95');
       expect(hints[0].position.line).toBe(3);
     });
 
@@ -85,7 +85,7 @@ describe('InlayHintsProvider', () => {
       } as any);
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe('  $-1000');
+      expect(labelToString(hints[0].label)).toContain('$-1000');
       expect(hints[0].position.line).toBe(2);
     });
 
@@ -107,7 +107,7 @@ describe('InlayHintsProvider', () => {
       } as any);
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe('  $-135');
+      expect(labelToString(hints[0].label)).toContain('$-135');
       expect(hints[0].position.line).toBe(2);
     });
 
@@ -405,7 +405,7 @@ describe('InlayHintsProvider', () => {
 
       expect(hints).toHaveLength(1);
       expect(hints[0].position.line).toBe(6);
-      expect(labelToString(hints[0].label)).toBe('  $-1000');
+      expect(labelToString(hints[0].label)).toContain('$-1000');
     });
 
     test('should handle empty range', () => {
@@ -504,7 +504,7 @@ describe('InlayHintsProvider', () => {
       } as any);
 
       expect(hints).toHaveLength(1);
-      expect(labelToString(hints[0].label)).toBe('  -50.00');
+      expect(labelToString(hints[0].label)).toContain('-50.00');
     });
 
     test('should handle inferred costs', () => {

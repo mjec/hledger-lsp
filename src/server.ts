@@ -656,7 +656,7 @@ connection.onDocumentFormatting(async (params) => {
     const formattingOptions = settings?.formatting || {};
     console.log(`Formatting`);
 
-    return formattingProvider.formatDocument(document, parsed, params.options, formattingOptions);
+    return formattingProvider.formatDocument(document, parsed, params.options, formattingOptions, settings);
   } catch (error) {
     connection.console.error(`Error in document formatting: ${error}`);
     return [];
@@ -898,12 +898,16 @@ connection.onExecuteCommand(async (params) => {
       // Ignore errors if client doesn't support refresh
     });
   } else if (params.command === 'hledger.insertInferredAmount') {
-    const [uri, line, account, amountText] = params.arguments as [string, number, string, string];
+    const [uri, line, accountEnd, quantity, commodity] = params.arguments as [string, number, number, number, string];
     const document = documents.get(uri);
 
     if (!document) {
       return;
     }
+
+    // Get parsed document and settings for proper formatting
+    const parsed = parseDocument(document);
+    const settings = await getDocumentSettings(URI.parse(uri));
 
     // Get the line text
     const lineText = document.getText({
@@ -911,17 +915,56 @@ connection.onExecuteCommand(async (params) => {
       end: { line, character: Number.MAX_SAFE_INTEGER }
     });
 
-    // Find where to insert the amount - after the account name
-    // Skip leading whitespace and find account name
-    const accountPos = lineText.indexOf(account);
-    if (accountPos === -1) {
-      return;
+    // Calculate padding and insertion position using same logic as inlay hints
+    const { getAmountLayout, formatAmount } = await import('./utils/amountFormatter');
+
+    const options = {
+      indentation: 4,
+      maxAccountWidth: 42,
+      maxCommodityWidth: 4,
+      maxAmountWidth: 12,
+      minSpacing: 2,
+      decimalAlignColumn: 52,
+      assertionDecimalAlignColumn: 70,
+      signPosition: 'after-symbol' as const,
+      ...settings?.formatting
+    };
+
+    const amount = { quantity, commodity };
+    const layout = getAmountLayout(amount, parsed, options);
+    const preDecimalWidth =
+      layout.commodityBefore.length +
+      (layout.spaceBetweenCommodityAndAmount && layout.commodityBefore ? 1 : 0) +
+      (layout.isNegative ? 1 : 0) +
+      layout.amountIntegerString.length;
+
+    const commentMatch = lineText.match(/\s*[;#]/);
+    const endOfContent = commentMatch && commentMatch.index !== undefined
+      ? commentMatch.index
+      : lineText.trimEnd().length;
+
+    const afterAccount = lineText.substring(accountEnd, endOfContent);
+    const existingWhitespace = afterAccount.length;
+
+    const targetColumn = options.decimalAlignColumn;
+    const requiredSpacing = Math.max(
+      options.minSpacing,
+      targetColumn - accountEnd - preDecimalWidth
+    );
+
+    let insertPos: number;
+    let padding: string;
+
+    if (existingWhitespace >= requiredSpacing) {
+      insertPos = accountEnd + requiredSpacing;
+      padding = '';
+    } else {
+      insertPos = endOfContent;
+      padding = ' '.repeat(Math.max(options.minSpacing, requiredSpacing - existingWhitespace));
     }
 
-    const insertPos = accountPos + account.length;
-
-    // Build the amount text with proper spacing
-    const insertText = `  ${amountText}`;
+    const amountText = formatAmount(quantity, commodity, parsed, settings?.formatting);
+    const insertText = `${padding}${amountText}`;
 
     // Create and apply the edit
     await connection.workspace.applyEdit({

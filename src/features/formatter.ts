@@ -9,6 +9,7 @@ import { ParsedDocument, Commodity, Transaction } from '../types';
 import { parseTransactionHeader } from '../parser/ast';
 import { isTransactionHeader, isComment, isDirective } from '../utils/index';
 import { getAmountLayout, AmountLayout, renderAmountLayout, AmountWidths } from '../utils/amountFormatter';
+import { HledgerSettings } from '../server/settings';
 
 
 export interface FormattingOptions {
