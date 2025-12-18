@@ -82,8 +82,6 @@ describe('Semantic Tokens - Balance Assertions', () => {
     // Find tokens on line 2 (the first posting with balance assertion)
     const line2Tokens = tokens.filter(t => t.line === 2);
 
-    console.log('Line 2 tokens:', JSON.stringify(line2Tokens, null, 2));
-
     // Should have:  account, amount ($100), =, assertion ($1000)
     // Account
     const accountToken = line2Tokens.find(t => t.tokenType === 'namespace');
@@ -118,13 +116,8 @@ describe('Semantic Tokens - Balance Assertions', () => {
     // Find tokens on line 2
     const line2Tokens = tokens.filter(t => t.line === 2);
 
-    console.log('Line 2 content:', content.split('\n')[2]);
-    console.log('Line 2 tokens:', JSON.stringify(line2Tokens, null, 2));
-
     // Amount number tokens
     const numberTokens = line2Tokens.filter(t => t.tokenType === 'number');
-    console.log('Number tokens:', JSON.stringify(numberTokens, null, 2));
-
     expect(numberTokens.length).toBe(2); // posting amount and assertion amount
 
     // First number should be "100.50" (length 6)
@@ -140,8 +133,6 @@ describe('Semantic Tokens - Balance Assertions', () => {
     const postingAmountText = line.substring(postingAmountToken.char, postingAmountToken.char + postingAmountToken.length);
     const assertionAmountText = line.substring(assertionAmountToken.char, assertionAmountToken.char + assertionAmountToken.length);
 
-    console.log('Posting amount text:', postingAmountText);
-    console.log('Assertion amount text:', assertionAmountText);
 
     expect(postingAmountText).toBe('100.50');
     expect(assertionAmountText).toBe('945.00');
@@ -160,9 +151,6 @@ describe('Semantic Tokens - Balance Assertions', () => {
 
     const line2Tokens = tokens.filter(t => t.line === 2);
     const numberTokens = line2Tokens.filter(t => t.tokenType === 'number');
-
-    console.log('Line content:', content.split('\n')[2]);
-    console.log('Number tokens:', JSON.stringify(numberTokens, null, 2));
 
     // Should have 2 number tokens
     expect(numberTokens.length).toBe(2);
@@ -187,16 +175,8 @@ describe('Semantic Tokens - Balance Assertions', () => {
     const line1Tokens = tokens.filter(t => t.line === 1);
     const line1Numbers = line1Tokens.filter(t => t.tokenType === 'number');
 
-    console.log('Line 1 content:', content.split('\n')[1]);
-    console.log('Line 1 all tokens:', JSON.stringify(line1Tokens, null, 2));
-    console.log('Line 1 number tokens:', JSON.stringify(line1Numbers, null, 2));
-
     // Extract actual text for each number token
-    const line1Text = content.split('\n')[1];
-    line1Numbers.forEach((token, idx) => {
-      const text = line1Text.substring(token.char, token.char + token.length);
-      console.log(`Number token ${idx}: "${text}" (char: ${token.char}, length: ${token.length})`);
-    });
+    const line1Text = content.split('\n')[1]
 
     expect(line1Numbers.length).toBe(2);
     // First number: "200"
@@ -208,14 +188,7 @@ describe('Semantic Tokens - Balance Assertions', () => {
     const line2Tokens = tokens.filter(t => t.line === 2);
     const line2Numbers = line2Tokens.filter(t => t.tokenType === 'number');
 
-    console.log('Line 2 content:', content.split('\n')[2]);
-    console.log('Line 2 number tokens:', JSON.stringify(line2Numbers, null, 2));
-
     const line2Text = content.split('\n')[2];
-    line2Numbers.forEach((token, idx) => {
-      const text = line2Text.substring(token.char, token.char + token.length);
-      console.log(`Number token ${idx}: "${text}" (char: ${token.char}, length: ${token.length})`);
-    });
 
     expect(line2Numbers.length).toBe(2);
     expect(line2Text.substring(line2Numbers[0].char, line2Numbers[0].char + line2Numbers[0].length)).toBe('-200.00');

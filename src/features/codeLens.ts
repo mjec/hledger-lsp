@@ -10,6 +10,7 @@
 
 import { CodeLens, Position, Range } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { URI } from 'vscode-uri';
 import { ParsedDocument, Transaction } from '../types';
 
 
@@ -75,6 +76,8 @@ export class CodeLensProvider {
   ): CodeLens[] {
     const config = { ...DEFAULT_SETTINGS, ...settings };
     const lenses: CodeLens[] = [];
+    // Normalize document URI to ensure proper encoding
+    const documentUri = URI.parse(document.uri).toString();
 
     // If transaction counts are not enabled, return early
     if (!config.showTransactionCounts) {
@@ -89,7 +92,7 @@ export class CodeLensProvider {
       const transaction = parsed.transactions[txIndex];
 
       // Only show code lenses for transactions in the current document
-      if (transaction.sourceUri?.toString() !== document.uri) {
+      if (transaction.sourceUri?.toString() !== documentUri) {
         continue;
       }
 

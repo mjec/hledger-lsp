@@ -48,8 +48,6 @@ describe('Parser - Balance Assertion Spacing', () => {
     const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
     const parsed = parser.parse(doc);
 
-    console.log('Parsed transaction:', JSON.stringify(parsed.transactions[0], null, 2));
-
     expect(parsed.transactions).toHaveLength(1);
     expect(parsed.transactions[0].postings).toHaveLength(1);
     expect(parsed.transactions[0].postings[0].assertion).toBeDefined();
@@ -63,8 +61,6 @@ describe('Parser - Balance Assertion Spacing', () => {
 
     const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
     const parsed = parser.parse(doc);
-
-    console.log('Parsed transaction:', JSON.stringify(parsed.transactions[0], null, 2));
 
     expect(parsed.transactions).toHaveLength(1);
     expect(parsed.transactions[0].postings).toHaveLength(1);
@@ -82,7 +78,6 @@ describe('Parser - Balance Assertion Spacing', () => {
     const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
     const parsed = parser.parse(doc);
 
-    console.log('Parsed transactions:', JSON.stringify(parsed.transactions, null, 2));
 
     expect(parsed.transactions).toHaveLength(1);
     expect(parsed.transactions[0].postings).toHaveLength(3);

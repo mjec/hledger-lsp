@@ -382,7 +382,7 @@ documents.onDidChangeContent(change => {
   const dependents = getDependents(URI.parse(change.document.uri));
   if (dependents) {
     for (const dependentUri of dependents) {
-      const dependentDoc = documents.get(dependentUri.toString());
+      const dependentDoc = getDocument(dependentUri.toString());
       if (dependentDoc) {
         validateTextDocument(dependentDoc);
       }
@@ -409,7 +409,8 @@ documents.onDidChangeContent(change => {
       const affectedDocs = allDocs.filter(doc => {
         const docRoot = workspaceManager!.getRootForFile(URI.parse(doc.uri));
         const isSameRoot = docRoot === changedRoot;
-        const isDifferentFile = doc.uri !== change.document.uri;
+        // Normalize URIs for comparison to handle encoding differences
+        const isDifferentFile = URI.parse(doc.uri).toString() !== URI.parse(change.document.uri).toString();
         return isSameRoot && isDifferentFile;
       });
 
@@ -449,18 +450,46 @@ connection.onDidChangeWatchedFiles(async (params) => {
 
 // dependency tracking moved to src/server/deps.ts
 
+/**
+ * Helper function to get a document from the collection with fuzzy URI matching
+ * Handles differences in URI encoding between VSCode and Neovim
+ */
+function getDocument(uri: string): TextDocument | undefined {
+  // Try 1: Exact match
+  let doc = documents.get(uri);
+  if (doc) return doc;
+
+  // Try 2: Normalized URI
+  const normalized = URI.parse(uri).toString();
+  if (normalized !== uri) {
+    doc = documents.get(normalized);
+    if (doc) return doc;
+  }
+
+  // Try 3: Search all documents with normalized comparison
+  for (const openDoc of documents.all()) {
+    if (URI.parse(openDoc.uri).toString() === normalized) {
+      return openDoc;
+    }
+  }
+
+  return undefined;
+}
+
 // Create a file reader that uses in-memory documents when available
 // This ensures we see unsaved changes in the editor
 const fileReader: FileReader = (uri: URI) => {
-  // Try to find document with exact URI
-  let openDoc = documents.get(uri.toString());
+  const uriString = uri.toString();
+
+  // Try to find the document with fuzzy URI matching
+  const openDoc = getDocument(uriString);
   if (openDoc) {
-    connection.console.debug(`[FileReader] Using in-memory document: ${uri} (version: ${openDoc.version})`);
+    connection.console.debug(`[FileReader] Using in-memory document: ${uriString} (version: ${openDoc.version})`);
     return openDoc;
   }
 
   // Fall back to reading from disk
-  // connection.console.debug(`[FileReader] Reading from disk: ${uri}`);
+  connection.console.debug(`[FileReader] Reading from disk: ${uriString} (not found in ${documents.all().length} open documents)`);
   return defaultFileReader(uri);
 };
 
@@ -509,7 +538,7 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 connection.onCompletion(
   async (textDocumentPosition: TextDocumentPositionParams): Promise<CompletionItem[]> => {
     try {
-      const document = documents.get(textDocumentPosition.textDocument.uri);
+      const document = getDocument(textDocumentPosition.textDocument.uri);
       if (!document) {
         return [];
       }
@@ -539,7 +568,7 @@ connection.onCompletionResolve(
 
 // Provide hover information
 connection.onHover(async (params, token) => {
-  const document = documents.get(params.textDocument.uri);
+  const document = getDocument(params.textDocument.uri);
   if (!document) return null;
 
   const parsed = parseDocument(document);
@@ -551,7 +580,7 @@ connection.onHover(async (params, token) => {
 
 // Provide definition locations (go-to-definition)
 connection.onDefinition((params) => {
-  const document = documents.get(params.textDocument.uri);
+  const document = getDocument(params.textDocument.uri);
   if (!document) return null;
 
   // Parse document with includes using server's fileReader
@@ -563,7 +592,7 @@ connection.onDefinition((params) => {
 
 // Provide references (find all usages)
 connection.onReferences((params) => {
-  const document = documents.get(params.textDocument.uri);
+  const document = getDocument(params.textDocument.uri);
   if (!document) return null;
 
   // Parse document with includes using server's fileReader
@@ -579,7 +608,7 @@ connection.onReferences((params) => {
 
 // Provide document symbols (outline view)
 connection.onDocumentSymbol((params) => {
-  const document = documents.get(params.textDocument.uri);
+  const document = getDocument(params.textDocument.uri);
   if (!document) return [];
 
   // Parse document with includes using server's fileReader
@@ -606,7 +635,7 @@ connection.onWorkspaceSymbol((params) => {
 
 // Provide code actions (quick fixes and refactorings)
 connection.onCodeAction((params) => {
-  const document = documents.get(params.textDocument.uri);
+  const document = getDocument(params.textDocument.uri);
   if (!document) return [];
 
   // Parse document with includes
@@ -626,7 +655,7 @@ connection.onCodeAction((params) => {
 // Provide document formatting
 connection.onDocumentFormatting(async (params) => {
   try {
-    const document = documents.get(params.textDocument.uri);
+    const document = getDocument(params.textDocument.uri);
     if (!document) return [];
 
     // Parse document
@@ -647,7 +676,7 @@ connection.onDocumentFormatting(async (params) => {
 // Provide range formatting
 connection.onDocumentRangeFormatting(async (params) => {
   try {
-    const document = documents.get(params.textDocument.uri);
+    const document = getDocument(params.textDocument.uri);
     if (!document) return [];
 
     // Parse document
@@ -667,7 +696,7 @@ connection.onDocumentRangeFormatting(async (params) => {
 // Provide on-type formatting
 connection.onDocumentOnTypeFormatting(async (params) => {
   try {
-    const document = documents.get(params.textDocument.uri);
+    const document = getDocument(params.textDocument.uri);
     if (!document) return [];
 
     // Parse document
@@ -694,7 +723,7 @@ connection.onDocumentOnTypeFormatting(async (params) => {
 
 // Provide semantic tokens
 connection.languages.semanticTokens.on((params) => {
-  const document = documents.get(params.textDocument.uri);
+  const document = getDocument(params.textDocument.uri);
   if (!document) return { data: [] };
 
   // Parse document
@@ -707,8 +736,11 @@ connection.languages.semanticTokens.on((params) => {
 // Provide inlay hints
 connection.languages.inlayHint.on(async (params) => {
   try {
-    const document = documents.get(params.textDocument.uri);
-    if (!document) return [];
+    const document = getDocument(params.textDocument.uri);
+    if (!document) {
+      connection.console.warn(`[InlayHint] Document not found: ${params.textDocument.uri}`);
+      return [];
+    }
 
     // Get settings for inlay hints
     const settings = await getDocumentSettings(URI.parse(params.textDocument.uri));
@@ -732,7 +764,7 @@ connection.languages.inlayHint.on(async (params) => {
 // Provide code lenses
 connection.onCodeLens(async (params) => {
   try {
-    const document = documents.get(params.textDocument.uri);
+    const document = getDocument(params.textDocument.uri);
     if (!document) return [];
 
     // CodeLens always needs workspace state for accurate transaction counts and balances
@@ -755,7 +787,7 @@ connection.onCodeLens(async (params) => {
 
 // Prepare rename - validate that position is on a renameable item
 connection.onPrepareRename((params) => {
-  const document = documents.get(params.textDocument.uri);
+  const document = getDocument(params.textDocument.uri);
   if (!document) return null;
 
   const parsed = parseDocument(document);
@@ -782,7 +814,7 @@ connection.onPrepareRename((params) => {
 
 // Rename request - perform the actual rename
 connection.onRenameRequest((params) => {
-  const document = documents.get(params.textDocument.uri);
+  const document = getDocument(params.textDocument.uri);
   if (!document) return null;
 
   const parsed = parseDocument(document);
@@ -796,7 +828,7 @@ connection.onRenameRequest((params) => {
 
 // Provide folding ranges
 connection.onFoldingRanges((params) => {
-  const document = documents.get(params.textDocument.uri);
+  const document = getDocument(params.textDocument.uri);
   if (!document) return [];
 
   // Parse document
@@ -807,7 +839,7 @@ connection.onFoldingRanges((params) => {
 
 // Provide document links
 connection.onDocumentLinks((params) => {
-  const document = documents.get(params.textDocument.uri);
+  const document = getDocument(params.textDocument.uri);
   if (!document) return [];
 
   // Parse document
@@ -818,7 +850,7 @@ connection.onDocumentLinks((params) => {
 
 // Provide selection ranges
 connection.onSelectionRanges((params) => {
-  const document = documents.get(params.textDocument.uri);
+  const document = getDocument(params.textDocument.uri);
   if (!document) return [];
 
   // Parse document
@@ -833,7 +865,7 @@ connection.onExecuteCommand(async (params) => {
 
   if (params.command === 'hledger.addBalanceAssertion' || params.command === 'hledger.insertBalanceAssertion') {
     const [uri, line, account, amounts] = params.arguments as [string, number, string, string[]];
-    const document = documents.get(uri);
+    const document = getDocument(uri);
 
     if (!document) {
       return;
@@ -881,7 +913,7 @@ connection.onExecuteCommand(async (params) => {
     });
   } else if (params.command === 'hledger.insertInferredAmount') {
     const [uri, line, accountEnd, quantity, commodity] = params.arguments as [string, number, number, number, string];
-    const document = documents.get(uri);
+    const document = getDocument(uri);
 
     if (!document) {
       return;
@@ -967,7 +999,7 @@ connection.onExecuteCommand(async (params) => {
     });
   } else if (params.command === 'hledger.convertToTotalCost') {
     const [uri, line, account, totalCostText] = params.arguments as [string, number, string, string];
-    const document = documents.get(uri);
+    const document = getDocument(uri);
 
     if (!document) {
       return;

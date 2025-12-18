@@ -4,6 +4,7 @@
 
 import { DocumentSymbol, SymbolInformation, SymbolKind, Range, Location } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { URI } from 'vscode-uri';
 import { ParsedDocument, Transaction, Directive } from '../types';
 import { formatAmount } from '../utils/amountFormatter';
 
@@ -16,11 +17,13 @@ export class DocumentSymbolProvider {
   provideDocumentSymbols(document: TextDocument, parsedDoc: ParsedDocument): DocumentSymbol[] {
     const symbols: DocumentSymbol[] = [];
     const lines = document.getText().split('\n');
+    // Normalize document URI to ensure proper encoding
+    const documentUri = URI.parse(document.uri).toString();
 
     // Add directive symbols
     for (const directive of parsedDoc.directives) {
       // Only include directives from the current document
-      if (directive.sourceUri && directive.sourceUri.toString() !== document.uri) {
+      if (directive.sourceUri && directive.sourceUri.toString() !== documentUri) {
         continue;
       }
 
@@ -42,7 +45,7 @@ export class DocumentSymbolProvider {
     // Add transaction symbols
     for (const transaction of parsedDoc.transactions) {
       // Only include transactions from the current document
-      if (transaction.sourceUri && transaction.sourceUri.toString() !== document.uri) {
+      if (transaction.sourceUri && transaction.sourceUri.toString() !== documentUri) {
         continue;
       }
 

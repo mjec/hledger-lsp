@@ -8,6 +8,7 @@
 
 import { FoldingRange, FoldingRangeKind } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { URI } from 'vscode-uri';
 import { ParsedDocument } from '../types';
 import { isTransactionHeader, isPosting, isComment } from '../utils/index';
 
@@ -35,12 +36,14 @@ export class FoldingRangesProvider {
    */
   private getTransactionFoldingRanges(document: TextDocument, lines: string[], parsedDoc: ParsedDocument): FoldingRange[] {
     const ranges: FoldingRange[] = [];
+    // Normalize document URI to ensure proper encoding
+    const documentUri = URI.parse(document.uri).toString();
 
     for (const transaction of parsedDoc.transactions) {
       if (transaction.line === undefined) continue;
 
       // Only fold transactions from the current document (skip if from workspace parsing)
-      if (transaction.sourceUri?.toString() !== document.uri) {
+      if (transaction.sourceUri?.toString() !== documentUri) {
         continue;
       }
 

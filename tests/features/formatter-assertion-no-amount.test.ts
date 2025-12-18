@@ -29,9 +29,6 @@ describe('Formatter - Balance Assertions Without Amounts', () => {
     const formatted = edits[0].newText;
     const lines = formatted.split('\n');
 
-    console.log('Formatted output:');
-    console.log(formatted);
-
     // The assertion should be preserved on the second posting
     expect(lines[2]).toContain('=');
     expect(lines[2]).toContain('100');
@@ -50,8 +47,6 @@ describe('Formatter - Balance Assertions Without Amounts', () => {
     const edits1 = formatter.formatDocument(doc, parsed, { tabSize: 4, insertSpaces: true });
     const formatted1 = edits1[0].newText;
 
-    console.log('After first format:');
-    console.log(formatted1);
 
     // Format again (this is where the bug manifests)
     const doc2 = TextDocument.create('file:///test.journal', 'hledger', 2, formatted1);
@@ -59,8 +54,6 @@ describe('Formatter - Balance Assertions Without Amounts', () => {
     const edits2 = formatter.formatDocument(doc2, parsed2, { tabSize: 4, insertSpaces: true });
     const formatted2 = edits2[0].newText;
 
-    console.log('After second format:');
-    console.log(formatted2);
 
     const lines1 = formatted1.split('\n');
     const lines2 = formatted2.split('\n');
@@ -94,9 +87,6 @@ describe('Formatter - Balance Assertions Without Amounts', () => {
 
     const edits1 = formatter.formatDocument(doc, parsed, { tabSize: 4, insertSpaces: true });
     const formatted1 = edits1[0].newText;
-
-    console.log('Formatted:');
-    console.log(formatted1);
 
     const lines = formatted1.split('\n');
 
