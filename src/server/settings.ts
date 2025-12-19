@@ -22,6 +22,7 @@ export interface HledgerSettings {
     invalidDates: boolean;
     futureDates: boolean;
     emptyDescriptions: boolean;
+    formatMismatch: boolean;
     includeFiles: boolean;
     circularIncludes: boolean;
     markAllUndeclaredInstances: boolean;
@@ -94,6 +95,7 @@ export const defaultSettings: HledgerSettings = {
     invalidDates: true,
     futureDates: true,
     emptyDescriptions: true,
+    formatMismatch: true,
     includeFiles: true,
     circularIncludes: true,
     markAllUndeclaredInstances: true,

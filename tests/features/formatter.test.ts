@@ -971,7 +971,7 @@ commodity €
 
 2024-01-01 Test
     expenses:food    $10.5
-    expenses:travel    €20.12
+    expenses:travel    €20,12
     assets:checking
 `;
       const doc = createDocument(content);
