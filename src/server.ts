@@ -666,7 +666,7 @@ connection.onDocumentFormatting(async (params) => {
     const formattingOptions = settings?.formatting || {};
     console.log(`Formatting`);
 
-    return formattingProvider.formatDocument(document, parsed, params.options, formattingOptions, settings);
+    return formattingProvider.formatDocument(document, parsed, params.options, formattingOptions, settings.inlayHints);
   } catch (error) {
     connection.console.error(`Error in document formatting: ${error}`);
     return [];
@@ -686,7 +686,7 @@ connection.onDocumentRangeFormatting(async (params) => {
     const settings = await getDocumentSettings(URI.parse(params.textDocument.uri));
     const formattingOptions = settings?.formatting || {};
 
-    return formattingProvider.formatRange(document, params.range, parsed, params.options, formattingOptions, settings);
+    return formattingProvider.formatRange(document, params.range, parsed, params.options, formattingOptions, settings.inlayHints);
   } catch (error) {
     connection.console.error(`Error in range formatting: ${error}`);
     return [];
@@ -713,7 +713,7 @@ connection.onDocumentOnTypeFormatting(async (params) => {
       parsed,
       params.options,
       formattingOptions,
-      settings
+      settings.inlayHints
     );
   } catch (error) {
     connection.console.error(`Error in on-type formatting: ${error}`);
@@ -937,11 +937,11 @@ connection.onExecuteCommand(async (params) => {
     };
 
     const amount = { quantity, commodity };
-    const layout = getAmountLayout(amount, parsed, options);
+    const layout = getAmountLayout(amount, parsed, options, '');
     const preDecimalWidth =
       layout.commodityBefore.length +
       (layout.spaceBetweenCommodityAndAmount && layout.commodityBefore ? 1 : 0) +
-      (layout.isNegative ? 1 : 0) +
+      (layout.negPosSign ? 1 : 0) +
       layout.amountIntegerString.length;
 
     const commentMatch = lineText.match(/\s*[;#]/);

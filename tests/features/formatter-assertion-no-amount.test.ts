@@ -85,7 +85,7 @@ describe('Formatter - Balance Assertions Without Amounts', () => {
     const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
     const parsed = parser.parse(doc);
 
-    const edits1 = formatter.formatDocument(doc, parsed, { tabSize: 4, insertSpaces: true });
+    const edits1 = formatter.formatDocument(doc, parsed, { tabSize: 4, insertSpaces: true }, {}, {});
     const formatted1 = edits1[0].newText;
 
     const lines = formatted1.split('\n');

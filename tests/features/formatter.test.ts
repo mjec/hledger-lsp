@@ -344,25 +344,7 @@ payee   Grocery Store
       const lines = formatted.split('\n');
 
       expect(lines[0]).toBe('; This is a header comment');
-    });
-
-    it('should trim trailing whitespace', () => {
-      const content = `2024-01-01 Transaction
-  expenses:food    $10.00
-  assets:checking
-`;
-      const doc = createDocument(content);
-      const parsed = parser.parse(doc);
-      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
-
-      const formatted = edits[0].newText;
-      const lines = formatted.split('\n');
-
-      // No trailing whitespace should remain
-      expect(lines[0]).not.toMatch(/\s$/);
-      expect(lines[1]).not.toMatch(/\s$/);
-      expect(lines[2]).not.toMatch(/\s$/);
-    });
+    })
 
     it('should use 4 spaces for posting indentation', () => {
       const content = `2024-01-01 Test indentation

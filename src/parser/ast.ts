@@ -571,7 +571,9 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amoun
       const amount: Amount = { quantity: res.quantity, commodity: res.commodity };
 
       let sampleForFormat = trimmed;
-      if (res.quantity < 0) {
+      // Strip sign before parsing format to avoid treating +/- as commodity symbol
+      // Check both the full input and the raw amount part for signs
+      if (/^[+-]/.test(trimmed) || /^[+-]/.test(res.rawAmount)) {
         sampleForFormat = cleaner(match, trimmed);
       }
 

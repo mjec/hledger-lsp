@@ -145,4 +145,62 @@ describe('parseAmount', () => {
             expect(result?.commodity).toBe('');
         });
     });
+
+    describe('format.symbol should not include +/- signs', () => {
+        it('should not treat + as commodity symbol for +100', () => {
+            const result = parseAmount('+100');
+            expect(result).not.toBeNull();
+            expect(result?.commodity).toBe('');
+            expect(result?.format?.symbol).toBe('');
+        });
+
+        it('should not treat - as commodity symbol for -100', () => {
+            const result = parseAmount('-100');
+            expect(result).not.toBeNull();
+            expect(result?.commodity).toBe('');
+            expect(result?.format?.symbol).toBe('');
+        });
+
+        it('should not include + in format.symbol for +$100', () => {
+            const result = parseAmount('+$100');
+            expect(result).not.toBeNull();
+            expect(result?.commodity).toBe('$');
+            expect(result?.format?.symbol).toBe('$');
+        });
+
+        it('should not include - in format.symbol for -$100', () => {
+            const result = parseAmount('-$100');
+            expect(result).not.toBeNull();
+            expect(result?.commodity).toBe('$');
+            expect(result?.format?.symbol).toBe('$');
+        });
+
+        it('should not include + in format.symbol for $+100', () => {
+            const result = parseAmount('$+100');
+            expect(result).not.toBeNull();
+            expect(result?.commodity).toBe('$');
+            expect(result?.format?.symbol).toBe('$');
+        });
+
+        it('should not include - in format.symbol for $-100', () => {
+            const result = parseAmount('$-100');
+            expect(result).not.toBeNull();
+            expect(result?.commodity).toBe('$');
+            expect(result?.format?.symbol).toBe('$');
+        });
+
+        it('should not include + in format.symbol for +100 USD', () => {
+            const result = parseAmount('+100 USD');
+            expect(result).not.toBeNull();
+            expect(result?.commodity).toBe('USD');
+            expect(result?.format?.symbol).toBe('USD');
+        });
+
+        it('should not include - in format.symbol for -100 USD', () => {
+            const result = parseAmount('-100 USD');
+            expect(result).not.toBeNull();
+            expect(result?.commodity).toBe('USD');
+            expect(result?.format?.symbol).toBe('USD');
+        });
+    });
 });

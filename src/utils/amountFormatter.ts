@@ -6,9 +6,10 @@ import { ParsedDocument, Amount, Format } from '../types';
 import { FormattingOptions, DEFAULT_FORMATTING_OPTIONS } from '../server/settings';
 
 export interface AmountLayout {
+  marker: string;
   commodityBefore: string;
-  isNegative: boolean;
-  negativeSignBefore: boolean;  // true if sign should be before commodity
+  negPosSign: string;
+  negativeSignBeforeCommodity: boolean;
   amountIntegerString: string;
   amountDecimalString: string;
   demicalMark: string;
@@ -26,12 +27,13 @@ export interface AmountLayout {
  * @returns Formatted amount string (e.g., "$50.00", "50.00 USD")
  */
 export interface AmountWidths {
+  marker: number;
   commodityBefore: number;
   spaceBetweenCommodityBeforeAndAmount: number;
-  negativeSign: number;
-  integer: number;
+  negPosSign: number;
+  integerPart: number;
   decimalMark: number;
-  decimal: number;
+  decimalPart: number;
   spaceBetweenAmountAndCommodityAfter: number;
   commodityAfter: number;
 }
@@ -51,14 +53,14 @@ export function formatAmount(quantity: number, commodity: string, parsed: Parsed
     ...options
   };
 
-  const layout = getAmountLayout(amount, parsed, opts);
+  const layout = getAmountLayout(amount, parsed, opts, '');
   return renderAmountLayout(layout);
 }
 
 /**
  * Calculate the layout components for an amount
  */
-export function getAmountLayout(amount: Amount, parsed: ParsedDocument, options: FormattingOptions): AmountLayout {
+export function getAmountLayout(amount: Amount, parsed: ParsedDocument, options: FormattingOptions, marker: string): AmountLayout {
   const commodity = parsed.commodities.get(amount.commodity);
   let format: Format = {};
   let declaredPrecision: number | undefined = undefined;
@@ -145,10 +147,18 @@ export function getAmountLayout(amount: Amount, parsed: ParsedDocument, options:
   // decimalPart is already correct from toFixed or toString
   const amountDecimalString = decimalPart;
 
+  let negPosSign = '';
+  if (options.showPositivesSign && amount.quantity > 0) {
+    negPosSign = '+';
+  } else if (amount.quantity < 0) {
+    negPosSign = '-';
+  }
+
   return {
+    marker: marker,
     commodityBefore: symbolOnLeft ? format?.symbol || amount.commodity || '' : '',
-    isNegative: amount.quantity < 0,
-    negativeSignBefore,
+    negPosSign: negPosSign,
+    negativeSignBeforeCommodity: negativeSignBefore,
     amountIntegerString,
     amountDecimalString,
     demicalMark: (targetPrecision !== undefined && targetPrecision > 0) || amountDecimalString.length > 0 ? (format.decimalMark || '.') : '',
@@ -164,36 +174,38 @@ export function getAmountLayout(amount: Amount, parsed: ParsedDocument, options:
 export function renderAmountLayout(layout: AmountLayout, widths?: AmountWidths): string {
   // If no widths provided, create minimal widths based on content
   const effectiveWidths: AmountWidths = widths || {
+    marker: layout.marker.length,
     commodityBefore: layout.commodityBefore.length,
     spaceBetweenCommodityBeforeAndAmount: (layout.spaceBetweenCommodityAndAmount && layout.commodityBefore) ? 1 : 0,
-    negativeSign: layout.isNegative ? 1 : 0,
-    integer: layout.amountIntegerString.length,
+    negPosSign: layout.negPosSign.length,
+    integerPart: layout.amountIntegerString.length,
     decimalMark: layout.demicalMark.length,
-    decimal: layout.amountDecimalString.length,
+    decimalPart: layout.amountDecimalString.length,
     spaceBetweenAmountAndCommodityAfter: (layout.spaceBetweenCommodityAndAmount && layout.commodityAfter) ? 1 : 0,
     commodityAfter: layout.commodityAfter.length
   };
 
   let result = '';
+  result += layout.marker.padEnd(effectiveWidths.marker, ' ');
 
-  if (layout.negativeSignBefore) {
-    result += layout.isNegative ? '-'.padStart(effectiveWidths.negativeSign, ' ') : ' '.repeat(effectiveWidths.negativeSign);
+  if (layout.negativeSignBeforeCommodity) {
+    result += layout.negPosSign ? layout.negPosSign.padStart(effectiveWidths.negPosSign, ' ') : ' '.repeat(effectiveWidths.negPosSign);
     result += layout.commodityBefore.padStart(effectiveWidths.commodityBefore, ' ');
   } else {
     result += layout.commodityBefore.padStart(effectiveWidths.commodityBefore, ' ');
-    result += layout.isNegative ? '-'.padStart(effectiveWidths.negativeSign, ' ') : ' '.repeat(effectiveWidths.negativeSign);
+    result += layout.negPosSign ? layout.negPosSign.padStart(effectiveWidths.negPosSign, ' ') : ' '.repeat(effectiveWidths.negPosSign);
   }
 
   result += ' '.repeat(effectiveWidths.spaceBetweenCommodityBeforeAndAmount);
-  result += layout.amountIntegerString.padStart(effectiveWidths.integer, ' ');
+  result += layout.amountIntegerString.padStart(effectiveWidths.integerPart, ' ');
 
   if (layout.demicalMark) {
     result += layout.demicalMark.padEnd(effectiveWidths.decimalMark, ' ');
-    result += layout.amountDecimalString.padEnd(effectiveWidths.decimal, ' ');
+    result += layout.amountDecimalString.padEnd(effectiveWidths.decimalPart, ' ');
   } else {
     // If there is no decimal mark in this specific amount, we still need to respect
     // the reserved space for alignment if it exists.
-    result += ' '.repeat(effectiveWidths.decimalMark + effectiveWidths.decimal);
+    result += ' '.repeat(effectiveWidths.decimalMark + effectiveWidths.decimalPart);
   }
 
   result += ' '.repeat(effectiveWidths.spaceBetweenAmountAndCommodityAfter);

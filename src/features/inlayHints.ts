@@ -92,11 +92,11 @@ export class InlayHintsProvider {
     };
 
     // Get amount layout to determine pre-decimal width
-    const layout = getAmountLayout(amount, parsed, options);
+    const layout = getAmountLayout(amount, parsed, options, '');
     const preDecimalWidth =
       layout.commodityBefore.length +
       (layout.spaceBetweenCommodityAndAmount && layout.commodityBefore ? 1 : 0) +
-      (layout.isNegative ? 1 : 0) +
+      (layout.negPosSign ? 1 : 0) +
       layout.amountIntegerString.length;
 
     // Calculate the target position for the start of the amount (before the decimal)
