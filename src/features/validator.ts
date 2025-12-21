@@ -838,9 +838,11 @@ export class Validator {
 
     // Check if the date components match the parsed date
     // This catches cases like Feb 30 which get corrected to Mar 2
-    if (parsedDate.getFullYear() !== year ||
-      parsedDate.getMonth() + 1 !== month ||
-      parsedDate.getDate() !== day) {
+    // Use UTC getters to match the UTC parsing of "YYYY-MM-DD" format
+    // This ensures correct validation regardless of timezone
+    if (parsedDate.getUTCFullYear() !== year ||
+      parsedDate.getUTCMonth() + 1 !== month ||
+      parsedDate.getUTCDate() !== day) {
       const range = this.getTransactionRange(transaction, document);
       diagnostics.push({
         severity: DiagnosticSeverity.Error,
@@ -865,8 +867,9 @@ export class Validator {
       return diagnostics; // Already handled by validateDateFormat
     }
 
+    // Use UTC for consistent date comparison regardless of timezone
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset time portion for date-only comparison
+    today.setUTCHours(0, 0, 0, 0); // Reset time portion for date-only comparison
 
     if (parsedDate > today) {
       const range = this.getTransactionRange(transaction, document);

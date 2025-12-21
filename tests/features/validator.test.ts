@@ -947,6 +947,30 @@ account expenses:food
       const dateErrors = result.diagnostics.filter(d => d.message.includes('Invalid month'));
       expect(dateErrors.length).toBeGreaterThan(0);
     });
+
+    test('should handle dates correctly regardless of timezone (UTC parsing bug)', () => {
+      // This test verifies that dates like 2025-05-01 are not incorrectly flagged
+      // The bug occurs when parsing "YYYY-MM-DD" as UTC but validating with local time getters
+      // In timezones west of UTC, this causes dates to shift to the previous day
+      const content = `2025-05-01 * Test transaction
+    expenses:food  $50.00
+    assets:checking  $-50.00
+
+2025-01-15 * Another test
+    expenses:food  $30.00
+    assets:checking  $-30.00
+
+2025-12-31 * Year end
+    expenses:food  $20.00
+    assets:checking  $-20.00`;
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsedDoc = parser.parse(doc);
+      const result = validator.validate(doc, parsedDoc);
+
+      // These are all valid dates and should not produce "does not exist in calendar" errors
+      const dateErrors = result.diagnostics.filter(d => d.message.includes('does not exist in calendar'));
+      expect(dateErrors).toHaveLength(0);
+    });
   });
 
   describe('future date validation', () => {

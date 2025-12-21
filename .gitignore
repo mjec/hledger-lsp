@@ -6,6 +6,7 @@ out/
 dist/
 *.js
 !jest.config.js
+!tests/setup-timezone-*.js
 *.js.map
 *.d.ts
 *.d.ts.map

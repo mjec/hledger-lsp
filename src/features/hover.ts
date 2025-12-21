@@ -159,11 +159,13 @@ export class HoverProvider {
    */
   private provideDateHover(dateStr: string): Hover {
     const date = new Date(dateStr.replace(/\//g, '-'));
+    // Use UTC to avoid timezone shifting (e.g., "2025-05-01" should display as May 1, not April 30 in US timezones)
     const formatted = date.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
+      timeZone: 'UTC'
     });
 
     return {
