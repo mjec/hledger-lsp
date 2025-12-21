@@ -496,87 +496,17 @@ export class SemanticTokensProvider {
     startOffset: number,
     builder: SemanticTokensBuilder
   ): void {
-    // Match sign before commodity with space: - $ 100.00 or + EUR 1000
-    let match = amountStr.match(/^([-+])\s*([^\d\s;+-.]+)\s+(\d[\d,.'\s]*(?:[.,]\d+)?)/);
-    if (match) {
-      const [, sign, commodity, number] = match;
-      const commodityStart = startOffset + amountStr.indexOf(commodity);
-      const numberStart = startOffset + amountStr.indexOf(number);
-
-      builder.push(lineIndex, commodityStart, commodity.length, TokenType.variable, 0);
-      builder.push(lineIndex, numberStart, number.trim().length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
-      return;
+    let match = (/^([-+])?\s*([^\d\s;+-.!"?(){}\[\]:'=]+|(?:"[^"]+"))?\s*([-+])?\s*((?:\d[\d,.\s]*[\d.,])|\d)\s*([^\d\s;+-.!"?(){}\[\]:'=]+|(?:"[^"]+"))?/d).exec(amountStr);
+    if (match && match.indices) {
+      const [, sign, commodityBefore, signAfter, number, commodityAfter] = match;
+      const [, signIndicies, commodityBeforeIndicies, signAfterIndicies, numberIndicies, commodityAfterIndicies] = match.indices
+      if (sign && signIndicies) builder.push(lineIndex, startOffset + signIndicies[0], sign.length, TokenType.operator, 0);
+      if (commodityBefore && commodityBeforeIndicies) builder.push(lineIndex, startOffset + commodityBeforeIndicies[0], commodityBefore.length, TokenType.variable, 0);
+      if (signAfter && signAfterIndicies) builder.push(lineIndex, startOffset + signAfterIndicies[0], signAfter.length, TokenType.operator, 0);
+      if (number && numberIndicies) builder.push(lineIndex, startOffset + numberIndicies[0], number.length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
+      if (commodityAfter && commodityAfterIndicies) builder.push(lineIndex, startOffset + commodityAfterIndicies[0], commodityAfter.length, TokenType.variable, 0);
     }
 
-    // Match sign before commodity without space: -$100.00 or +€50.50
-    match = amountStr.match(/^([-+])([^\d\s;+-.]+)(\d[\d,.'\s]*(?:[.,]\d+)?)/);
-    if (match) {
-      const [, sign, commodity, number] = match;
-      const signStart = startOffset;
-      const commodityStart = signStart + sign.length;
-      const numberStart = commodityStart + commodity.length;
-
-      builder.push(lineIndex, commodityStart, commodity.length, TokenType.variable, 0);
-      builder.push(lineIndex, numberStart, number.trim().length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
-      return;
-    }
-
-    // Match commodity-first with space: $ 100.00 or EUR 1 000 000,00
-    // Number pattern allows digits, commas, dots, apostrophes, and spaces within the number
-    match = amountStr.match(/^([^\d\s;+-.]+)\s+([-+]?\d[\d,.'\s]*(?:[.,]\d+)?)/);
-    if (match) {
-      const [, commodity, number] = match;
-      const commodityStart = startOffset + amountStr.indexOf(commodity);
-      const numberStart = startOffset + amountStr.indexOf(number);
-
-      builder.push(lineIndex, commodityStart, commodity.length, TokenType.variable, 0);
-      builder.push(lineIndex, numberStart, number.trim().length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
-      return;
-    }
-
-    // Match commodity-first without space: $100.00
-    match = amountStr.match(/^([^\d\s;+-.]+)([-+]?\d[\d,.'\s]*(?:[.,]\d+)?)/);
-    if (match) {
-      const [, commodity, number] = match;
-      const commodityStart = startOffset + amountStr.indexOf(commodity);
-      const numberStart = commodityStart + commodity.length;
-
-      builder.push(lineIndex, commodityStart, commodity.length, TokenType.variable, 0);
-      builder.push(lineIndex, numberStart, number.trim().length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
-      return;
-    }
-
-    // Match commodity-after with space: 100.00 USD or 1 000 000,00 EUR
-    match = amountStr.match(/([-+]?\d[\d,.'\s]*(?:[.,]\d+)?)\s+([^\d\s;+-.]+)/);
-    if (match) {
-      const [, number, commodity] = match;
-      const numberStart = startOffset + amountStr.indexOf(number);
-      const commodityStart = startOffset + amountStr.indexOf(commodity, number.length);
-
-      builder.push(lineIndex, numberStart, number.trim().length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
-      builder.push(lineIndex, commodityStart, commodity.length, TokenType.variable, 0);
-      return;
-    }
-
-    // Match commodity-after without space: 100.00USD
-    match = amountStr.match(/([-+]?\d[\d,.'\s]*(?:[.,]\d+)?)([^\d\s;+-.]+)/);
-    if (match) {
-      const [, number, commodity] = match;
-      const numberStart = startOffset + amountStr.indexOf(number);
-      const commodityStart = numberStart + number.length;
-
-      builder.push(lineIndex, numberStart, number.trim().length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
-      builder.push(lineIndex, commodityStart, commodity.length, TokenType.variable, 0);
-      return;
-    }
-
-    // Match number only (no commodity)
-    match = amountStr.match(/([-+]?\d[\d,.'\s]*(?:[.,]\d+)?)/);
-    if (match) {
-      const number = match[1];
-      const numberStart = startOffset + amountStr.indexOf(number);
-      builder.push(lineIndex, numberStart, number.trim().length, TokenType.number, encodeModifiers([TokenModifier.readonly]));
-    }
   }
 }
 

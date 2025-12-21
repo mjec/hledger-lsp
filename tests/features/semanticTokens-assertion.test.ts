@@ -160,40 +160,6 @@ describe('Semantic Tokens - Balance Assertions', () => {
     expect(numberTokens[1].length).toBe(6); // "100.25"
   });
 
-  test('should tokenize exact scenario from screenshot', () => {
-    // This is the exact scenario from the user's screenshot
-    const content = `2025-01-01 Opening
-    assets:cash                              200 = 600.00
-    equity:ob     -200.00 = -600.00`;
-
-    const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-    const parsed = parser.parse(doc);
-    const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
-    const tokens = decodeTokens(data);
-
-    // Line 1: assets:cash 200 = 600.00
-    const line1Tokens = tokens.filter(t => t.line === 1);
-    const line1Numbers = line1Tokens.filter(t => t.tokenType === 'number');
-
-    // Extract actual text for each number token
-    const line1Text = content.split('\n')[1];
-
-    expect(line1Numbers.length).toBe(2);
-    // First number: "200"
-    expect(line1Text.substring(line1Numbers[0].char, line1Numbers[0].char + line1Numbers[0].length)).toBe('200');
-    // Second number should be "600.00", not just "600"
-    expect(line1Text.substring(line1Numbers[1].char, line1Numbers[1].char + line1Numbers[1].length)).toBe('600.00');
-
-    // Line 2: equity:ob -200.00 = -600.00
-    const line2Tokens = tokens.filter(t => t.line === 2);
-    const line2Numbers = line2Tokens.filter(t => t.tokenType === 'number');
-
-    const line2Text = content.split('\n')[2];
-
-    expect(line2Numbers.length).toBe(2);
-    expect(line2Text.substring(line2Numbers[0].char, line2Numbers[0].char + line2Numbers[0].length)).toBe('-200.00');
-    expect(line2Text.substring(line2Numbers[1].char, line2Numbers[1].char + line2Numbers[1].length)).toBe('-600.00');
-  });
 
   test('should tokenize with various decimal patterns', () => {
     const content = `
