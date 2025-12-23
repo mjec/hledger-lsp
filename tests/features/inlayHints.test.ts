@@ -2,7 +2,7 @@ import { URI } from 'vscode-uri';
 import { InlayHintsProvider } from '../../src/features/inlayHints';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Range, InlayHintKind, InlayHintLabelPart } from 'vscode-languageserver';
-import { parser } from '../../src/parser';
+import { HledgerParser } from '../../src/parser';
 
 // Helper to convert InlayHint label to string
 function labelToString(label: string | InlayHintLabelPart[]): string {
@@ -15,9 +15,11 @@ function labelToString(label: string | InlayHintLabelPart[]): string {
 
 describe('InlayHintsProvider', () => {
   let provider: InlayHintsProvider;
+  let parser: HledgerParser;
 
   beforeEach(() => {
     provider = new InlayHintsProvider();
+    parser = new HledgerParser();
   });
 
   describe('inferred amount hints', () => {

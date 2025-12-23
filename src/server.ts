@@ -8,11 +8,8 @@ import {
   TextDocumentSyncKind,
   InitializeResult,
   CompletionItem,
-  CompletionItemKind,
   TextDocumentPositionParams,
   DidChangeConfigurationNotification,
-  ServerCapabilities,
-  SemanticTokensLegend
 } from 'vscode-languageserver/node';
 
 import { URI } from 'vscode-uri';

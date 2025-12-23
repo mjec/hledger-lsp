@@ -6,7 +6,7 @@
 
 import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { parser } from '../../src/parser';
+import { HledgerParser } from '../../src/parser';
 import { validator } from '../../src/features/validator';
 import { toFileUri, toFilePath, resolveIncludePath } from '../../src/utils/uri';
 import * as fs from 'fs';
@@ -18,6 +18,11 @@ describe('File paths with spaces integration test', () => {
   let mainFilePath: string;
   let declarationsFilePath: string;
   const isWindows = process.platform === 'win32';
+  let parser: HledgerParser;
+
+  beforeEach(() => {
+    parser = new HledgerParser();
+  });
 
   // Helper to normalize paths for comparison on Windows (case-insensitive drive letters)
   const normalizePath = (p: string): string => {

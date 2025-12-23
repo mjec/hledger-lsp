@@ -1,6 +1,7 @@
 import { CompletionProvider } from '../../src/features/completion';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { CompletionItemKind } from 'vscode-languageserver';
+import { HledgerParser } from '../../src/parser';
 
 // Helper to convert string arrays to the format expected by completion provider
 function toItems(names: string[], declared = true): Array<{ name: string; declared: boolean }> {
@@ -9,6 +10,7 @@ function toItems(names: string[], declared = true): Array<{ name: string; declar
 
 describe('CompletionProvider', () => {
   let provider: CompletionProvider;
+
 
   beforeEach(() => {
     provider = new CompletionProvider();
@@ -341,9 +343,11 @@ describe('CompletionProvider', () => {
   });
 
   describe('smart completions', () => {
+    let parser: HledgerParser;
     beforeEach(() => {
       provider.updateAccounts(toItems(['Expenses:Food', 'Expenses:Transport', 'Assets:Checking']));
       provider.updatePayees(toItems(['Grocery Store', 'Gas Station']));
+      parser = new HledgerParser();
     });
 
     test('should prioritize accounts used with payee', () => {
@@ -359,9 +363,9 @@ describe('CompletionProvider', () => {
     `;
 
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = require('../../src/parser').parser.parse(doc);
       const position = { line: 9, character: 4 };
 
+      const parsed = parser.parse(doc);
       const items = provider.getCompletionItems(doc, position, parsed);
 
       // Should suggest accounts, with Expenses:Food and Assets:Checking first
@@ -392,7 +396,7 @@ describe('CompletionProvider', () => {
     `;
 
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = require('../../src/parser').parser.parse(doc);
+      const parsed = parser.parse(doc);
       const position = { line: 9, character: 4 };
 
       const items = provider.getCompletionItems(doc, position, parsed);
@@ -421,7 +425,7 @@ describe('CompletionProvider', () => {
       const content = `    `;
 
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = require('../../src/parser').parser.parse(doc);
+      const parsed = parser.parse(doc);
       const position = { line: 0, character: 4 };
 
       const items = provider.getCompletionItems(doc, position, parsed);
@@ -443,7 +447,7 @@ describe('CompletionProvider', () => {
     `;
 
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = require('../../src/parser').parser.parse(doc);
+      const parsed = parser.parse(doc);
       const position = { line: 9, character: 4 };
 
       const items = provider.getCompletionItems(doc, position, parsed);

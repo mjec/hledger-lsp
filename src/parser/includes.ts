@@ -96,5 +96,3 @@ export class IncludeManager {
     return result;
   }
 }
-
-export const includeManager = new IncludeManager();

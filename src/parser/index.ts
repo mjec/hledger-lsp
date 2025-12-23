@@ -11,13 +11,10 @@
 
 import { ParsedDocument, Transaction, Account, Directive, Posting, Amount, Payee, Commodity, Tag, FileReader } from '../types';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment, isDirective } from '../utils/index';
-import { resolveIncludePath as resolveIncludePathUtil, resolveIncludePaths, toFilePath, toFileUri } from '../utils/uri';
+import { extractTags, isTransactionHeader, isComment, isDirective } from '../utils/index';
 import * as ast from './ast';
-import { includeManager } from './includes';
+import { IncludeManager } from './includes';
 import { URI } from 'vscode-uri';
-
-
 
 /**
  * Options for parsing hledger documents
@@ -51,6 +48,7 @@ export interface ParseOptions {
 }
 
 export class HledgerParser {
+  private includeManager = new IncludeManager();
 
   /**
    * Clear the include cache
@@ -58,7 +56,7 @@ export class HledgerParser {
    */
   clearCache(uri?: URI): void {
     // Delegate cache clearing to includeManager
-    includeManager.clearCache(uri);
+    this.includeManager.clearCache(uri);
   }
 
   /**
@@ -170,13 +168,7 @@ export class HledgerParser {
 
     // Process includes (delegate to includeManager which owns the cache).
     if (options?.fileReader && options.parseMode != 'document') {
-      // For deterministic behavior in tests, clear the include cache at the start of a
-      // top-level parse (when no visited set was provided). This ensures each call to
-      // parser.parse(...) gets a fresh cache while still allowing caching for repeated
-      // includes within the same parse invocation.
-      if (!options.visited) includeManager.clearCache();
-
-      result = includeManager.processIncludes(result, uri, { fileReader: options.fileReader, visited: options.visited }, (doc, cbOptions) => {
+      result = this.includeManager.processIncludes(result, uri, { fileReader: options.fileReader, visited: options.visited }, (doc, cbOptions) => {
         // parseCallback: call back into this parser to parse included documents, preserving options
         return this.parse(doc, { ...options, ...cbOptions });
       });
@@ -185,5 +177,3 @@ export class HledgerParser {
     return result;
   }
 }
-
-export const parser = new HledgerParser();

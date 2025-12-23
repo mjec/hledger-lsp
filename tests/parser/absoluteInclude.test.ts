@@ -4,7 +4,7 @@
 
 import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { parser } from '../../src/parser';
+import { HledgerParser } from '../../src/parser';
 import { defaultFileReader } from '../../src/utils/uri';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -12,6 +12,11 @@ import * as fs from 'fs';
 describe('absolute path includes', () => {
   const fixturesPath = path.join(__dirname, '..', 'fixtures');
   const absoluteTestPath = path.join(fixturesPath, 'absolute-test.journal');
+  let parser: HledgerParser;
+
+  beforeEach(() => {
+    parser = new HledgerParser();
+  });
 
   test('should include file using absolute path', () => {
     const content = `; Main file with absolute include

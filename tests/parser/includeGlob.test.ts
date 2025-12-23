@@ -22,11 +22,16 @@ jest.mock('../../src/utils/uri', () => {
   };
 });
 
-import { parser as sharedParser } from '../../src/parser';
+import { HledgerParser } from '../../src/parser';
 import { toFileUri } from '../../src/utils/uri';
 
 describe('include glob expansion', () => {
   const baseDir = '/tmp/hledger-lsp-test';
+  let parser: HledgerParser;
+
+  beforeEach(() => {
+    parser = new HledgerParser();
+  });
 
   // helper to create a TextDocument with given content and uri
   function docFor(path: string, content: string) {
@@ -53,7 +58,7 @@ describe('include glob expansion', () => {
       return null;
     };
 
-    const parsed = sharedParser.parse(includeAll, { baseUri: URI.parse(includeAll.uri), fileReader });
+    const parsed = parser.parse(includeAll, { baseUri: URI.parse(includeAll.uri), fileReader });
 
     // Should contain accounts from a.journal and b.journal, but not re-include include-all.journal
     const accounts: string[] = Array.from(parsed.accounts.values()).map(acc => acc.name);
@@ -84,7 +89,7 @@ describe('include glob expansion', () => {
       }
     };
 
-    const parsed = sharedParser.parse(rootInclude, { baseUri: URI.parse(rootInclude.uri), fileReader });
+    const parsed = parser.parse(rootInclude, { baseUri: URI.parse(rootInclude.uri), fileReader });
     const accounts: string[] = Array.from(parsed.accounts.values()).map(acc => acc.name);
 
     expect(accounts).toContain('Liabilities:Card');

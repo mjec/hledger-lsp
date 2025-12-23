@@ -1,9 +1,15 @@
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Diagnostic, DiagnosticSeverity, Range, CodeActionKind } from 'vscode-languageserver';
 import { codeActionProvider } from '../../src/features/codeActions';
-import { parser } from '../../src/parser/index';
+import { HledgerParser } from '../../src/parser';
 
 describe('CodeActionProvider', () => {
+  let parser: HledgerParser;
+
+  beforeEach(() => {
+    parser = new HledgerParser();
+  });
+
   describe('provideCodeActions', () => {
     test('should return empty array when no diagnostics', () => {
       const content = `account Assets:Bank

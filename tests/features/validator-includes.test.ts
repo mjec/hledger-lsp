@@ -5,7 +5,7 @@
 import { URI } from 'vscode-uri';
 import { validator } from '../../src/features/validator';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { parser } from '../../src/parser';
+import { HledgerParser } from '../../src/parser';
 import { defaultFileReader } from '../../src/utils/uri';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -15,6 +15,12 @@ describe('Validator Include Directives', () => {
   const fixturesPath = path.join(__dirname, '..', 'fixtures');
   const absoluteTestPath = path.join(fixturesPath, 'absolute-test.journal');
   const isWindows = process.platform === 'win32';
+
+  let parser: HledgerParser;
+
+  beforeEach(() => {
+    parser = new HledgerParser();
+  });
 
   test('should not error on valid absolute path include', () => {
     const content = `; Test absolute path

@@ -2,9 +2,15 @@ import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { SymbolKind } from 'vscode-languageserver';
 import { documentSymbolProvider, workspaceSymbolProvider } from '../../src/features/symbols';
-import { parser } from '../../src/parser/index';
+import { HledgerParser } from '../../src/parser';
 
 describe('DocumentSymbolProvider', () => {
+  let parser: HledgerParser;
+
+  beforeEach(() => {
+    parser = new HledgerParser();
+  });
+
   describe('provideDocumentSymbols', () => {
     test('should return empty array for empty document', () => {
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, '');
@@ -259,6 +265,12 @@ account Assets:Bank
   });
 });
 describe('WorkspaceSymbolProvider', () => {
+  let parser: HledgerParser;
+
+  beforeEach(() => {
+    parser = new HledgerParser();
+  });
+
   describe('provideWorkspaceSymbols', () => {
     test('should return empty array for empty query with empty document', () => {
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, '');

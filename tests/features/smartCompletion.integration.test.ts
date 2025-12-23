@@ -5,7 +5,7 @@
 import { URI } from 'vscode-uri';
 import { CompletionProvider } from '../../src/features/completion';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { parser } from '../../src/parser';
+import { HledgerParser } from '../../src/parser';
 import { CompletionItemKind } from 'vscode-languageserver';
 import { defaultFileReader } from '../../src/utils/uri';
 import * as path from 'path';
@@ -15,8 +15,10 @@ describe('Smart Completion Integration Tests', () => {
   let provider: CompletionProvider;
   const fixturesPath = path.join(__dirname, '..', 'fixtures');
   const mainJournalPath = path.join(fixturesPath, 'main.journal');
+  let parser: HledgerParser;
 
   beforeEach(() => {
+    parser = new HledgerParser();
     provider = new CompletionProvider();
   });
 

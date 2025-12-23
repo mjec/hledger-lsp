@@ -1,11 +1,13 @@
 import { TransactionAnalyzer } from '../../src/features/transactionAnalyzer';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { parser } from '../../src/parser';
+import { HledgerParser } from '../../src/parser';
 
 describe('TransactionAnalyzer', () => {
   let analyzer: TransactionAnalyzer;
+  let parser: HledgerParser;
 
   beforeEach(() => {
+    parser = new HledgerParser();
     analyzer = new TransactionAnalyzer();
   });
 

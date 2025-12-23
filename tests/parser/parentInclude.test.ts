@@ -4,7 +4,7 @@
 
 import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { parser } from '../../src/parser';
+import { HledgerParser } from '../../src/parser';
 import { defaultFileReader } from '../../src/utils/uri';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -12,6 +12,11 @@ import * as fs from 'fs';
 describe('parent directory includes', () => {
   const fixturesPath = path.join(__dirname, '..', 'fixtures');
   const childJournalPath = path.join(fixturesPath, 'nested', 'child.journal');
+  let parser: HledgerParser;
+
+  beforeEach(() => {
+    parser = new HledgerParser();
+  });
 
   test('should include file from parent directory using ../path', () => {
     const content = fs.readFileSync(childJournalPath, 'utf8');

@@ -1,9 +1,15 @@
 import { findReferencesProvider } from '../../src/features/findReferences';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Position } from 'vscode-languageserver';
-import { parser } from '../../src/parser';
+import { HledgerParser } from '../../src/parser';
 
 describe('FindReferencesProvider', () => {
+  let parser: HledgerParser;
+
+  beforeEach(() => {
+    parser = new HledgerParser();
+  });
+
   describe('findReferences', () => {
     describe('account references', () => {
       test('should find all account references', () => {

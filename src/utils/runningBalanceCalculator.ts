@@ -58,9 +58,6 @@ export function calculateRunningBalances(parsed: ParsedDocument): RunningBalance
     const txIndex = sortedToOriginalIndex.get(sortedIdx)!;
     const postingBalances = new Map<number, Map<string, number>>();
 
-    // Get inferred amounts from the transaction's AST (if available)
-    const inferredAmounts = getInferredAmountsFromTransaction(transaction);
-
     for (let postingIndex = 0; postingIndex < transaction.postings.length; postingIndex++) {
       const posting = transaction.postings[postingIndex];
       const account = posting.account;
@@ -72,9 +69,6 @@ export function calculateRunningBalances(parsed: ParsedDocument): RunningBalance
         // Explicit amount
         const commodity = posting.amount.commodity || '';
         amountMap = new Map([[commodity, posting.amount.quantity]]);
-      } else {
-        // Inferred amount
-        amountMap = inferredAmounts.get(postingIndex);
       }
 
       if (amountMap) {
@@ -141,58 +135,4 @@ export function calculateAccountBalances(transactions: Transaction[]): AccountBa
   }
 
   return balances;
-}
-
-/**
- * Get inferred amounts from a transaction
- *
- * This extracts inferred amounts that were calculated during parsing
- * and stored in the transaction's AST.
- *
- * @param transaction The transaction to extract inferred amounts from
- * @returns A map of posting index -> commodity -> amount
- */
-function getInferredAmountsFromTransaction(transaction: Transaction): Map<number, Map<string, number>> {
-  const result = new Map<number, Map<string, number>>();
-
-  // If the transaction has an AST with inferred amounts, use those
-  if ((transaction as any).ast) {
-    const ast = (transaction as any).ast;
-
-    // Look for inferred amounts in the AST
-    // The AST should have calculated these during parsing
-    if (ast.inferredAmounts) {
-      return ast.inferredAmounts;
-    }
-  }
-
-  // If no AST or no inferred amounts, calculate them manually
-  // This is a fallback for transactions without AST data
-  const explicitPostings = transaction.postings.filter(p => p.amount && !p.amount.inferred);
-  const implicitPostings = transaction.postings.filter(p => !p.amount || p.amount.inferred);
-
-  if (implicitPostings.length === 1 && explicitPostings.length > 0) {
-    // Calculate the inferred amount as the negative sum of explicit amounts
-    const sums = new Map<string, number>();
-
-    for (const posting of explicitPostings) {
-      if (posting.amount) {
-        const commodity = posting.amount.commodity || '';
-        const currentSum = sums.get(commodity) || 0;
-        sums.set(commodity, currentSum + posting.amount.quantity);
-      }
-    }
-
-    // Negate the sums to get the inferred amount
-    const inferredAmountMap = new Map<string, number>();
-    for (const [commodity, sum] of sums.entries()) {
-      inferredAmountMap.set(commodity, -sum);
-    }
-
-    // Find the index of the implicit posting
-    const implicitIndex = transaction.postings.indexOf(implicitPostings[0]);
-    result.set(implicitIndex, inferredAmountMap);
-  }
-
-  return result;
 }

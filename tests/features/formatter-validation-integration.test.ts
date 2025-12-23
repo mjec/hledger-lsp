@@ -9,11 +9,16 @@
  */
 
 import { FormattingProvider } from '../../src/features/formatter';
-import { parser } from '../../src/parser';
+import { HledgerParser } from '../../src/parser';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
 describe('Formatter Validation Integration', () => {
   const provider = new FormattingProvider();
+  let parser: HledgerParser;
+
+  beforeEach(() => {
+    parser = new HledgerParser();
+  });
 
   const createDocument = (content: string): TextDocument => {
     return TextDocument.create('file:///test.journal', 'hledger', 1, content);
