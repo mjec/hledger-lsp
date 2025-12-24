@@ -12,7 +12,7 @@ import { getAmountLayout, AmountLayout, renderAmountLayout, AmountWidths } from 
 import { FormattingOptions, DEFAULT_FORMATTING_OPTIONS, InlayHintsOptions, DEFAULT_INLAY_HINTS_OPTIONS } from '../server/settings';
 import { isSafeToFormat } from './formattingValidation';
 
-interface TransactionColumnWidths {
+export interface TransactionColumnWidths {
   indent: number;
   account: number;
   amount: AmountWidths;
@@ -151,7 +151,7 @@ export class FormattingProvider {
     }
 
     // First pass: Calculate all column widths
-    const widths = this.calculateTransactionWidths(transaction, parsed, options);
+    const widths = this.calculateTransactionWidths(transaction, parsed, options, inlayHintsConfig);
 
     // Second pass: Validate and format each posting line
     const formattedPostingLines: string[] = [];
@@ -181,39 +181,65 @@ export class FormattingProvider {
       line += ' '.repeat(2); // Minimum two spaces after account name
       const postingHasInlayHints = (inlayHintsConfig.showInferredAmounts && posting.amount?.inferred) ||
         (inlayHintsConfig.showCostConversions && posting.cost?.inferred) || (inlayHintsConfig.showRunningBalances) || false;
+
+
+      // Calculate where the amount *should* start
+      // This is used for BOTH explicit amounts AND ensuring space for inferred amounts
+      const amountPreDecimalWidth = widths.amount.commodityBefore +
+        widths.amount.spaceBetweenCommodityBeforeAndAmount +
+        widths.amount.negPosSign +
+        widths.amount.integerPart;
+
+      const currentLen = line.length;
+      const targetLen = options.decimalAlignColumn;
+      const amountPadding = Math.max(0, targetLen - currentLen - amountPreDecimalWidth);
+
       // 1. Amount
       if (posting.amount && !posting.amount.inferred) {
         const marker = '';
         const layout: AmountLayout = getAmountLayout(posting.amount, parsed, options, marker);
         const amountBlock = renderAmountLayout(layout, widths.amount);
 
-        // Calculate decimal alignment padding
-        const preDecimalWidth = widths.amount.commodityBefore +
-          widths.amount.spaceBetweenCommodityBeforeAndAmount +
-          widths.amount.negPosSign +
-          widths.amount.integerPart;
+        line += ' '.repeat(amountPadding) + amountBlock;
+      } else if (inlayHintsConfig.showInferredAmounts && posting.amount?.inferred) {
+        // Space for inferred amount - PAD TO THE START OF THE AMOUNT
+        // We do NOT print the amount (Inlay Hints does that), but we ensure the whitespace exists
+        line += ' '.repeat(amountPadding);
 
-        const currentLen = line.length;
-        const targetLen = options.decimalAlignColumn;
-        const padding = Math.max(0, targetLen - currentLen - preDecimalWidth);
+        // Note: We intentionally do NOT pad the "post-decimal" part for inferred amounts here
+        // The inlay hint itself will start at the cursor position.
+        // However, if we have subsequent columns (Cost, Assertion), we might need to pad PAST the inferred amount?
+        // User request: "We should not insert inlay hints when there is content after where we would insert the inlay hint"
+        // This suggests we don't need to support "Inferred Amount followed by Explicit Cost" on the same line (rare/impossible in hledger?)
+        // Hledger typically infers amount OR cost, or calculates everything.
+        // But if there's a comment, we want it pushed out?
+        // Let's assume for now we just pad to the START of where the amount matches alignment.
 
-        line += ' '.repeat(padding) + amountBlock;
+        // Wait, if we want the file to be "aligned even without inlay hints", 
+        // and we have an inferred amount "hole", do we want the hole to be the size of the inferred amount?
+        // If we just pad to the start, the "hole" is effectively 0 width visually.
+        // But the Inlay Hint needs to fit there.
+        // If we don't pad past it, the comment will be right next to the account (plus padding).
+        // Let's stick to padding to the START of the amount loop.
       } else {
-        // Space for missing amount
-        const preDecimalWidth = widths.amount.commodityBefore +
-          widths.amount.spaceBetweenCommodityBeforeAndAmount +
-          widths.amount.negPosSign +
-          widths.amount.integerPart;
-        const postDecimalWidth = widths.amount.decimalMark +
-          widths.amount.decimalPart +
-          widths.amount.spaceBetweenAmountAndCommodityAfter +
-          widths.amount.commodityAfter;
-
-        const currentLen = line.length;
-        const targetLen = options.decimalAlignColumn;
-        const padding = Math.max(0, targetLen - currentLen - preDecimalWidth);
-
+        // No amount and no inferred amount to show - or explicitly hidden.
+        // If we have subsequent items (Cost, Assertion), we might need to pad past the "empty" amount slot?
+        // Logic for "Space for missing amount" in original code:
+        /*
+        const preDecimalWidth = widths.amount.commodityBefore + ...
+        const postDecimalWidth = widths.amount.decimalMark + ...
         line += ' '.repeat(padding + preDecimalWidth + postDecimalWidth);
+        */
+        // If we want to align costs/assertions, we typically skip past the amount column.
+
+        if (posting.cost || posting.assertion) {
+          const postDecimalWidth = widths.amount.decimalMark +
+            widths.amount.decimalPart +
+            widths.amount.spaceBetweenAmountAndCommodityAfter +
+            widths.amount.commodityAfter;
+
+          line += ' '.repeat(amountPadding + amountPreDecimalWidth + postDecimalWidth);
+        }
       }
 
       // 2. Cost
@@ -222,17 +248,52 @@ export class FormattingProvider {
         const layout = getAmountLayout(posting.cost.amount, parsed, options, marker);
         line += renderAmountLayout(layout, widths.cost);
 
-      } else {
-        const totalWidth = widths.cost.marker +
-          widths.cost.commodityBefore +
-          widths.cost.spaceBetweenCommodityBeforeAndAmount +
-          widths.cost.negPosSign +
-          widths.cost.integerPart +
-          widths.cost.decimalMark +
-          widths.cost.decimalPart +
-          widths.cost.spaceBetweenAmountAndCommodityAfter +
-          widths.cost.commodityAfter;
+      } else if (inlayHintsConfig.showCostConversions && posting.cost?.inferred) {
+        // Inferred Cost
+        // If we have an inferred cost, we might want to pad to its start position?
+        // Costs usually follow amounts immediately?
+        // But alignment-wise, we align based on widths.cost
+        // If there is NO explicit cost, but we want to show inferred, we rely on Inlay Hint.
+        // Do we pad?
+        // If amount was present, we are at the end of amount.
+        // If amount was 'inferred' (and padded to start), we are at start of amount.
+        // This gets tricky mixing inferred types.
+        // Standard case: Explicit Amount, Inferred Cost.
+        // We are at end of Amount. We just need to ensure we don't trim?
+        // Actually, formatted lines usually don't have holes for Costs if they aren't there.
+        // But if we want alignment...
+        // For now, let's leave Cost handling similar to Amount (pad if consistent).
+
+        // Cost alignment is simpler: just append? Or align?
+        // Original code for missing cost:
+        /*
+        const totalWidth = widths.cost.marker + ...
         line += ' '.repeat(totalWidth);
+        */
+        // This was done to align Assertions.
+        // If we have an inferred cost, we want to place it in that "totalWidth" slot.
+        // So we should probably NOT print the spaces for the "hole" if we are going to fill it with an inlay hint?
+        // OR, does the inlay hint overlay? No.
+        // If we print spaces, the Inlay Hint appears AFTER the spaces.
+        // So we should print spaces UP TO where the Inlay Hint starts.
+        // But Inlay Hint starts at current position?
+        // The Cost is usually aligned by 'marker' + content.
+        // If we just leave it empty, the Inlay Hint appends.
+        // If we have an assertion later, we need to pad past the cost.
+      } else {
+        // Valid to skip cost space if no assertion?
+        if (posting.assertion) {
+          const totalWidth = widths.cost.marker +
+            widths.cost.commodityBefore +
+            widths.cost.spaceBetweenCommodityBeforeAndAmount +
+            widths.cost.negPosSign +
+            widths.cost.integerPart +
+            widths.cost.decimalMark +
+            widths.cost.decimalPart +
+            widths.cost.spaceBetweenAmountAndCommodityAfter +
+            widths.cost.commodityAfter;
+          line += ' '.repeat(totalWidth);
+        }
       }
 
       // 3. Assertion
@@ -240,24 +301,50 @@ export class FormattingProvider {
         const marker = ' = ';
         const layout = getAmountLayout(posting.assertion, parsed, options, marker);
         line += renderAmountLayout(layout, widths.assertion);
-
-      } else {
-        const totalWidth = widths.assertion.marker +
-          widths.assertion.commodityBefore +
-          widths.assertion.spaceBetweenCommodityBeforeAndAmount +
-          widths.assertion.negPosSign +
-          widths.assertion.integerPart +
-          widths.assertion.decimalMark +
-          widths.assertion.decimalPart +
-          widths.assertion.spaceBetweenAmountAndCommodityAfter +
-          widths.assertion.commodityAfter;
-        line += ' '.repeat(totalWidth);
+      } else if (inlayHintsConfig.showRunningBalances) {
+        // Running balances are "inferred assertions"
+        // We don't pad here because it's the last thing (usually).
+        // We just leave it for the Inlay Hint to append.
+        // UNLESS there is a comment.
+        // If there is a comment, we want it pushed out?
+        // Original code didn't push comments for missing assertions.
       }
 
       if (posting.comment) {
+        // If we have a hint that we've padded for, we DON'T strictly trimEnd, 
+        // but typically the padding was added explicitly above.
+        // However, if we just have "Account    ", and then a comment, we want "Account    ; comment"
+        // If we have "Account", and amount is inferred, we added padding to "Account    ".
+        // The Inlay Hint " $10" will sit in that gap.
+        // If we have a comment, we want it AFTER the hint.
+        // But Inlay Hints are overlay/interstitial.
+        // If the text is "Account    ; comment", and we insert hint at index of ";", it pushes comment right.
+        // Correct.
+        // Crucially, if we didn't add the padding, it would be "Account ; comment"
+        // and Inlay Hint would have to pad itself "    $10".
+        // User wants us to add the whitespace.
+
+        // So we keep the line as is (with padding) and append comment.
+        // But wait, the original logic had `if (!postingHasInlayHints) { line = line.trimEnd(); }`
+        // We want to preserve our carefully calculated padding.
+
+        // If we have an inferred item at the END of the line (e.g. inferred assertion), 
+        // and NO comment, we might have added padding that `formattedPostingLines.push` will store.
+        // But `formattedLines.push` later does `trimEnd()`?
+        // Let's check the third pass.
+      } else {
+        // No comment.
+        // If we have inferred items (hints), we WANT to keep the trailing spaces so the hint appears at the right spot?
+        // OR does VS Code handle "past end of line" automatically?
+        // VS Code places End-of-Line hints after the last character.
+        // If we want alignment, we need the "last character" to be at the align column.
+        // So YES, we must preserve trailing spaces if there is a hint.
         if (!postingHasInlayHints) {
           line = line.trimEnd();
         }
+      }
+
+      if (posting.comment) {
         line += ';' + posting.comment.trim();
       }
 
@@ -284,10 +371,11 @@ export class FormattingProvider {
     return formattedLines;
   }
 
-  private calculateTransactionWidths(
+  public calculateTransactionWidths(
     transaction: Transaction,
     parsed: ParsedDocument,
-    options: FormattingOptions
+    options: FormattingOptions,
+    inlayHintsConfig?: InlayHintsOptions
   ): TransactionColumnWidths {
     const widths: TransactionColumnWidths = {
       indent: options.indentation,
@@ -304,25 +392,59 @@ export class FormattingProvider {
       if (posting.amount && !posting.amount.inferred) {
         const layout = getAmountLayout(posting.amount, parsed, options, '');
         this.updateAmountWidths(widths.amount, layout, options);
+      } else if (inlayHintsConfig?.showInferredAmounts && posting.amount?.inferred) {
+        // Only include if NOT blocked by explicit content
+        // Inferred Amount is blocked if there is an explicit Cost or explicit Assertion on the line
+        const hasExplicitCost = posting.cost && !posting.cost.inferred;
+        const hasExplicitAssertion = posting.assertion; // Assertion is strictly explicit in Parser output
+
+        if (!hasExplicitCost && !hasExplicitAssertion) {
+          // Include inferred amount in width calculation
+          const layout = getAmountLayout(posting.amount, parsed, options, '');
+          this.updateAmountWidths(widths.amount, layout, options);
+        }
       }
 
       if (posting.cost && !posting.cost.inferred) {
         const marker = (posting.cost.type === 'unit' ? ' @ ' : ' @@ ');
         const layout = getAmountLayout(posting.cost.amount, parsed, options, marker);
         this.updateAmountWidths(widths.cost, layout, options);
+      } else if (inlayHintsConfig?.showCostConversions && posting.cost?.inferred) {
+        // Only include if NOT blocked by explicit content
+        // Inferred Cost is blocked if there is an explicit Assertion
+        const hasExplicitAssertion = posting.assertion;
+
+        if (!hasExplicitAssertion) {
+          // Include inferred cost in width calculation
+          const marker = (posting.cost.type === 'unit' ? ' @ ' : ' @@ ');
+          const layout = getAmountLayout(posting.cost.amount, parsed, options, marker);
+          this.updateAmountWidths(widths.cost, layout, options);
+        }
       }
 
       if (posting.assertion) {
         const marker = ' = ';
         const layout = getAmountLayout(posting.assertion, parsed, options, marker);
         this.updateAmountWidths(widths.assertion, layout, options);
+      } else if (inlayHintsConfig?.showRunningBalances) {
+        // Running balances take up space just like assertions
+        // We don't have the specific Balance object here easily (it's calculated in InlayHints or RunningBalanceCalculator).
+        // However, to reserve space, we ideally need to know the width.
+        // This is a limitation: Running Balances are dynamic.
+        // BUT, `widths.assertion` tracks the MAX width.
+        // If we want to align running balances, we should probably update widths with the projected running balance?
+        // The current `formatter.ts` approach for assertions scans the transaction.
+        // If we want to support running balance alignment, we might need to pass in the running balance map?
+        // That's getting complicated. 
+        // For now, let's assume we don't resize the grid for *Running Balances* unless they are explicit assertions.
+        // Inlay Hints for running balances will just hang off the end.
       }
     }
 
     return widths;
   }
 
-  private emptyAmountWidths(): AmountWidths {
+  public emptyAmountWidths(): AmountWidths {
 
     return {
       marker: 0,
