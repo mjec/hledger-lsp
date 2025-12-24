@@ -132,7 +132,6 @@ include ../sibling/sibling.journal
     // Cleanup
     fs.unlinkSync(mixedJournalPath);
     fs.unlinkSync(siblingJournalPath);
-    fs.rmdirSync(siblingPath);
   });
 
   test('should normalize paths and not duplicate includes', () => {

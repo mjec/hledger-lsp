@@ -71,12 +71,17 @@ describe('Include Path Completion', () => {
   });
 
   test('should complete sibling directory with ../sibling/', () => {
-    // Create sibling directory if it doesn't exist
+    // Create sibling directory and test file
     const siblingPath = path.join(fixturesPath, 'sibling');
-    const createdSibling = !fs.existsSync(siblingPath);
-    if (createdSibling) {
+    const siblingJournalPath = path.join(siblingPath, 'sibling.journal');
+
+    if (!fs.existsSync(siblingPath)) {
       fs.mkdirSync(siblingPath);
-      fs.writeFileSync(path.join(siblingPath, 'sibling.journal'), '');
+    }
+
+    const createdFile = !fs.existsSync(siblingJournalPath);
+    if (createdFile) {
+      fs.writeFileSync(siblingJournalPath, '');
     }
 
     const doc = TextDocument.create(
@@ -93,9 +98,8 @@ describe('Include Path Completion', () => {
     expect(items.some(i => i.label === 'sibling.journal')).toBe(true);
 
     // Cleanup
-    if (createdSibling) {
-      fs.unlinkSync(path.join(siblingPath, 'sibling.journal'));
-      fs.rmdirSync(siblingPath);
+    if (createdFile) {
+      fs.unlinkSync(siblingJournalPath);
     }
   });
 

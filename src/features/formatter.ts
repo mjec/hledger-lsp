@@ -9,7 +9,7 @@ import { ParsedDocument, Transaction } from '../types';
 import { parseTransactionHeader } from '../parser/ast';
 import { isTransactionHeader, isComment, isDirective } from '../utils/index';
 import { getAmountLayout, AmountLayout, renderAmountLayout, AmountWidths } from '../utils/amountFormatter';
-import { HledgerSettings, FormattingOptions, DEFAULT_FORMATTING_OPTIONS, InlayHintsOptions, DEFAULT_INLAY_HINTS_OPTIONS } from '../server/settings';
+import { FormattingOptions, DEFAULT_FORMATTING_OPTIONS, InlayHintsOptions, DEFAULT_INLAY_HINTS_OPTIONS } from '../server/settings';
 import { isSafeToFormat } from './formattingValidation';
 
 interface TransactionColumnWidths {
@@ -68,8 +68,7 @@ export class FormattingProvider {
         }
 
         // Format all postings in the transaction together for alignment
-        const baseLineNumber = transaction?.line ? transaction.line + 1 : i;
-        formattedLines.push(...this.formatTransactionLines(transactionLines, transaction, parsed, options, inlayHintsConfig, documentUri, baseLineNumber));
+        formattedLines.push(...this.formatTransactionLines(transactionLines, transaction, parsed, options, inlayHintsConfig));
 
         // Don't increment i here as we've already moved past the transaction
         continue;
@@ -141,8 +140,6 @@ export class FormattingProvider {
     parsed: ParsedDocument,
     options: FormattingOptions,
     inlayHintsConfig: InlayHintsOptions,
-    documentUri: string,
-    baseLineNumber: number
   ): string[] {
     let formattedLines: string[] = [];
     let postingHasInlayHintsArray: boolean[] = [];
@@ -162,7 +159,6 @@ export class FormattingProvider {
 
     for (let postingIndex = 0; postingIndex < transaction.postings.length; postingIndex++) {
       const posting = transaction.postings[postingIndex];
-      const lineNumber = baseLineNumber + postingIndex;
       const originalLine = lines[postingIndex] || '';
 
       // Validate posting before formatting
@@ -181,7 +177,7 @@ export class FormattingProvider {
       // Safe to format - format normally
       validationResults.push(true);
       let line = ' '.repeat(widths.indent);
-      line += posting.account.padEnd(widths.account, ' ');
+      line += posting.account;
       line += ' '.repeat(2); // Minimum two spaces after account name
       const postingHasInlayHints = (inlayHintsConfig.showInferredAmounts && posting.amount?.inferred) ||
         (inlayHintsConfig.showCostConversions && posting.cost?.inferred) || (inlayHintsConfig.showRunningBalances) || false;
@@ -301,26 +297,28 @@ export class FormattingProvider {
       assertion: this.emptyAmountWidths()
     };
 
-    for (const posting of transaction.postings) {
+    for (const posting of transaction.
+      postings) {
       widths.account = Math.max(widths.account, posting.account.length);
 
       if (posting.amount && !posting.amount.inferred) {
         const layout = getAmountLayout(posting.amount, parsed, options, '');
-        this.updateAmountWidths(widths.amount, layout);
+        this.updateAmountWidths(widths.amount, layout, options);
       }
 
       if (posting.cost && !posting.cost.inferred) {
         const marker = (posting.cost.type === 'unit' ? ' @ ' : ' @@ ');
         const layout = getAmountLayout(posting.cost.amount, parsed, options, marker);
-        this.updateAmountWidths(widths.cost, layout);
+        this.updateAmountWidths(widths.cost, layout, options);
       }
 
       if (posting.assertion) {
         const marker = ' = ';
         const layout = getAmountLayout(posting.assertion, parsed, options, marker);
-        this.updateAmountWidths(widths.assertion, layout);
+        this.updateAmountWidths(widths.assertion, layout, options);
       }
     }
+
     return widths;
   }
 
@@ -339,20 +337,24 @@ export class FormattingProvider {
     };
   }
 
-  private updateAmountWidths(widths: AmountWidths, layout: AmountLayout) {
+  private updateAmountWidths(widths: AmountWidths, layout: AmountLayout, options: FormattingOptions) {
 
     widths.commodityBefore = Math.max(widths.commodityBefore, layout.commodityBefore.length);
+    widths.commodityBefore = Math.min(widths.commodityBefore, options.maxCommodityWidth);
     widths.spaceBetweenCommodityBeforeAndAmount = Math.max(widths.spaceBetweenCommodityBeforeAndAmount,
       (layout.spaceBetweenCommodityAndAmount && layout.commodityBefore.length) ? 1 : 0
     );
     widths.negPosSign = Math.max(widths.negPosSign, layout.negPosSign.length);
     widths.integerPart = Math.max(widths.integerPart, layout.amountIntegerString.length);
+    widths.integerPart = Math.min(widths.integerPart, options.maxAmountIntegerWidth);
     widths.decimalMark = Math.max(widths.decimalMark, layout.amountDecimalString ? 1 : 0);
     widths.decimalPart = Math.max(widths.decimalPart, layout.amountDecimalString.length);
+    widths.decimalPart = Math.min(widths.decimalPart, options.maxAmountDecimalWidth);
     widths.spaceBetweenAmountAndCommodityAfter = Math.max(widths.spaceBetweenAmountAndCommodityAfter,
       (layout.spaceBetweenCommodityAndAmount && layout.commodityAfter.length) ? 1 : 0
     );
     widths.commodityAfter = Math.max(widths.commodityAfter, layout.commodityAfter.length);
+    widths.commodityAfter = Math.min(widths.commodityAfter, options.maxCommodityWidth);
   }
 
   private formatTransactionHeader(line: string): string {

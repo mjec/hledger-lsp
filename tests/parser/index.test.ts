@@ -1053,7 +1053,7 @@ include common.journal
       });
 
       // Clear cache
-      parser.clearCache();
+      parser.clearCache(URI.parse(doc.uri));
 
       // Should be able to parse again without issues
       const result = parser.parse(doc);

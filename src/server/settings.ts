@@ -45,9 +45,9 @@ export interface HledgerSettings {
   };
   formatting: {
     indentation: number;
-    maxAccountWidth: number;
     maxCommodityWidth: number;
-    maxAmountWidth: number;
+    maxAmountIntegerWidth: number;
+    maxAmountDecimalWidth: number;
     minSpacing: number;
     decimalAlignColumn: number;
     assertionDecimalAlignColumn: number;
@@ -118,9 +118,9 @@ export const defaultSettings: HledgerSettings = {
   },
   formatting: {
     indentation: 4,
-    maxAccountWidth: 42,
     maxCommodityWidth: 4,
-    maxAmountWidth: 12,
+    maxAmountIntegerWidth: 12,
+    maxAmountDecimalWidth: 3,
     minSpacing: 2,
     decimalAlignColumn: 52,
     assertionDecimalAlignColumn: 70,

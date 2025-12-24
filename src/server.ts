@@ -366,7 +366,7 @@ documents.onDidChangeContent(change => {
 
   // Clear parser cache since a file changed
   // This ensures we re-parse files with fresh data
-  sharedParser.clearCache();
+  sharedParser.clearCache(URI.parse(change.document.uri));
 
   // Invalidate workspace cache for affected roots
   if (workspaceManager) {
