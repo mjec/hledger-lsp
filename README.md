@@ -57,9 +57,9 @@ This language server can be used with any LSP-compatible editor. Currently avail
 
 ### VS Code
 
-**Extension**: [hledger-lsp](https://marketplace.visualstudio.com/items?itemName=patrickt.hledger-lsp)
+**Extension**: [hledger-vscode](https://marketplace.visualstudio.com/items?itemName=patrickt.hledger-vscode)
 
-**GitHub**: [patrickt/hledger-vscode](https://github.com/ptimoney/hledger-vscode)
+**GitHub**: [hledger-vscode](https://github.com/ptimoney/hledger-vscode)
 
 Install from the VS Code Marketplace or Extensions view. The extension provides
 all LSP features with zero configuration.
@@ -268,6 +268,8 @@ February 30, month 13)
 - `validation.futureDates` (default: true): Warn about future-dated transactions
 - `validation.emptyDescriptions` (default: true): Warn about transactions with
 no description
+- `validation.formatMismatch` (default: true): Validate that amounts match their
+commodity format directives
 - `validation.includeFiles` (default: true): Detect missing include files
 - `validation.circularIncludes` (default: true): Detect circular include dependencies
 - `validation.markAllUndeclaredInstances` (default: true): Mark all
@@ -373,12 +375,12 @@ Configure document formatting behavior:
 
 - `formatting.indentation` (number, default: 4): Number of spaces for posting
 indentation
-- `formatting.maxAccountWidth` (number, default: 42): Maximum width allocated
-for account names before wrapping/truncation
 - `formatting.maxCommodityWidth` (number, default: 4): Maximum width allocated
 for commodity symbols
-- `formatting.maxAmountWidth` (number, default: 12): Maximum width allocated for
-amount numbers
+- `formatting.maxAmountIntegerWidth` (number, default: 12): Maximum width
+allocated for the integer part of amount numbers
+- `formatting.maxAmountDecimalWidth` (number, default: 3): Maximum width
+allocated for the decimal part of amount numbers
 - `formatting.minSpacing` (number, default: 2): Minimum number of spaces between
 account names and amounts
 - `formatting.decimalAlignColumn` (number, default: 52): Target column position
@@ -390,6 +392,8 @@ negative sign for prefix commodities. Options: `"after-symbol"` (e.g., `$-100.00
 or `"before-symbol"` (e.g., `-$100.00`). This affects how amounts are displayed in
 hover information, inlay hints, and other LSP features. Does not affect postfix
 commodities (e.g., `-100.00 EUR`), which always show the sign before the number.
+- `formatting.showPositivesSign` (boolean, default: false): Whether to show a `+`
+sign for positive amounts
 
 ### Inlay Hints Settings
 
