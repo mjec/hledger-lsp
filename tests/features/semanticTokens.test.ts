@@ -575,5 +575,88 @@ tag project
       const numberTokens = line1Tokens.filter(t => t.tokenType === 'number');
       expect(numberTokens.length).toBe(1);
     });
+
+    it('should not create overlapping tokens for posting with account, amount, and comment with tags', () => {
+      // Regression test for bug where comment tokens overlap with account tokens
+      const content = `2025-01-01 * Payee
+    Expenses:Food    $10.00  ; tag:groceries
+    Liabilities:Credit
+`;
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsed = parser.parse(doc);
+      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const tokens = decodeTokens(data);
+
+      // Get tokens for line 1 (the posting with comment)
+      const line1Tokens = tokens.filter(t => t.line === 1);
+
+      // Sort tokens by character position to check for overlaps
+      line1Tokens.sort((a, b) => a.char - b.char);
+
+      // Verify no overlapping tokens
+      for (let i = 0; i < line1Tokens.length - 1; i++) {
+        const current = line1Tokens[i];
+        const next = line1Tokens[i + 1];
+        const currentEnd = current.char + current.length;
+
+        // Next token should start at or after the current token ends
+        expect(next.char).toBeGreaterThanOrEqual(currentEnd);
+      }
+
+      // Find specific tokens to verify correct positions
+      const accountToken = line1Tokens.find(t => t.tokenType === 'namespace');
+      expect(accountToken).toBeDefined();
+      expect(accountToken!.char).toBe(4); // After leading spaces
+      expect(accountToken!.length).toBe(13); // "Expenses:Food"
+
+      const commodityToken = line1Tokens.find(t => t.tokenType === 'variable');
+      expect(commodityToken).toBeDefined();
+      expect(commodityToken!.char).toBeGreaterThanOrEqual(accountToken!.char + accountToken!.length);
+
+      const tagToken = line1Tokens.find(t => t.tokenType === 'property');
+      expect(tagToken).toBeDefined();
+      // Tag should be after the semicolon and space
+      const semicolonPos = content.split('\n')[1].indexOf(';');
+      expect(tagToken!.char).toBeGreaterThan(semicolonPos);
+      expect(tagToken!.length).toBe(3); // "tag"
+
+      const commentTokens = line1Tokens.filter(t => t.tokenType === 'comment');
+      expect(commentTokens.length).toBeGreaterThan(0);
+
+      // All comment tokens should start at or after the semicolon
+      for (const commentToken of commentTokens) {
+        expect(commentToken.char).toBeGreaterThanOrEqual(semicolonPos);
+      }
+    });
+
+    it('should correctly position tokens in posting with comment but no amount', () => {
+      const content = `2025-01-01 * Payee
+    Expenses:Food  ; tag:groceries
+`;
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsed = parser.parse(doc);
+      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const tokens = decodeTokens(data);
+
+      const line1Tokens = tokens.filter(t => t.line === 1);
+      line1Tokens.sort((a, b) => a.char - b.char);
+
+      // Verify no overlapping tokens
+      for (let i = 0; i < line1Tokens.length - 1; i++) {
+        const current = line1Tokens[i];
+        const next = line1Tokens[i + 1];
+        const currentEnd = current.char + current.length;
+        expect(next.char).toBeGreaterThanOrEqual(currentEnd);
+      }
+
+      const accountToken = line1Tokens.find(t => t.tokenType === 'namespace');
+      expect(accountToken).toBeDefined();
+
+      const tagToken = line1Tokens.find(t => t.tokenType === 'property');
+      expect(tagToken).toBeDefined();
+
+      // Tag should be positioned after the account and semicolon
+      expect(tagToken!.char).toBeGreaterThan(accountToken!.char + accountToken!.length);
+    });
   });
 });

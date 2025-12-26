@@ -411,13 +411,14 @@ export class SemanticTokensProvider {
       this.tokenizeAmount(amountPart, lineIndex, line.indexOf(amountPart), builder);
     }
 
-    // Comment token
+    // Comment token (with tag handling)
     if (comment) {
       const commentStart = line.indexOf(comment);
       this.tokenizeComment(
         line.substring(commentStart),
         lineIndex,
-        builder
+        builder,
+        commentStart  // Pass the offset so positions are relative to the original line
       );
     }
 
