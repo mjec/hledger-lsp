@@ -14,6 +14,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 
 describe('Formatter Validation Integration', () => {
   const provider = new FormattingProvider();
+  const inlayHintsOffSettings = { showInferredAmounts: false, showRunningBalances: false, showCostConversions: false };
   let parser: HledgerParser;
 
   beforeEach(() => {
@@ -57,7 +58,7 @@ describe('Formatter Validation Integration', () => {
 `;
       const doc = createDocument(content);
       const parsed = parser.parse(doc);
-      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true }, {}, inlayHintsOffSettings);
 
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
@@ -79,7 +80,7 @@ describe('Formatter Validation Integration', () => {
 `;
       const doc = createDocument(content);
       const parsed = parser.parse(doc);
-      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true }, {}, inlayHintsOffSettings);
 
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
@@ -105,7 +106,7 @@ commodity EUR
 `;
       const doc = createDocument(content);
       const parsed = parser.parse(doc);
-      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true }, {}, inlayHintsOffSettings);
 
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
@@ -148,7 +149,7 @@ commodity EUR
 `;
       const doc = createDocument(content);
       const parsed = parser.parse(doc);
-      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true }, {}, inlayHintsOffSettings);
 
       const formatted = edits[0].newText;
 
