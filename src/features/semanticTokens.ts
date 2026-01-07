@@ -156,12 +156,13 @@ export class SemanticTokensProvider {
     const commentStart = line.indexOf(commentMatch[0].trim());
 
     // Check for tags in the comment
-    const tagRegex = /\b(\w+):/g;
+    const tagRegex = /\b([\w-]+):([^,]*)/g;
     let match;
     let lastIndex = 0;
 
     while ((match = tagRegex.exec(line)) !== null) {
       const tagName = match[1];
+      const tagValue = match[2];
       const tagStart = match.index;
 
       // Add comment token for text before tag
@@ -187,7 +188,7 @@ export class SemanticTokensProvider {
         0
       );
 
-      lastIndex = tagStart + tagName.length;
+      lastIndex = tagStart + tagName.length + 1 + tagValue.length;
     }
 
     // Add remaining comment text
