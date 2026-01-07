@@ -125,7 +125,7 @@ describe('FormattingProvider', () => {
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
 
-      expect(lines[0]).toBe('2024-01-01 Grocery Store  ;weekly shopping');
+      expect(lines[0]).toBe('2024-01-01 Grocery Store  ; weekly shopping');
     });
 
     it('should preserve posting comments', () => {
@@ -140,8 +140,8 @@ describe('FormattingProvider', () => {
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
 
-      expect(lines[1]).toContain(';groceries');
-      expect(lines[2]).toContain(';payment');
+      expect(lines[1]).toContain('; groceries');
+      expect(lines[2]).toContain('; payment');
     });
 
     it('should handle postings with balance assertions', () => {
@@ -456,8 +456,8 @@ payee Grocery Store;main grocery store
       const formatted = edits[0].newText;
       const lines = formatted.split('\n');
 
-      expect(lines[0]).toBe('account assets:checking  ;primary checking account');
-      expect(lines[1]).toBe('payee Grocery Store  ;main grocery store');
+      expect(lines[0]).toBe('account assets:checking  ; primary checking account');
+      expect(lines[1]).toBe('payee Grocery Store  ; main grocery store');
     });
 
     it('should format transaction with unit cost (@)', () => {
@@ -540,7 +540,7 @@ payee Grocery Store;main grocery store
       const lines = formatted.split('\n');
 
       expectLineToContainNormalized(lines[1], '10 AAPL @ $150.5');
-      expect(lines[1]).toContain(';purchase shares');
+      expect(lines[1]).toContain('; purchase shares');
     });
 
     it('should format cost with commodity-after format', () => {
