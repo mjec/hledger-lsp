@@ -343,7 +343,7 @@ export class FormattingProvider {
       }
 
       if (posting.comment) {
-        line += ';' + posting.comment.trim();
+        line += '; ' + posting.comment.trim();
       }
 
       formattedPostingLines.push(line);
@@ -504,7 +504,7 @@ export class FormattingProvider {
     }
 
     if (header.comment) {
-      result += '  ;' + header.comment;
+      result += '  ; ' + header.comment;
     }
 
     return result;
@@ -523,7 +523,7 @@ export class FormattingProvider {
     let result = parts.join(' ');
 
     if (comment) {
-      result += '  ;' + comment;
+      result += '  ; ' + comment;
     }
 
     return result;
