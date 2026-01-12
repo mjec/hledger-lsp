@@ -39,6 +39,7 @@ export interface Posting {
   comment?: string;
   tags?: Record<string, string>;
   line?: number; // 0-based line number where this posting appears
+  date?: string; // Posting date from date: tag or [DATE] syntax
 }
 
 export interface Amount {

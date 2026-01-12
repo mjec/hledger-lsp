@@ -41,7 +41,7 @@ export function parseTransaction(lines: string[], startLine: number): Transactio
     }
 
     if (isPosting(line)) {
-      const posting = parsePosting(line);
+      const posting = parsePosting(line, header.date);
       if (posting) {
         // Record the line number for the posting so downstream features
         // (inlay hints, validators, etc.) can position annotations accurately
@@ -233,15 +233,19 @@ export function inferAmounts(transaction: Transaction): void {
 }
 
 function parseDate(line: string): { date: string, rest: string } | null {
-  const match = line.match(/^(\d{4}[-/]\d{2}[-/]\d{2})/);
+  const match = line.match(/^(\d{4})([-/])(\d{1,2})\2(\d{1,2})/);
   if (!match) return null;
-  return { date: match[1], rest: line.substring(match[1].length).trim() };
+  // Preserve the original format as written in the source
+  const dateStr = match[0];
+  return { date: dateStr, rest: line.substring(dateStr.length).trim() };
 }
 
 function parseEffectiveDate(line: string): { effectiveDate?: string, rest: string } {
-  const match = line.match(/^=(\d{4}[-/]\d{2}[-/]\d{2})/);
+  const match = line.match(/^=(\d{4})([-/])(\d{1,2})\2(\d{1,2})/);
   if (match) {
-    return { effectiveDate: match[1], rest: line.substring(match[0].length).trim() };
+    // Preserve the original format, but skip the = sign
+    const dateStr = match[0].substring(1); // Remove the = prefix
+    return { effectiveDate: dateStr, rest: line.substring(match[0].length).trim() };
   }
   return { effectiveDate: undefined, rest: line };
 }
@@ -345,7 +349,35 @@ function parseCost(text: string): { amountPart: string, cost?: { type: 'unit' | 
   return { amountPart: text.trim() };
 }
 
-export function parsePosting(line: string): Posting | null {
+/**
+ * Parse a posting date, handling partial dates (MM-DD) by defaulting to transaction year.
+ *
+ * @param dateStr Date string from date: tag or [DATE] syntax
+ * @param transactionDate Parent transaction date for year defaulting
+ * @returns Parsed date in YYYY-MM-DD format, or null if invalid
+ */
+function parsePostingDate(dateStr: string, transactionDate?: string): string | null {
+  // Full date: YYYY-MM-DD or YYYY/MM/DD (with 1 or 2 digit months/days)
+  const fullDateMatch = dateStr.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (fullDateMatch) {
+    const month = fullDateMatch[2].padStart(2, '0');
+    const day = fullDateMatch[3].padStart(2, '0');
+    return `${fullDateMatch[1]}-${month}-${day}`;
+  }
+
+  // Partial date: MM-DD or MM/DD or M-D or M/D (needs transaction year)
+  const partialDateMatch = dateStr.match(/^(\d{1,2})[-/](\d{1,2})$/);
+  if (partialDateMatch && transactionDate) {
+    const txYear = transactionDate.substring(0, 4);
+    const month = partialDateMatch[1].padStart(2, '0');
+    const day = partialDateMatch[2].padStart(2, '0');
+    return `${txYear}-${month}-${day}`;
+  }
+
+  return null; // Invalid format
+}
+
+export function parsePosting(line: string, transactionDate?: string): Posting | null {
   if (!isPosting(line)) return null;
   const account = extractAccountFromPosting(line);
   if (!account) return null;
@@ -360,6 +392,28 @@ export function parsePosting(line: string): Posting | null {
     posting.comment = commentPart.trim();
     const tags = extractTags(commentPart);
     if (Object.keys(tags).length > 0) posting.tags = tags;
+
+    // Parse posting date from tags or bracketed syntax
+    // date: tag takes precedence over [DATE] syntax
+    if (posting.tags?.date) {
+      const postingDate = parsePostingDate(posting.tags.date, transactionDate);
+      if (postingDate) {
+        posting.date = postingDate;
+        delete posting.tags.date; // Remove from tags (it's metadata, not a user tag)
+      }
+    }
+
+    // Check for bracketed syntax: [YYYY-MM-DD] or [MM-DD]
+    // Only use if date: tag is not present
+    if (!posting.date) {
+      const bracketedDateMatch = commentPart.match(/\[(\d{4}[-/]\d{2}[-/]\d{2}|\d{2}[-/]\d{2})\]/);
+      if (bracketedDateMatch) {
+        const bracketedDate = parsePostingDate(bracketedDateMatch[1], transactionDate);
+        if (bracketedDate) {
+          posting.date = bracketedDate;
+        }
+      }
+    }
   }
 
   const trimmed = mainPart.trim();

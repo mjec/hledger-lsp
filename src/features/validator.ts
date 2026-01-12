@@ -18,6 +18,7 @@ import { calculateTransactionBalance } from '../utils/balanceCalculator';
 import { formatAmount } from '../utils/amountFormatter';
 import { calculateAccountBalances } from '../utils/runningBalanceCalculator';
 import { getFormatUnsafeReason } from './formattingValidation';
+import { getEffectiveDate } from '../utils/index';
 
 export interface ValidationResult {
   diagnostics: Diagnostic[];
@@ -645,6 +646,7 @@ export class Validator {
   /**
    * Validate balance assertions
    * Check if balance assertions match calculated balances
+   * Respects posting dates for chronological ordering
    */
   private validateBalanceAssertions(
     transactions: Transaction[],
@@ -656,51 +658,64 @@ export class Validator {
     // Normalize document URI to ensure proper encoding
     const documentUri = URI.parse(document.uri).toString();
 
-    // Use the shared running balance calculator
-    // This ensures balances are calculated in chronological order (by date),
-    // not parse order, which is critical for multi-file journals
-    const balances = calculateAccountBalances(transactions);
+    // Extract all postings with effective dates
+    interface PostingWithContext {
+      transaction: Transaction;
+      posting: Posting;
+      effectiveDate: string;
+    }
 
-    // Sort transactions by date to check assertions in chronological order
-    const sortedTransactions = [...transactions].sort((a, b) => {
-      return a.date.localeCompare(b.date);
-    });
+    const allPostings: PostingWithContext[] = [];
 
-    // Now check assertions in chronological order
-    // We need to track balances as we go to know the balance at each assertion
+    for (const transaction of transactions) {
+      for (const posting of transaction.postings) {
+        allPostings.push({
+          transaction,
+          posting,
+          effectiveDate: getEffectiveDate(posting, transaction)
+        });
+      }
+    }
+
+    // Sort by effective date for chronological processing
+    allPostings.sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
+
+    // Track running balances
     const runningBalances = new Map<string, Map<string, number>>();
 
-    for (const transaction of sortedTransactions) {
-      for (const posting of transaction.postings) {
-        // Update running balance
-        if (posting.amount) {
-          const accountBalances = runningBalances.get(posting.account) || new Map<string, number>();
-          const commodity = posting.amount.commodity || '';
-          const currentBalance = accountBalances.get(commodity) || 0;
-          accountBalances.set(commodity, currentBalance + posting.amount.quantity);
-          runningBalances.set(posting.account, accountBalances);
+    for (const { transaction, posting } of allPostings) {
+      const account = posting.account;
+
+      // Update balance if posting has amount
+      if (posting.amount) {
+        if (!runningBalances.has(account)) {
+          runningBalances.set(account, new Map());
         }
+        const commodityBalances = runningBalances.get(account)!;
+        const commodity = posting.amount.commodity || '';
+        const currentBalance = commodityBalances.get(commodity) || 0;
+        const newBalance = currentBalance + posting.amount.quantity;
+        commodityBalances.set(commodity, newBalance);
+      }
 
-        // Check assertion - but only create diagnostics for assertions in the current document
-        if (posting.assertion && transaction.sourceUri?.toString() === documentUri) {
-          const accountBalances = runningBalances.get(posting.account);
-          const commodity = posting.assertion.commodity || '';
-          const expectedBalance = posting.assertion.quantity;
-          const actualBalance = accountBalances?.get(commodity) || 0;
+      // Check assertion (only for current document)
+      if (posting.assertion && transaction.sourceUri?.toString() === documentUri) {
+        const assertedCommodity = posting.assertion.commodity || '';
+        const assertedAmount = posting.assertion.quantity;
+        const actualBalance = runningBalances.get(account)?.get(assertedCommodity) || 0;
 
-          // Allow for small floating point errors
-          if (Math.abs(actualBalance - expectedBalance) > 0.005) {
-            const range = this.findPostingRange(transaction, posting, document);
-            const expectedFormatted = formatAmount(expectedBalance, commodity, parsedDoc);
-            const actualFormatted = formatAmount(actualBalance, commodity, parsedDoc);
+        // Allow for small floating point errors
+        if (Math.abs(actualBalance - assertedAmount) > 0.005) {
+          const range = this.findPostingRange(transaction, posting, document);
+          const expectedFormatted = formatAmount(assertedAmount, assertedCommodity, parsedDoc);
+          const actualFormatted = formatAmount(actualBalance, assertedCommodity, parsedDoc);
 
-            diagnostics.push({
-              severity: DiagnosticSeverity.Error,
-              range,
-              message: `Balance assertion failed for ${posting.account}: expected ${expectedFormatted}, but calculated ${actualFormatted}`,
-              source: 'hledger'
-            });
-          }
+          diagnostics.push({
+            severity: DiagnosticSeverity.Error,
+            range,
+            message: `Balance assertion failed for ${account}: expected ${expectedFormatted}, but calculated ${actualFormatted}`,
+            source: 'hledger'
+          });
         }
       }
     }
