@@ -66,7 +66,7 @@ all LSP features with zero configuration.
 
 ### Neovim
 
-**Plugin**: [ptimoney/hledger-nvim](https://github.com/ptimoney/hledger-nvim)
+**Plugin**: [hledger-nvim](https://github.com/ptimoney/hledger-nvim)
 
 Provides automatic LSP configuration, filetype detection, and workspace visualization.
 
