@@ -236,7 +236,7 @@ describe('SemanticTokensProvider', () => {
     });
 
     test('should tokenize tags in comments', () => {
-      const content = `2023-01-15 Test ; project:alpha status:pending
+      const content = `2023-01-15 Test ; time:16:17, project:alpha, status:pending
   Assets:Bank  $100.00
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
@@ -247,7 +247,12 @@ describe('SemanticTokensProvider', () => {
 
       // Find tag tokens
       const tagTokens = tokens.filter(t => t.tokenType === 'property');
-      expect(tagTokens.length).toBe(2); // project and status
+      expect(tagTokens.length).toBe(3);
+
+      // Verify the tag tokens are the exact expected strings
+      const lines = content.split('\n');
+      const tagNames = tagTokens.map(t => lines[t.line].substring(t.char, t.char + t.length));
+      expect(tagNames).toEqual(['time', 'project', 'status']);
     });
 
     test('should tokenize account directive', () => {
