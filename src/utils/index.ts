@@ -2,16 +2,19 @@
  * Utility functions for the hledger language server
  */
 
+import type { Posting, Transaction } from '../types';
+
 /**
  * Check if a line is a transaction header
  * Transaction headers start with a date in YYYY-MM-DD or YYYY/MM/DD format
+ * Supports single or double digit months and days (e.g., 2024-1-5 or 2024-01-05)
  */
 export function isTransactionHeader(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) return false;
 
-  // Simple regex for date patterns
-  const datePattern = /^\d{4}[-/]\d{2}[-/]\d{2}/;
+  // Regex for date patterns with 1 or 2 digit months and days
+  const datePattern = /^\d{4}[-/]\d{1,2}[-/]\d{1,2}/;
   return datePattern.test(trimmed);
 }
 
@@ -86,4 +89,37 @@ export function getIndentationLevel(line: string): number {
  */
 export function normalizeAccountName(account: string): string {
   return account.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Normalize a date string to YYYY-MM-DD format for consistent comparison.
+ * Handles dates with different separators and single/double digit months/days.
+ *
+ * @param dateStr Date string in various formats (YYYY-MM-DD, YYYY/MM/DD, YYYY/M/D, etc.)
+ * @returns Normalized date in YYYY-MM-DD format
+ */
+export function normalizeDate(dateStr: string): string {
+  const match = dateStr.match(/^(\d{4})([-/])(\d{1,2})\2(\d{1,2})$/);
+  if (match) {
+    const year = match[1];
+    const month = match[3].padStart(2, '0');
+    const day = match[4].padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  // If already in correct format or unparseable, return as-is
+  return dateStr;
+}
+
+/**
+ * Get the effective date for a posting.
+ * Returns posting date if present, otherwise transaction date.
+ * Always returns normalized YYYY-MM-DD format for consistent comparison.
+ *
+ * @param posting The posting
+ * @param transaction The parent transaction
+ * @returns Effective date in YYYY-MM-DD format
+ */
+export function getEffectiveDate(posting: Posting, transaction: Transaction): string {
+  const date = posting.date || transaction.date;
+  return normalizeDate(date);
 }

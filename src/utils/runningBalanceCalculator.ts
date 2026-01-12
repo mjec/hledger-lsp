@@ -3,13 +3,14 @@
  *
  * Calculates running balances for all accounts across all transactions,
  * taking into account:
- * - Chronological ordering (by date)
+ * - Chronological ordering (by effective date, respecting posting dates)
  * - Multiple commodities per account
  * - Explicit and inferred amounts
  * - Transactions from multiple files (via includes)
  */
 
 import { Transaction, ParsedDocument } from '../types';
+import { getEffectiveDate } from './index';
 
 /**
  * Result of running balance calculation
@@ -27,74 +28,72 @@ export type AccountBalanceMap = Map<string, Map<string, number>>;
  * Calculate running balances for all transactions in a parsed document
  *
  * This function:
- * 1. Sorts transactions chronologically by date
- * 2. Processes each posting to update account balances
- * 3. Returns a map of balances after each posting
+ * 1. Extracts all postings with their effective dates (respecting posting dates)
+ * 2. Sorts postings chronologically by effective date
+ * 3. Processes each posting to update account balances
+ * 4. Returns a map of balances after each posting
  *
  * @param parsed The parsed document containing all transactions
  * @returns A map of transaction index -> posting index -> commodity -> balance
  */
 export function calculateRunningBalances(parsed: ParsedDocument): RunningBalanceMap {
   const result: RunningBalanceMap = new Map();
-
-  // Track global account balances across all transactions
   const accountBalances: AccountBalanceMap = new Map();
 
-  // Sort transactions by date to calculate balances in chronological order
-  // This is critical when transactions come from multiple files via includes
-  const sortedTransactions = [...parsed.transactions].sort((a, b) => {
-    return a.date.localeCompare(b.date);
+  // Extract all postings with their effective dates and original indices
+  interface PostingWithContext {
+    transaction: Transaction;
+    posting: import('../types').Posting;
+    effectiveDate: string;
+    txIndex: number;
+    postingIndex: number;
+  }
+
+  const allPostings: PostingWithContext[] = [];
+
+  parsed.transactions.forEach((tx, txIdx) => {
+    tx.postings.forEach((posting, postingIdx) => {
+      allPostings.push({
+        transaction: tx,
+        posting,
+        effectiveDate: getEffectiveDate(posting, tx),
+        txIndex: txIdx,
+        postingIndex: postingIdx
+      });
+    });
   });
 
-  // Create a map from sorted index to original index
-  const sortedToOriginalIndex = new Map<number, number>();
-  sortedTransactions.forEach((tx, sortedIdx) => {
-    const originalIdx = parsed.transactions.indexOf(tx);
-    sortedToOriginalIndex.set(sortedIdx, originalIdx);
-  });
+  // Sort by effective date for chronological processing
+  allPostings.sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
 
-  for (let sortedIdx = 0; sortedIdx < sortedTransactions.length; sortedIdx++) {
-    const transaction = sortedTransactions[sortedIdx];
-    const txIndex = sortedToOriginalIndex.get(sortedIdx)!;
-    const postingBalances = new Map<number, Map<string, number>>();
+  // Process postings in chronological order
+  for (const { posting, txIndex, postingIndex } of allPostings) {
+    const account = posting.account;
 
-    for (let postingIndex = 0; postingIndex < transaction.postings.length; postingIndex++) {
-      const posting = transaction.postings[postingIndex];
-      const account = posting.account;
+    // Get amount (explicit only - ignore inferred amounts)
+    if (posting.amount) {
+      const commodity = posting.amount.commodity || '';
 
-      // Get amount (either explicit or inferred)
-      let amountMap: Map<string, number> | undefined;
-
-      if (posting.amount) {
-        // Explicit amount
-        const commodity = posting.amount.commodity || '';
-        amountMap = new Map([[commodity, posting.amount.quantity]]);
+      // Initialize account balance map if needed
+      if (!accountBalances.has(account)) {
+        accountBalances.set(account, new Map<string, number>());
       }
+      const commodityBalances = accountBalances.get(account)!;
 
-      if (amountMap) {
-        // Update balance for each commodity in this posting
-        for (const [commodity, quantity] of amountMap.entries()) {
-          // Get or create account balance map
-          if (!accountBalances.has(account)) {
-            accountBalances.set(account, new Map<string, number>());
-          }
-          const commodityBalances = accountBalances.get(account)!;
+      // Update balance
+      const currentBalance = commodityBalances.get(commodity) || 0;
+      const newBalance = currentBalance + posting.amount.quantity;
+      commodityBalances.set(commodity, newBalance);
 
-          // Update balance
-          const currentBalance = commodityBalances.get(commodity) || 0;
-          const newBalance = currentBalance + quantity;
-          commodityBalances.set(commodity, newBalance);
-
-          // Store this posting's resulting balance
-          if (!postingBalances.has(postingIndex)) {
-            postingBalances.set(postingIndex, new Map());
-          }
-          postingBalances.get(postingIndex)!.set(commodity, newBalance);
-        }
+      // Store this posting's resulting balance in result map
+      if (!result.has(txIndex)) {
+        result.set(txIndex, new Map());
       }
+      if (!result.get(txIndex)!.has(postingIndex)) {
+        result.get(txIndex)!.set(postingIndex, new Map());
+      }
+      result.get(txIndex)!.get(postingIndex)!.set(commodity, newBalance);
     }
-
-    result.set(txIndex, postingBalances);
   }
 
   return result;
@@ -104,33 +103,48 @@ export function calculateRunningBalances(parsed: ParsedDocument): RunningBalance
  * Calculate running balances for balance assertion validation
  *
  * This is a simplified version that only tracks account balances,
- * suitable for validating balance assertions.
+ * suitable for validating balance assertions. Respects posting dates
+ * for chronological ordering.
  *
- * @param transactions List of transactions (will be sorted by date internally)
+ * @param transactions List of transactions (postings will be sorted by effective date internally)
  * @returns A map of account name -> commodity -> balance
  */
 export function calculateAccountBalances(transactions: Transaction[]): AccountBalanceMap {
   const balances: AccountBalanceMap = new Map();
 
-  // Sort transactions by date to calculate balances in chronological order
-  const sortedTransactions = [...transactions].sort((a, b) => {
-    return a.date.localeCompare(b.date);
+  // Extract all postings with effective dates
+  const allPostings: Array<{
+    posting: import('../types').Posting;
+    transaction: Transaction;
+    effectiveDate: string;
+  }> = [];
+
+  transactions.forEach(tx => {
+    tx.postings.forEach(posting => {
+      allPostings.push({
+        posting,
+        transaction: tx,
+        effectiveDate: getEffectiveDate(posting, tx)
+      });
+    });
   });
 
-  for (const transaction of sortedTransactions) {
-    for (const posting of transaction.postings) {
-      // Update running balance
-      // Note: Balance assertions check the ORIGINAL commodity (amount.commodity),
-      // not the cost commodity. So we always update balance in the amount's commodity.
-      if (posting.amount) {
-        const accountBalances = balances.get(posting.account) || new Map<string, number>();
-        const commodity = posting.amount.commodity || '';
-        const currentBalance = accountBalances.get(commodity) || 0;
-        // Always use the original amount quantity for balance tracking,
-        // regardless of whether there's a cost notation
-        accountBalances.set(commodity, currentBalance + posting.amount.quantity);
-        balances.set(posting.account, accountBalances);
-      }
+  // Sort by effective date
+  allPostings.sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
+
+  // Process postings chronologically
+  for (const { posting } of allPostings) {
+    // Update running balance
+    // Note: Balance assertions check the ORIGINAL commodity (amount.commodity),
+    // not the cost commodity. So we always update balance in the amount's commodity.
+    if (posting.amount) {
+      const accountBalances = balances.get(posting.account) || new Map<string, number>();
+      const commodity = posting.amount.commodity || '';
+      const currentBalance = accountBalances.get(commodity) || 0;
+      // Always use the original amount quantity for balance tracking,
+      // regardless of whether there's a cost notation
+      accountBalances.set(commodity, currentBalance + posting.amount.quantity);
+      balances.set(posting.account, accountBalances);
     }
   }
 
