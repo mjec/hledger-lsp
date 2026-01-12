@@ -188,6 +188,14 @@ export class SemanticTokensProvider {
         0
       );
 
+      builder.push(
+        lineIndex,
+        offset + tagStart + tagName.length + 1, // +1 for colon
+        tagValue.length,
+        TokenType.string,
+        0
+      );
+
       lastIndex = tagStart + tagName.length + 1 + tagValue.length;
     }
 
