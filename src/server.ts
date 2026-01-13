@@ -595,6 +595,22 @@ connection.onReferences((params) => {
   // Parse document with includes using server's fileReader
   const parsed = parseDocument(document);
 
+  // Try to use workspace-wide search if workspace is available
+  if (workspaceManager) {
+    const workspaceFiles = workspaceManager.getAllWorkspaceFiles();
+    if (workspaceFiles.length > 0) {
+      return findReferencesProvider.findWorkspaceReferences(
+        document,
+        params.position,
+        parsed,
+        workspaceFiles,
+        sharedParser,
+        fileReader
+      );
+    }
+  }
+
+  // Fallback to single-file search
   return findReferencesProvider.findReferences(
     document,
     params.position,
@@ -818,7 +834,21 @@ connection.onRenameRequest((params) => {
 
   if (!item) return null;
 
-  // Create the workspace edit
+  // Try to use workspace-wide rename if workspace is available
+  if (workspaceManager) {
+    const workspaceFiles = workspaceManager.getAllWorkspaceFiles();
+    if (workspaceFiles.length > 0) {
+      return codeActionProvider.createWorkspaceRenameEdit(
+        item,
+        params.newName,
+        workspaceFiles,
+        sharedParser,
+        fileReader
+      );
+    }
+  }
+
+  // Fallback to single-file rename
   return codeActionProvider.createRenameEdit(document, item, params.newName, parsed);
 });
 

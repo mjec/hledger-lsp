@@ -441,6 +441,38 @@ export class WorkspaceManager {
   }
 
   /**
+   * Get all files that are part of the workspace (transitively included by the root file).
+   * Returns an empty array if no root file is identified or workspace is not initialized.
+   */
+  getAllWorkspaceFiles(): URI[] {
+    if (!this.rootFile) {
+      return [];
+    }
+
+    const files: URI[] = [];
+    const visited = new Map<string, URI>();
+    const queue: URI[] = [this.rootFile];
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (visited.has(current.toString())) continue;
+      visited.set(current.toString(), current);
+      files.push(current);
+
+      const includes = this.includeGraph.get(current.toString());
+      if (includes) {
+        for (const [includedString, included] of includes) {
+          if (!visited.has(includedString)) {
+            queue.push(included);
+          }
+        }
+      }
+    }
+
+    return files;
+  }
+
+  /**
    * Get the workspace folder that contains the given URI.
    * Returns null if the file is outside all workspace folders.
    *

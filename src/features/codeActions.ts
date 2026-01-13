@@ -13,8 +13,10 @@ import {
 } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
-import { ParsedDocument } from '../types';
+import { ParsedDocument, FileReader } from '../types';
 import { formatAmount } from '../utils/amountFormatter';
+import { toFilePath } from '../utils/uri';
+import * as fs from 'fs';
 
 export class CodeActionProvider {
   /**
@@ -336,33 +338,6 @@ export class CodeActionProvider {
   }
 
   /**
-   * Create a rename refactoring action
-   */
-  private createRenameAction(
-    document: TextDocument,
-    item: { type: 'account' | 'payee' | 'commodity' | 'tag'; name: string },
-    parsedDoc: ParsedDocument
-  ): CodeAction {
-    // Note: This creates a code action that would need user input for the new name
-    // In a real implementation, this would trigger a rename dialog
-    // For now, we'll create an action that shows it's available
-
-    const action: CodeAction = {
-      title: `Rename ${item.type} '${item.name}'...`,
-      kind: CodeActionKind.Refactor,
-      // In a full implementation, this would use the 'command' field to trigger
-      // a rename dialog. For now, we mark it as available but don't provide an edit.
-      command: {
-        title: `Rename ${item.type}`,
-        command: 'hledger.rename',
-        arguments: [document.uri, item.type, item.name]
-      }
-    };
-
-    return action;
-  }
-
-  /**
    * Find all occurrences of an account name in the document
    */
   public findAccountReferences(
@@ -545,6 +520,425 @@ export class CodeActionProvider {
         [document.uri]: edits
       }
     };
+  }
+
+  /**
+   * Create workspace edit to rename an item across all workspace files
+   * Uses parsed documents for accurate reference finding
+   */
+  public createWorkspaceRenameEdit(
+    item: { type: 'account' | 'payee' | 'commodity' | 'tag'; name: string },
+    newName: string,
+    fileUris: URI[],
+    parser: any, // HledgerParser
+    fileReader?: FileReader
+  ): WorkspaceEdit {
+    const changes: { [uri: string]: TextEdit[] } = {};
+
+    // Parse all files once (parser will handle caching)
+    const parsedDocs = new Map<string, ParsedDocument>();
+    for (const fileUri of fileUris) {
+      try {
+        // Get the TextDocument for this URI
+        let doc: TextDocument | null = null;
+        if (fileReader) {
+          doc = fileReader(fileUri);
+        }
+
+        if (!doc) {
+          // Fallback to reading from disk
+          const filePath = toFilePath(fileUri);
+          const content = fs.readFileSync(filePath, 'utf8');
+          doc = TextDocument.create(fileUri.toString(), 'hledger', 1, content);
+        }
+
+        const parsed = parser.parse(doc, { fileReader });
+        parsedDocs.set(fileUri.toString(), parsed);
+      } catch (error) {
+        // Skip files that can't be parsed
+        continue;
+      }
+    }
+
+    // Find references in each parsed file
+    for (const [uriString, parsedDoc] of parsedDocs) {
+      const fileUri = URI.parse(uriString);
+      let ranges: Range[] = [];
+
+      // Find references in this file based on item type
+      switch (item.type) {
+        case 'account':
+          ranges = this.findAccountReferencesInParsedDoc(parsedDoc, item.name, fileUri, fileReader);
+          break;
+        case 'payee':
+          ranges = this.findPayeeReferencesInParsedDoc(parsedDoc, item.name, fileUri, fileReader);
+          break;
+        case 'commodity':
+          ranges = this.findCommodityReferencesInParsedDoc(parsedDoc, item.name, fileUri, fileReader);
+          break;
+        case 'tag':
+          ranges = this.findTagReferencesInParsedDoc(parsedDoc, item.name, fileUri, fileReader);
+          break;
+      }
+
+      if (ranges.length > 0) {
+        const edits: TextEdit[] = ranges.map(range => TextEdit.replace(range, newName));
+        changes[uriString] = edits;
+      }
+    }
+
+    return { changes };
+  }
+
+  /**
+   * Find all account references in parsed document
+   */
+  public findAccountReferencesInParsedDoc(
+    parsedDoc: ParsedDocument,
+    accountName: string,
+    fileUri: URI,
+    fileReader?: FileReader
+  ): Range[] {
+    const ranges: Range[] = [];
+    const fileUriString = fileUri.toString();
+
+    // Get file lines for finding character positions
+    let lines: string[] | null = null;
+    if (fileReader) {
+      const doc = fileReader(fileUri);
+      if (doc) {
+        lines = doc.getText().split('\n');
+      }
+    }
+    if (!lines) {
+      // Fallback to reading from disk
+      try {
+        const filePath = toFilePath(fileUri);
+        const content = fs.readFileSync(filePath, 'utf8');
+        lines = content.split('\n');
+      } catch (error) {
+        return ranges; // Can't read file, return empty
+      }
+    }
+
+    // Find in directives
+    for (const directive of parsedDoc.directives) {
+      if (directive.type === 'account' &&
+        directive.value === accountName &&
+        directive.sourceUri?.toString() === fileUriString &&
+        directive.line !== undefined &&
+        directive.line < lines.length) {
+        const line = lines[directive.line];
+        const start = line.indexOf(accountName);
+        if (start !== -1) {
+          ranges.push(Range.create(
+            directive.line,
+            start,
+            directive.line,
+            start + accountName.length
+          ));
+        }
+      }
+    }
+
+    // Find in postings
+    for (const transaction of parsedDoc.transactions) {
+      if (transaction.sourceUri?.toString() !== fileUriString) continue;
+
+      for (const posting of transaction.postings) {
+        if (posting.account === accountName &&
+          posting.line !== undefined &&
+          posting.line < lines.length) {
+          const line = lines[posting.line];
+          const start = line.indexOf(accountName);
+          if (start !== -1) {
+            ranges.push(Range.create(
+              posting.line,
+              start,
+              posting.line,
+              start + accountName.length
+            ));
+          }
+        }
+      }
+    }
+
+    return ranges;
+  }
+
+  /**
+   * Find all payee references in parsed document
+   */
+  public findPayeeReferencesInParsedDoc(
+    parsedDoc: ParsedDocument,
+    payeeName: string,
+    fileUri: URI,
+    fileReader?: FileReader
+  ): Range[] {
+    const ranges: Range[] = [];
+    const fileUriString = fileUri.toString();
+
+    // Get file lines for finding character positions
+    let lines: string[] | null = null;
+    if (fileReader) {
+      const doc = fileReader(fileUri);
+      if (doc) {
+        lines = doc.getText().split('\n');
+      }
+    }
+    if (!lines) {
+      try {
+        const filePath = toFilePath(fileUri);
+        const content = fs.readFileSync(filePath, 'utf8');
+        lines = content.split('\n');
+      } catch (error) {
+        return ranges;
+      }
+    }
+
+    // Find in directives
+    for (const directive of parsedDoc.directives) {
+      if (directive.type === 'payee' &&
+        directive.value === payeeName &&
+        directive.sourceUri?.toString() === fileUriString &&
+        directive.line !== undefined &&
+        directive.line < lines.length) {
+        const line = lines[directive.line];
+        const start = line.indexOf(payeeName);
+        if (start !== -1) {
+          ranges.push(Range.create(
+            directive.line,
+            start,
+            directive.line,
+            start + payeeName.length
+          ));
+        }
+      }
+    }
+
+    // Find in transactions
+    for (const transaction of parsedDoc.transactions) {
+      if (transaction.sourceUri?.toString() !== fileUriString) continue;
+
+      if (transaction.payee === payeeName &&
+        transaction.line !== undefined &&
+        transaction.line < lines.length) {
+        const line = lines[transaction.line];
+        const start = line.indexOf(payeeName);
+        if (start !== -1) {
+          ranges.push(Range.create(
+            transaction.line,
+            start,
+            transaction.line,
+            start + payeeName.length
+          ));
+        }
+      }
+    }
+
+    return ranges;
+  }
+
+  /**
+   * Find all commodity references in parsed document
+   */
+  public findCommodityReferencesInParsedDoc(
+    parsedDoc: ParsedDocument,
+    commodityName: string,
+    fileUri: URI,
+    fileReader?: FileReader
+  ): Range[] {
+    const ranges: Range[] = [];
+    const fileUriString = fileUri.toString();
+
+    // Get file lines for finding character positions
+    let lines: string[] | null = null;
+    if (fileReader) {
+      const doc = fileReader(fileUri);
+      if (doc) {
+        lines = doc.getText().split('\n');
+      }
+    }
+    if (!lines) {
+      try {
+        const filePath = toFilePath(fileUri);
+        const content = fs.readFileSync(filePath, 'utf8');
+        lines = content.split('\n');
+      } catch (error) {
+        return ranges;
+      }
+    }
+
+    // Find in directives
+    for (const directive of parsedDoc.directives) {
+      if (directive.type === 'commodity' &&
+        directive.value.startsWith(commodityName) &&
+        directive.sourceUri?.toString() === fileUriString &&
+        directive.line !== undefined &&
+        directive.line < lines.length) {
+        const line = lines[directive.line];
+        const start = line.indexOf(commodityName);
+        if (start !== -1) {
+          ranges.push(Range.create(
+            directive.line,
+            start,
+            directive.line,
+            start + commodityName.length
+          ));
+        }
+      }
+    }
+
+    // Find in posting amounts
+    for (const transaction of parsedDoc.transactions) {
+      if (transaction.sourceUri?.toString() !== fileUriString) continue;
+
+      for (const posting of transaction.postings) {
+        if (posting.line === undefined || posting.line >= lines.length) continue;
+
+        const line = lines[posting.line];
+
+        // Check amount commodity
+        if (posting.amount?.commodity === commodityName) {
+          const start = line.indexOf(commodityName);
+          if (start !== -1) {
+            ranges.push(Range.create(
+              posting.line,
+              start,
+              posting.line,
+              start + commodityName.length
+            ));
+          }
+        }
+
+        // Check assertion commodity
+        if (posting.assertion?.commodity === commodityName) {
+          const assertionStart = line.indexOf('=');
+          if (assertionStart !== -1) {
+            const start = line.indexOf(commodityName, assertionStart);
+            if (start !== -1) {
+              ranges.push(Range.create(
+                posting.line,
+                start,
+                posting.line,
+                start + commodityName.length
+              ));
+            }
+          }
+        }
+
+        // Check cost commodity
+        if (posting.cost?.amount?.commodity === commodityName) {
+          const costStart = line.indexOf('@');
+          if (costStart !== -1) {
+            const start = line.indexOf(commodityName, costStart);
+            if (start !== -1) {
+              ranges.push(Range.create(
+                posting.line,
+                start,
+                posting.line,
+                start + commodityName.length
+              ));
+            }
+          }
+        }
+      }
+    }
+
+    return ranges;
+  }
+
+  /**
+   * Find all tag references in parsed document
+   */
+  public findTagReferencesInParsedDoc(
+    parsedDoc: ParsedDocument,
+    tagName: string,
+    fileUri: URI,
+    fileReader?: FileReader
+  ): Range[] {
+    const ranges: Range[] = [];
+    const fileUriString = fileUri.toString();
+
+    // Get file lines for finding character positions
+    let lines: string[] | null = null;
+    if (fileReader) {
+      const doc = fileReader(fileUri);
+      if (doc) {
+        lines = doc.getText().split('\n');
+      }
+    }
+    if (!lines) {
+      try {
+        const filePath = toFilePath(fileUri);
+        const content = fs.readFileSync(filePath, 'utf8');
+        lines = content.split('\n');
+      } catch (error) {
+        return ranges;
+      }
+    }
+
+    // Find in directives
+    for (const directive of parsedDoc.directives) {
+      if (directive.type === 'tag' &&
+        directive.value === tagName &&
+        directive.sourceUri?.toString() === fileUriString &&
+        directive.line !== undefined &&
+        directive.line < lines.length) {
+        const line = lines[directive.line];
+        const start = line.indexOf(tagName);
+        if (start !== -1) {
+          ranges.push(Range.create(
+            directive.line,
+            start,
+            directive.line,
+            start + tagName.length
+          ));
+        }
+      }
+    }
+
+    // Find in transaction tags
+    for (const transaction of parsedDoc.transactions) {
+      if (transaction.sourceUri?.toString() !== fileUriString) continue;
+
+      if (transaction.tags && tagName in transaction.tags &&
+        transaction.line !== undefined &&
+        transaction.line < lines.length) {
+        const line = lines[transaction.line];
+        const tagPattern = new RegExp(`\\b${this.escapeRegExp(tagName)}:`, 'g');
+        let match;
+        while ((match = tagPattern.exec(line)) !== null) {
+          ranges.push(Range.create(
+            transaction.line,
+            match.index,
+            transaction.line,
+            match.index + tagName.length
+          ));
+        }
+      }
+
+      // Find in posting tags
+      for (const posting of transaction.postings) {
+        if (posting.tags && tagName in posting.tags &&
+          posting.line !== undefined &&
+          posting.line < lines.length) {
+          const line = lines[posting.line];
+          const tagPattern = new RegExp(`\\b${this.escapeRegExp(tagName)}:`, 'g');
+          let match;
+          while ((match = tagPattern.exec(line)) !== null) {
+            ranges.push(Range.create(
+              posting.line,
+              match.index,
+              posting.line,
+              match.index + tagName.length
+            ));
+          }
+        }
+      }
+    }
+
+    return ranges;
   }
 
   /**
