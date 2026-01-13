@@ -76,7 +76,6 @@ export class InlayHintsProvider {
 
         // Virtual cursor tracks the visual column position as we append hints
         let virtualColumn = contentEndIndex ?? 0;
-        const insertPosition = Position.create(lineNum, contentEndIndex!);
 
         // 1. Amount
         if (posting.amount && !posting.amount.inferred) {
@@ -107,8 +106,6 @@ export class InlayHintsProvider {
             posting,
             lineNum,
             contentEndIndex!,
-            virtualColumn,
-            config,
             formattingOptions,
             parsed
           );
@@ -122,7 +119,6 @@ export class InlayHintsProvider {
         if (config.showRunningBalances && !posting.assertion) {
           const hint = this.getBalanceAssertionHint(
             document,
-            posting,
             lineNum,
             contentEndIndex!,
             virtualColumn,
@@ -192,8 +188,6 @@ export class InlayHintsProvider {
     posting: any,
     lineNum: number,
     contentEndIndex: number,
-    virtualColumn: number,
-    config: InlayHintsOptions,
     formattingOptions: FormattingOptions,
     parsed: ParsedDocument
   ): InlayHint | null {
@@ -225,7 +219,6 @@ export class InlayHintsProvider {
 
   private getBalanceAssertionHint(
     document: TextDocument,
-    posting: any,
     lineNum: number,
     contentEndIndex: number,
     virtualColumn: number,
@@ -280,7 +273,7 @@ export class InlayHintsProvider {
         command: {
           title: 'Insert balance assertion',
           command: 'hledger.insertBalanceAssertion',
-          arguments: [document.uri, lineNum, posting.account, balanceStrings]
+          arguments: [document.uri, lineNum, balanceStrings]
         }
       }],
       kind: InlayHintKind.Type,

@@ -78,8 +78,6 @@ let workspaceManager: WorkspaceManager | null = null;
 
 connection.onInitialize((params: InitializeParams) => {
   connection.console.log('========== ON INITIALIZE CALLED ==========');
-  connection.console.log(`rootUri: ${params.rootUri}`);
-  connection.console.log(`rootPath: ${params.rootPath}`);
   connection.console.log(`workspaceFolders: ${JSON.stringify(params.workspaceFolders)}`);
 
   // Get version from package.json
@@ -126,8 +124,13 @@ connection.onInitialize((params: InitializeParams) => {
   // Store workspace folders
   if (params.workspaceFolders && params.workspaceFolders.length > 0) {
     workspaceFolders = params.workspaceFolders.map(folder => URI.parse(folder.uri));
-  } else if (params.rootUri) {
-    workspaceFolders = [URI.parse(params.rootUri)];
+  } else {
+    // Fallback for clients that don't support workspaceFolders
+    // rootUri is deprecated but kept for backward compatibility
+    const legacyRootUri = params.rootUri;
+    if (legacyRootUri) {
+      workspaceFolders = [URI.parse(legacyRootUri)];
+    }
   }
 
   const result: InitializeResult = {
@@ -564,7 +567,7 @@ connection.onCompletionResolve(
 );
 
 // Provide hover information
-connection.onHover(async (params, token) => {
+connection.onHover(async (params, _token) => {
   const document = getDocument(params.textDocument.uri);
   if (!document) return null;
 
@@ -738,9 +741,6 @@ connection.languages.semanticTokens.on((params) => {
   const document = getDocument(params.textDocument.uri);
   if (!document) return { data: [] };
 
-  // Parse document
-  const parsed = parseDocument(document);
-
   const data = semanticTokensProvider.provideSemanticTokens(document);
   return { data };
 });
@@ -879,9 +879,6 @@ connection.onSelectionRanges((params) => {
   const document = getDocument(params.textDocument.uri);
   if (!document) return [];
 
-  // Parse document
-  const parsed = parseDocument(document);
-
   return selectionRangeProvider.provideSelectionRanges(document, params.positions) || [];
 });
 
@@ -890,7 +887,7 @@ connection.onExecuteCommand(async (params) => {
   connection.console.log(`[ExecuteCommand] ${params.command}`);
 
   if (params.command === 'hledger.addBalanceAssertion' || params.command === 'hledger.insertBalanceAssertion') {
-    const [uri, line, account, amounts] = params.arguments as [string, number, string, string[]];
+    const [uri, line, amounts] = params.arguments as [string, number, string[]];
     const document = getDocument(uri);
 
     if (!document) {
@@ -934,7 +931,7 @@ connection.onExecuteCommand(async (params) => {
     });
 
     // Trigger inlay hint refresh to clear the hint after insertion
-    await connection.languages.inlayHint.refresh().catch((err) => {
+    await connection.languages.inlayHint.refresh().catch((_err) => {
       // Ignore errors if client doesn't support refresh
     });
   } else if (params.command === 'hledger.insertInferredAmount') {
@@ -1012,51 +1009,7 @@ connection.onExecuteCommand(async (params) => {
     });
 
     // Trigger inlay hint refresh to clear the hint after insertion
-    await connection.languages.inlayHint.refresh().catch((err) => {
-      // Ignore errors if client doesn't support refresh
-    });
-  } else if (params.command === 'hledger.convertToTotalCost') {
-    const [uri, line, account, totalCostText] = params.arguments as [string, number, string, string];
-    const document = getDocument(uri);
-
-    if (!document) {
-      return;
-    }
-
-    // Get the line text
-    const lineText = document.getText({
-      start: { line, character: 0 },
-      end: { line, character: Number.MAX_SAFE_INTEGER }
-    });
-
-    // Find the unit cost notation (@ but not @@)
-    // Match @ followed by non-@ character
-    const unitCostMatch = lineText.match(/@(?!@)\s*[^;#\s]+/);
-    if (!unitCostMatch || unitCostMatch.index === undefined) {
-      return;
-    }
-
-    const startPos = unitCostMatch.index;
-    const endPos = startPos + unitCostMatch[0].length;
-
-    // Replace with total cost notation
-    const newText = `@@ ${totalCostText}`;
-
-    // Create and apply the edit
-    await connection.workspace.applyEdit({
-      changes: {
-        [uri]: [{
-          range: {
-            start: { line, character: startPos },
-            end: { line, character: endPos }
-          },
-          newText: newText
-        }]
-      }
-    });
-
-    // Trigger inlay hint refresh to clear the hint after conversion
-    await connection.languages.inlayHint.refresh().catch((err) => {
+    await connection.languages.inlayHint.refresh().catch((_err) => {
       // Ignore errors if client doesn't support refresh
     });
   } else if (params.command === 'hledger.refreshInlayHints') {
