@@ -130,6 +130,9 @@ export class FindReferencesProvider {
   /**
    * Get the item (account, payee, commodity, tag) at the cursor position
    */
+  /**
+   * Get the item (account, payee, commodity, tag) at the cursor position
+   */
   public getItemAtCursor(
     document: TextDocument,
     position: Position,
@@ -145,70 +148,124 @@ export class FindReferencesProvider {
       return null;
     }
     const char = position.character;
+    const currentLineIndex = position.line;
 
-    // Check if on an account directive
-    const accountDirectiveMatch = line.match(/^account\s+(.+?)(?:\s|$)/);
-    if (accountDirectiveMatch && char >= line.indexOf(accountDirectiveMatch[1])) {
-      return { type: 'account', name: accountDirectiveMatch[1].trim() };
+    // 1. Check if we are on a directive line
+    const directive = parsedDoc.directives.find(d => d.line === currentLineIndex);
+    if (directive) {
+      switch (directive.type) {
+        case 'account':
+        case 'payee':
+        case 'tag':
+          if (char >= line.indexOf(directive.value)) {
+            return { type: directive.type, name: directive.value };
+          }
+          break;
+        case 'commodity':
+          // For commodity, we might have format information, but the value starts with the symbol
+          // The value in the directive object might include format info, so we double check the line content
+          const commodityMatch = line.match(/^commodity\s+(.+?)(?:\s|$)/);
+          if (commodityMatch && char >= line.indexOf(commodityMatch[1])) {
+            const commodityPart = commodityMatch[1].trim().split(/\s+/)[0];
+            return { type: 'commodity', name: commodityPart };
+          }
+          break;
+      }
+      return null;
     }
 
-    // Check if on a payee directive
-    const payeeDirectiveMatch = line.match(/^payee\s+(.+?)(?:\s*;|$)/);
-    if (payeeDirectiveMatch && char >= line.indexOf(payeeDirectiveMatch[1])) {
-      return { type: 'payee', name: payeeDirectiveMatch[1].trim() };
-    }
+    // 2. Check if we are inside a transaction
+    const transaction = parsedDoc.transactions.find(t =>
+      t.line !== undefined && currentLineIndex >= t.line &&
+      // We don't have an explicit end line, but we can assume it ends where the next transaction starts
+      // or if we match one of its postings
+      (t.line === currentLineIndex || t.postings.some(p => p.line === currentLineIndex))
+    );
 
-    // Check if on a commodity directive
-    const commodityDirectiveMatch = line.match(/^commodity\s+(.+?)(?:\s|$)/);
-    if (commodityDirectiveMatch && char >= line.indexOf(commodityDirectiveMatch[1])) {
-      // Extract just the commodity symbol, not the format
-      const commodityPart = commodityDirectiveMatch[1].trim().split(/\s+/)[0];
-      return { type: 'commodity', name: commodityPart };
-    }
+    if (transaction) {
+      // Check if we are on the transaction header
+      if (transaction.line === currentLineIndex) {
+        // Check for payee
+        const payeeName = transaction.payee;
+        const payeeStart = line.indexOf(payeeName);
+        if (payeeStart !== -1 && char >= payeeStart && char <= payeeStart + payeeName.length) {
+          return { type: 'payee', name: payeeName };
+        }
 
-    // Check if on a tag directive
-    const tagDirectiveMatch = line.match(/^tag\s+(\w+)/);
-    if (tagDirectiveMatch && char >= line.indexOf(tagDirectiveMatch[1])) {
-      return { type: 'tag', name: tagDirectiveMatch[1] };
-    }
+        // Check for tags in comment
+        // Fallback to regex for tags as they are locally scoped in the comment
+        const tagMatch = line.match(/;\s*(\w+):/g);
+        if (tagMatch) {
+          for (const match of tagMatch) {
+            const tagName = match.match(/(\w+):/)?.[1];
+            if (tagName) {
+              const tagStart = line.indexOf(match) + match.indexOf(tagName);
+              const tagEnd = tagStart + tagName.length;
+              if (char >= tagStart && char <= tagEnd) {
+                return { type: 'tag', name: tagName };
+              }
+            }
+          }
+        }
+        return null;
+      }
 
-    // Check if on an account in a posting
-    if (line.match(/^\s+\S/)) { // Indented line (posting)
-      const accountMatch = line.match(/^\s+([^;\s]+(?:\s+[^;\s]+)*?)(?:\s{2,}|\s+[-+$£€¥₹]|\s*$)/);
-      if (accountMatch) {
-        const accountName = accountMatch[1].trim();
+      // Check if we are on a posting line
+      const posting = transaction.postings.find(p => p.line === currentLineIndex);
+      if (posting) {
+        // Check for account
+        const accountName = posting.account;
         const accountStart = line.indexOf(accountName);
-        const accountEnd = accountStart + accountName.length;
-        if (char >= accountStart && char <= accountEnd) {
+        if (accountStart !== -1 && char >= accountStart && char <= accountStart + accountName.length) {
           return { type: 'account', name: accountName };
         }
-      }
 
-      // Check if on a commodity in a posting amount
-      // Match common commodity symbols and currency codes
-      const commodityRegex = /[$£€¥₹]|[A-Z]{3,4}\b/g;
-      let commodityMatch;
-      while ((commodityMatch = commodityRegex.exec(line)) !== null) {
-        const commodityStart = commodityMatch.index;
-        const commodityEnd = commodityStart + commodityMatch[0].length;
-        if (char >= commodityStart && char <= commodityEnd) {
-          return { type: 'commodity', name: commodityMatch[0] };
+        // Check for commodity in amount
+        if (posting.amount?.commodity) {
+          const commodityName = posting.amount.commodity;
+          // Look for commodity in the line. It might appear multiple times (cost, assertion), 
+          // so we need to be careful, but checking simple occurrence is a good start
+          const commodityRegex = new RegExp(this.escapeRegExp(commodityName), 'g');
+          let match;
+          while ((match = commodityRegex.exec(line)) !== null) {
+            if (char >= match.index && char <= match.index + commodityName.length) {
+              return { type: 'commodity', name: commodityName };
+            }
+          }
+        }
+
+        // Fallback check for any commodity symbol (e.g. in cost that isn't parsed into amount yet)
+        const commodityFallbackRegex = /[$£€¥₹]|[A-Z]{3,4}\b/g;
+        let commodityMatch;
+        while ((commodityMatch = commodityFallbackRegex.exec(line)) !== null) {
+          const commodityStart = commodityMatch.index;
+          const commodityEnd = commodityStart + commodityMatch[0].length;
+          if (char >= commodityStart && char <= commodityEnd) {
+            // Only return if checking against the known amount commodity didn't work 
+            // or if it's a different one
+            return { type: 'commodity', name: commodityMatch[0] };
+          }
+        }
+
+        // Check for tags in posting comment
+        const tagMatch = line.match(/;\s*(\w+):/g);
+        if (tagMatch) {
+          for (const match of tagMatch) {
+            const tagName = match.match(/(\w+):/)?.[1];
+            if (tagName) {
+              const tagStart = line.indexOf(match) + match.indexOf(tagName);
+              const tagEnd = tagStart + tagName.length;
+              if (char >= tagStart && char <= tagEnd) {
+                return { type: 'tag', name: tagName };
+              }
+            }
+          }
         }
       }
     }
 
-    // Check if on a payee in a transaction header
-    const txHeaderMatch = line.match(/^\d{4}[-/]\d{2}[-/]\d{2}(?:\s+[*!])?(?:\s+\([^)]+\))?\s+(.+?)(?:\s*;|$)/);
-    if (txHeaderMatch) {
-      const payeeName = txHeaderMatch[1].trim();
-      const payeeStart = line.indexOf(payeeName);
-      const payeeEnd = payeeStart + payeeName.length;
-      if (char >= payeeStart && char <= payeeEnd) {
-        return { type: 'payee', name: payeeName };
-      }
-    }
-
-    // Check if on a tag in a comment
+    // 3. Fallback: Check for global tags in comments on any other lines
+    // (This might be redundant if we covered directives and transactions, but good for safety)
     const tagMatch = line.match(/;\s*(\w+):/g);
     if (tagMatch) {
       for (const match of tagMatch) {

@@ -11,6 +11,7 @@ import { formatAmount } from '../utils/amountFormatter';
 
 export class DocumentSymbolProvider {
   /**
+  /**
    * Provide document symbols for outline view
    * Returns hierarchical symbols representing the structure of the document
    */
@@ -27,8 +28,8 @@ export class DocumentSymbolProvider {
         continue;
       }
 
-      const line = this.findDirectiveLine(lines, directive);
-      if (line !== -1) {
+      const line = directive.line;
+      if (line !== undefined && line < lines.length) {
         const range = Range.create(line, 0, line, lines[line].length);
         const kind = this.getDirectiveSymbolKind(directive.type);
 
@@ -49,8 +50,8 @@ export class DocumentSymbolProvider {
         continue;
       }
 
-      const line = this.findTransactionLine(lines, transaction);
-      if (line !== -1) {
+      const line = transaction.line;
+      if (line !== undefined && line < lines.length) {
         // Calculate the range of the entire transaction (including postings)
         const endLine = this.findTransactionEndLine(lines, line);
         const range = Range.create(line, 0, endLine, lines[endLine].length);
@@ -63,8 +64,8 @@ export class DocumentSymbolProvider {
         // Create child symbols for postings
         const children: DocumentSymbol[] = [];
         for (const posting of transaction.postings) {
-          const postingLine = this.findPostingLine(lines, posting.account, line, endLine);
-          if (postingLine !== -1) {
+          const postingLine = posting.line;
+          if (postingLine !== undefined && postingLine < lines.length) {
             const postingRange = Range.create(postingLine, 0, postingLine, lines[postingLine].length);
             const amountStr = posting.amount
               ? ` ${formatAmount(posting.amount.quantity, posting.amount.commodity, parsedDoc)}`
@@ -94,41 +95,6 @@ export class DocumentSymbolProvider {
   }
 
   /**
-   * Find the line number of a directive in the document
-   */
-  private findDirectiveLine(lines: string[], directive: Directive): number {
-    const pattern = new RegExp(`^${directive.type}\\s+${this.escapeRegex(directive.value)}`);
-    for (let i = 0; i < lines.length; i++) {
-      if (pattern.test(lines[i])) {
-        return i;
-      }
-    }
-    return -1;
-  }
-
-  /**
-   * Find the line number of a transaction in the document
-   */
-  private findTransactionLine(lines: string[], transaction: Transaction): number {
-    const datePattern = transaction.date.replace(/\//g, '\\/');
-    const statusChar = transaction.status === 'cleared' ? '\\*' :
-      transaction.status === 'pending' ? '!' : '';
-    const codeStr = transaction.code ? `\\(${this.escapeRegex(transaction.code)}\\)\\s*` : '';
-    const descPattern = this.escapeRegex(transaction.description);
-
-    const pattern = new RegExp(
-      `^${datePattern}(?:\\s*=\\s*[0-9/-]+)?\\s*${statusChar}\\s*${codeStr}${descPattern}`
-    );
-
-    for (let i = 0; i < lines.length; i++) {
-      if (pattern.test(lines[i])) {
-        return i;
-      }
-    }
-    return -1;
-  }
-
-  /**
    * Find the end line of a transaction (last posting or comment)
    */
   private findTransactionEndLine(lines: string[], startLine: number): number {
@@ -147,21 +113,6 @@ export class DocumentSymbolProvider {
     }
 
     return endLine;
-  }
-
-  /**
-   * Find a posting line within a transaction
-   */
-  private findPostingLine(lines: string[], account: string, startLine: number, endLine: number): number {
-    const accountPattern = new RegExp(`^\\s+${this.escapeRegex(account)}`);
-
-    for (let i = startLine + 1; i <= endLine; i++) {
-      if (accountPattern.test(lines[i])) {
-        return i;
-      }
-    }
-
-    return -1;
   }
 
   /**
@@ -184,13 +135,6 @@ export class DocumentSymbolProvider {
       default:
         return SymbolKind.Constant;
     }
-  }
-
-  /**
-   * Escape special regex characters
-   */
-  private escapeRegex(str: string): string {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 }
 
