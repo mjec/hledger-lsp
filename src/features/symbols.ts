@@ -11,6 +11,7 @@ import { formatAmount } from '../utils/amountFormatter';
 
 export class DocumentSymbolProvider {
   /**
+  /**
    * Provide document symbols for outline view
    * Returns hierarchical symbols representing the structure of the document
    */
