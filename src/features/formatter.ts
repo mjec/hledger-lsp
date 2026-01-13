@@ -458,7 +458,7 @@ export class FormattingProvider {
   }
 
   private updateAmountWidths(widths: AmountWidths, layout: AmountLayout, options: FormattingOptions) {
-
+    widths.marker = Math.max(widths.marker, layout.marker.length);
     widths.commodityBefore = Math.max(widths.commodityBefore, layout.commodityBefore.length);
     widths.commodityBefore = Math.min(widths.commodityBefore, options.maxCommodityWidth);
     widths.spaceBetweenCommodityBeforeAndAmount = Math.max(widths.spaceBetweenCommodityBeforeAndAmount,
