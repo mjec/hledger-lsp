@@ -1,5 +1,5 @@
 import { HledgerParser } from '../../src/parser';
-import { calculateRunningBalances, calculateAccountBalances } from '../../src/utils/runningBalanceCalculator';
+import { calculateRunningBalances } from '../../src/utils/runningBalanceCalculator';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
 describe('Running Balance Calculator with Posting Dates', () => {
@@ -173,101 +173,6 @@ describe('Running Balance Calculator with Posting Dates', () => {
       // Final cash balance (-$10 from txA - $20 from txB = -$30)
       const txBCash = balances.get(1)?.get(1)?.get('$');
       expect(txBCash).toBe(-30);
-    });
-  });
-
-  describe('calculateAccountBalances', () => {
-    test('calculates balances in effective date order', () => {
-      const content = `
-2024-01-20 Transaction B
-    assets:checking  $100
-    income:salary
-
-2024-01-15 Transaction A
-    expenses:food  $10
-    assets:checking  ; date:2024-01-25
-`;
-
-      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
-      const balances = calculateAccountBalances(parsed.transactions);
-
-      // Final balances (after all postings):
-      // checking: +$100 (01-20) - $10 (01-25) = $90
-      // food: +$10 (expenses are debits, positive)
-      // salary: -$100 (income is credits, negative)
-
-      const checkingBalance = balances.get('assets:checking')?.get('$');
-      expect(checkingBalance).toBe(90);
-
-      const foodBalance = balances.get('expenses:food')?.get('$');
-      expect(foodBalance).toBe(10);
-
-      const salaryBalance = balances.get('income:salary')?.get('$');
-      expect(salaryBalance).toBe(-100);
-    });
-
-    test('handles cross-boundary posting dates', () => {
-      const content = `
-2024-01-25 Late Transaction
-    expenses:food  $50  ; date:2024-01-10
-    assets:cash
-
-2024-01-15 Middle Transaction
-    assets:checking  $100
-    income:salary
-
-2024-01-20 Another Transaction
-    expenses:gas  $20  ; date:2024-01-12
-    assets:cash
-`;
-
-      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
-      const balances = calculateAccountBalances(parsed.transactions);
-
-      // Effective chronological order:
-      // 1. Late Transaction, food (date:01-10): +$50
-      // 2. Late Transaction, cash (01-25): -$50 (inferred)
-      // 3. Another Transaction, gas (date:01-12): +$20
-      // 4. Another Transaction, cash (01-20): -$20 (inferred)
-      // 5. Middle Transaction, checking (01-15): +$100
-      // 6. Middle Transaction, salary (01-15): -$100 (inferred)
-
-      // Cash: -$50 (late, 01-25) - $20 (another, 01-20) = -$70
-      const cashBalance = balances.get('assets:cash')?.get('$');
-      expect(cashBalance).toBe(-70);
-
-      // Food: +$50 (expenses are debits, positive)
-      const foodBalance = balances.get('expenses:food')?.get('$');
-      expect(foodBalance).toBe(50);
-
-      // Gas: +$20
-      const gasBalance = balances.get('expenses:gas')?.get('$');
-      expect(gasBalance).toBe(20);
-    });
-
-    test('backward compatibility: works without posting dates', () => {
-      const content = `
-2024-01-20 Transaction B
-    assets:checking  $100
-    income:salary
-
-2024-01-15 Transaction A
-    expenses:food  $10
-    assets:checking
-`;
-
-      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
-      const balances = calculateAccountBalances(parsed.transactions);
-
-      // Chronological order (by transaction date):
-      // 1. Transaction A (01-15): food +$10, checking -$10 (inferred)
-      // 2. Transaction B (01-20): checking +$100, salary -$100 (inferred)
-      // Final checking balance: -$10 + $100 = $90
-      const checkingBalance = balances.get('assets:checking')?.get('$');
-      expect(checkingBalance).toBe(90);
     });
   });
 

@@ -7,13 +7,12 @@
  * - Cost conversions when costs are involved
  */
 
-import { InlayHint, InlayHintKind, InlayHintLabelPart, Position, Range, Command } from 'vscode-languageserver';
+import { InlayHint, InlayHintKind, InlayHintLabelPart, Position, Range } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
-import { ParsedDocument, Transaction, Posting, Amount } from '../types';
-import { formatAmount, getAmountLayout } from '../utils/amountFormatter';
-import { calculateTransactionBalance } from '../utils/balanceCalculator';
-import { calculateRunningBalances, RunningBalanceMap } from '../utils/runningBalanceCalculator';
+import { ParsedDocument } from '../types';
+import { formatAmount } from '../utils/amountFormatter';
+import { calculateRunningBalances } from '../utils/runningBalanceCalculator';
 import {
   DEFAULT_FORMATTING_OPTIONS,
   DEFAULT_INLAY_HINTS_OPTIONS,

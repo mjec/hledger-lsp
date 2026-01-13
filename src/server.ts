@@ -32,7 +32,7 @@ import { documentLinksProvider } from './features/documentLinks';
 import { selectionRangeProvider } from './features/selectionRange';
 import { HledgerParser } from './parser/index';
 import { HledgerSettings, defaultSettings, getDocumentSettings as getDocumentSettingsModule, clearDocumentSettings, clearAllDocumentSettings } from './server/settings';
-import { defaultFileReader, resolveIncludePath as resolveIncludePathUtil, toFilePath, toFileUri } from './utils/uri';
+import { defaultFileReader, resolveIncludePath as resolveIncludePathUtil, toFileUri } from './utils/uri';
 import { updateDependencies, clearDependencies, getDependents } from './server/deps';
 import { WorkspaceManager } from './server/workspace';
 import * as path from 'path';
@@ -599,7 +599,6 @@ connection.onReferences((params) => {
     document,
     params.position,
     parsed,
-    params.context.includeDeclaration
   );
 });
 
@@ -726,7 +725,7 @@ connection.languages.semanticTokens.on((params) => {
   // Parse document
   const parsed = parseDocument(document);
 
-  const data = semanticTokensProvider.provideSemanticTokens(document, parsed);
+  const data = semanticTokensProvider.provideSemanticTokens(document);
   return { data };
 });
 
@@ -853,7 +852,7 @@ connection.onSelectionRanges((params) => {
   // Parse document
   const parsed = parseDocument(document);
 
-  return selectionRangeProvider.provideSelectionRanges(document, params.positions, parsed) || [];
+  return selectionRangeProvider.provideSelectionRanges(document, params.positions) || [];
 });
 
 // Handle command execution

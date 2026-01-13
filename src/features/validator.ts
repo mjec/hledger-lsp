@@ -12,11 +12,10 @@ import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction, Posting, FileReader } from '../types';
-import { resolveIncludePath, resolveIncludePaths, toFilePath, toFileUri } from '../utils/uri';
-import { HledgerSettings, ValidationOptions, SeverityOptions, defaultSettings, FormattingOptions } from '../server/settings';
+import { resolveIncludePath, resolveIncludePaths } from '../utils/uri';
+import { ValidationOptions, SeverityOptions, defaultSettings, FormattingOptions } from '../server/settings';
 import { calculateTransactionBalance } from '../utils/balanceCalculator';
 import { formatAmount } from '../utils/amountFormatter';
-import { calculateAccountBalances } from '../utils/runningBalanceCalculator';
 import { getFormatUnsafeReason } from './formattingValidation';
 import { getEffectiveDate } from '../utils/index';
 

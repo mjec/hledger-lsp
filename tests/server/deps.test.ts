@@ -38,8 +38,8 @@ describe('include dependency tracking', () => {
     const dependentsB = getDependents(fileB);
     const dependentsC = getDependents(fileC);
 
-  expect(dependentsB && dependentsB.has(fileA)).toBeFalsy();
-  expect(dependentsC && dependentsC.has(fileA)).toBe(true);
+    expect(dependentsB && dependentsB.has(fileA)).toBeFalsy();
+    expect(dependentsC && dependentsC.has(fileA)).toBe(true);
   });
 
   test('clearDependencies removes reverse mappings', () => {
@@ -51,7 +51,7 @@ describe('include dependency tracking', () => {
 
     clearDependencies(fileA);
 
-  expect(getDependents(fileB)?.has(fileA)).toBeFalsy();
-  expect(getIncludes(fileA)).toBeUndefined();
+    expect(getDependents(fileB)?.has(fileA)).toBeFalsy();
+    expect(getIncludes(fileA)).toBeUndefined();
   });
 });

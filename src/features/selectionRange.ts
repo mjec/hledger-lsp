@@ -9,14 +9,13 @@
 
 import { SelectionRange, Position } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { ParsedDocument } from '../types';
 import { isTransactionHeader, isPosting } from '../utils/index';
 
 export class SelectionRangeProvider {
   /**
    * Provide selection ranges for a position
    */
-  provideSelectionRanges(document: TextDocument, positions: Position[], parsedDoc: ParsedDocument): SelectionRange[] | null {
+  provideSelectionRanges(document: TextDocument, positions: Position[]): SelectionRange[] | null {
     if (positions.length === 0) {
       return null;
     }
@@ -24,7 +23,7 @@ export class SelectionRangeProvider {
     const selectionRanges: SelectionRange[] = [];
 
     for (const position of positions) {
-      const range = this.getSelectionRangeAtPosition(document, position, parsedDoc);
+      const range = this.getSelectionRangeAtPosition(document, position);
       if (range) {
         selectionRanges.push(range);
       }
@@ -39,7 +38,6 @@ export class SelectionRangeProvider {
   private getSelectionRangeAtPosition(
     document: TextDocument,
     position: Position,
-    parsedDoc: ParsedDocument
   ): SelectionRange | null {
     const lines = document.getText().split('\n');
     const currentLine = lines[position.line];
@@ -49,12 +47,12 @@ export class SelectionRangeProvider {
 
     // Check if we're on a transaction header
     if (isTransactionHeader(trimmed)) {
-      return this.getTransactionHeaderSelectionRange(currentLine, position, lines, position.line, parsedDoc);
+      return this.getTransactionHeaderSelectionRange(currentLine, position, lines, position.line);
     }
 
     // Check if we're on a posting
     if (isPosting(currentLine)) {
-      return this.getPostingSelectionRange(currentLine, position, lines, position.line, parsedDoc);
+      return this.getPostingSelectionRange(currentLine, position, lines, position.line);
     }
 
     // For other lines (comments, directives), just select the whole line
@@ -74,7 +72,6 @@ export class SelectionRangeProvider {
     position: Position,
     lines: string[],
     lineIndex: number,
-    parsedDoc: ParsedDocument
   ): SelectionRange | null {
     // Find the word/token at the cursor position
     const wordRange = this.getWordRangeAtPosition(line, position.character);
@@ -121,7 +118,6 @@ export class SelectionRangeProvider {
     position: Position,
     lines: string[],
     lineIndex: number,
-    parsedDoc: ParsedDocument
   ): SelectionRange | null {
     // Find the word/token at the cursor position
     const wordRange = this.getWordRangeAtPosition(line, position.character);

@@ -6,7 +6,6 @@ import {
   extractAccountFromPosting,
   extractTags,
   getIndentationLevel,
-  normalizeAccountName,
 } from '../../src/utils';
 
 describe('Utility Functions', () => {
@@ -164,25 +163,4 @@ describe('Utility Functions', () => {
     });
   });
 
-  describe('normalizeAccountName', () => {
-    test('should collapse multiple spaces', () => {
-      expect(normalizeAccountName('assets:bank  account')).toBe('assets:bank account');
-      expect(normalizeAccountName('expenses:food   groceries')).toBe('expenses:food groceries');
-    });
-
-    test('should trim whitespace', () => {
-      expect(normalizeAccountName('  assets:checking  ')).toBe('assets:checking');
-      expect(normalizeAccountName('\tassets:checking\t')).toBe('assets:checking');
-    });
-
-    test('should handle already normalized names', () => {
-      expect(normalizeAccountName('assets:checking')).toBe('assets:checking');
-      expect(normalizeAccountName('expenses:food')).toBe('expenses:food');
-    });
-
-    test('should handle empty strings', () => {
-      expect(normalizeAccountName('')).toBe('');
-      expect(normalizeAccountName('   ')).toBe('');
-    });
-  });
 });

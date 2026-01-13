@@ -1,6 +1,5 @@
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { SemanticTokensBuilder } from 'vscode-languageserver/node';
-import { ParsedDocument } from '../types';
 
 /**
  * Semantic token types for hledger syntax.
@@ -87,14 +86,13 @@ export class SemanticTokensProvider {
    */
   provideSemanticTokens(
     document: TextDocument,
-    parsedDoc: ParsedDocument
   ): number[] {
     const builder = new SemanticTokensBuilder();
     const lines = document.getText().split('\n');
 
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
       const line = lines[lineIndex];
-      this.tokenizeLine(line, lineIndex, builder, parsedDoc);
+      this.tokenizeLine(line, lineIndex, builder);
     }
 
     return builder.build().data;
@@ -107,7 +105,6 @@ export class SemanticTokensProvider {
     line: string,
     lineIndex: number,
     builder: SemanticTokensBuilder,
-    parsedDoc: ParsedDocument
   ): void {
     // Skip empty lines
     if (line.trim().length === 0) {
@@ -121,7 +118,7 @@ export class SemanticTokensProvider {
     }
 
     // Handle directives
-    if (this.tokenizeDirective(line, lineIndex, builder, parsedDoc)) {
+    if (this.tokenizeDirective(line, lineIndex, builder)) {
       return;
     }
 
@@ -222,7 +219,6 @@ export class SemanticTokensProvider {
     line: string,
     lineIndex: number,
     builder: SemanticTokensBuilder,
-    parsedDoc: ParsedDocument
   ): boolean {
     const directiveKeywords = [
       'account', 'commodity', 'payee', 'tag',

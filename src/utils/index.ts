@@ -85,13 +85,6 @@ export function getIndentationLevel(line: string): number {
 }
 
 /**
- * Normalize account name (collapse multiple spaces)
- */
-export function normalizeAccountName(account: string): string {
-  return account.replace(/\s+/g, ' ').trim();
-}
-
-/**
  * Normalize a date string to YYYY-MM-DD format for consistent comparison.
  * Handles dates with different separators and single/double digit months/days.
  *

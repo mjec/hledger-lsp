@@ -9,7 +9,7 @@
  * - Include directives
  */
 
-import { ParsedDocument, Transaction, Account, Directive, Posting, Amount, Payee, Commodity, Tag, FileReader } from '../types';
+import { ParsedDocument, Transaction, Account, Directive, Payee, Commodity, Tag, FileReader } from '../types';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { extractTags, isTransactionHeader, isComment, isDirective } from '../utils/index';
 import * as ast from './ast';

@@ -1,9 +1,7 @@
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { semanticTokensProvider, TokenType, TokenModifier, tokenTypes, tokenModifiers } from '../../src/features/semanticTokens';
-import { HledgerParser } from '../../src/parser/index';
+import { semanticTokensProvider, tokenTypes, tokenModifiers } from '../../src/features/semanticTokens';
 
 describe('SemanticTokensProvider', () => {
-  const parser = new HledgerParser();
 
   /**
    * Helper to decode semantic tokens for easier testing
@@ -81,9 +79,8 @@ describe('SemanticTokensProvider', () => {
     test('should return empty array for empty document', () => {
       const content = '';
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
 
       expect(data).toEqual([]);
     });
@@ -93,9 +90,8 @@ describe('SemanticTokensProvider', () => {
   Assets:Bank  $100.00
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find date token
@@ -112,9 +108,8 @@ describe('SemanticTokensProvider', () => {
   Assets:Bank  $100.00
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find status token
@@ -129,9 +124,8 @@ describe('SemanticTokensProvider', () => {
   Assets:Bank  $100.00
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find code token
@@ -146,9 +140,8 @@ describe('SemanticTokensProvider', () => {
   Assets:Bank  $100.00
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find payee token
@@ -164,9 +157,8 @@ describe('SemanticTokensProvider', () => {
   Expenses:Food
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find account tokens
@@ -181,9 +173,8 @@ describe('SemanticTokensProvider', () => {
   Assets:Bank  $100.00
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find commodity token
@@ -203,9 +194,8 @@ describe('SemanticTokensProvider', () => {
   Assets:Bank  100.00 USD
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find commodity token
@@ -225,9 +215,8 @@ describe('SemanticTokensProvider', () => {
   Assets:Bank  $100.00  ; posting comment
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find comment tokens
@@ -240,9 +229,8 @@ describe('SemanticTokensProvider', () => {
   Assets:Bank  $100.00
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find tag tokens
@@ -259,9 +247,8 @@ describe('SemanticTokensProvider', () => {
       const content = `account Assets:Bank
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find keyword token
@@ -281,9 +268,8 @@ describe('SemanticTokensProvider', () => {
       const content = `payee Test Payee
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find keyword token
@@ -299,9 +285,8 @@ describe('SemanticTokensProvider', () => {
       const content = `commodity $1.00
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find keyword token
@@ -317,9 +302,8 @@ describe('SemanticTokensProvider', () => {
       const content = `tag project
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find keyword token
@@ -343,9 +327,8 @@ tag project
   Expenses:Food  $50.00
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Should have various token types
@@ -364,9 +347,8 @@ tag project
   Assets:Bank  $-100.00
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find number token (should include negative sign)
@@ -380,9 +362,8 @@ tag project
   Expenses:Food
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Should have account tokens for both postings
@@ -394,9 +375,8 @@ tag project
       const content = `account Assets:Bank  ; Main checking account
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Should have keyword, account declaration, and comment tokens
@@ -411,9 +391,8 @@ tag project
   Assets:Cash
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Check that we have the expected tokens on line 0
@@ -460,9 +439,8 @@ tag project
   Assets:EUR  €100 @ $1.35
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find @ operator token
@@ -483,9 +461,8 @@ tag project
   Assets:EUR  €100 @@ $135
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find @@ operator token
@@ -506,9 +483,8 @@ tag project
   Assets:EUR  €100 @ $1.35 = €100
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
 
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Find operator tokens (@ and =)
@@ -530,8 +506,7 @@ tag project
     assets:checking    -1 000 000,00 EUR
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // First posting: EUR 1 000 000,00
@@ -565,8 +540,7 @@ tag project
     expenses:food    CHF 1'000'000.00
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       const line1Tokens = tokens.filter(t => t.line === 1);
@@ -588,8 +562,7 @@ tag project
     Liabilities:Credit
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       // Get tokens for line 1 (the posting with comment)
@@ -639,8 +612,7 @@ tag project
     Expenses:Food  ; tag:groceries
 `;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsed = parser.parse(doc);
-      const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+      const data = semanticTokensProvider.provideSemanticTokens(doc);
       const tokens = decodeTokens(data);
 
       const line1Tokens = tokens.filter(t => t.line === 1);

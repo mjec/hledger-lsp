@@ -1,7 +1,6 @@
 import { URI } from 'vscode-uri';
 import { Transaction, Posting, Amount, Account, Payee, Commodity, Tag, Directive, DecimalMark, ThousandsSeparator, Format } from '../types';
-import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment, isDirective } from '../utils/index';
-import { toFilePath, toFileUri } from '../utils/uri';
+import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment } from '../utils/index';
 
 /**
  * Parse a transaction starting at startLine within lines array.

@@ -12,11 +12,11 @@
 
 import { Hover, MarkupKind } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { ParsedDocument, Transaction } from '../types';
+import { ParsedDocument } from '../types';
 import { isTransactionHeader, isPosting, extractAccountFromPosting, getIndentationLevel } from '../utils/index';
 import { calculateTransactionBalanceSimple } from '../utils/balanceCalculator';
 import { formatAmount } from '../utils/amountFormatter';
-import { toFilePath, toFileUri } from '../utils/uri';
+import { toFilePath } from '../utils/uri';
 import * as path from 'path';
 
 import { HledgerSettings } from '../server/settings';
@@ -115,7 +115,7 @@ export class HoverProvider {
     const trimmedLine = fullLine.trim();
     const documentUri: URI = URI.parse(document.uri);
     if (isTransactionHeader(trimmedLine)) {
-      return this.provideTransactionHover(fullLine, line, parsed, documentUri, settings);
+      return this.provideTransactionHover(line, parsed, documentUri, settings);
     }
 
     return null;
@@ -391,7 +391,7 @@ export class HoverProvider {
   /**
    * Provide hover for transaction headers
    */
-  private provideTransactionHover(line: string, lineNumber: number, parsed: ParsedDocument, documentUri: URI, settings?: HledgerSettings): Hover | null {
+  private provideTransactionHover(lineNumber: number, parsed: ParsedDocument, documentUri: URI, settings?: HledgerSettings): Hover | null {
     // Find the transaction at this line
 
     const transaction = parsed.transactions.find(t => {

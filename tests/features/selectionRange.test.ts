@@ -18,8 +18,7 @@ describe('SelectionRangeProvider', () => {
     expenses:food  $50.00
     assets:checking  $-50.00`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsedDoc = parser.parse(doc);
-      const ranges = provider.provideSelectionRanges(doc, [], parsedDoc);
+      const ranges = provider.provideSelectionRanges(doc, []);
 
       expect(ranges).toBeNull();
     });
@@ -29,11 +28,10 @@ describe('SelectionRangeProvider', () => {
     expenses:food  $50.00
     assets:checking  $-50.00`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsedDoc = parser.parse(doc);
 
       // Position in "Grocery" (character 15)
       const position: Position = { line: 0, character: 15 };
-      const ranges = provider.provideSelectionRanges(doc, [position], parsedDoc);
+      const ranges = provider.provideSelectionRanges(doc, [position]);
 
       expect(ranges).toHaveLength(1);
 
@@ -58,11 +56,10 @@ describe('SelectionRangeProvider', () => {
     expenses:food  $50.00
     assets:checking  $-50.00`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsedDoc = parser.parse(doc);
 
       // Position in "food" (line 1, character 14)
       const position: Position = { line: 1, character: 14 };
-      const ranges = provider.provideSelectionRanges(doc, [position], parsedDoc);
+      const ranges = provider.provideSelectionRanges(doc, [position]);
 
       expect(ranges).toHaveLength(1);
 
@@ -90,11 +87,10 @@ describe('SelectionRangeProvider', () => {
     expenses:food  $50.00
     assets:checking  $-50.00`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsedDoc = parser.parse(doc);
 
       // Position in amount "$50.00" (line 1, character 21)
       const position: Position = { line: 1, character: 21 };
-      const ranges = provider.provideSelectionRanges(doc, [position], parsedDoc);
+      const ranges = provider.provideSelectionRanges(doc, [position]);
 
       expect(ranges).toHaveLength(1);
 
@@ -110,11 +106,10 @@ describe('SelectionRangeProvider', () => {
     expenses:food  $50.00
     assets:checking  $-50.00`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsedDoc = parser.parse(doc);
 
       // Position in date (character 5)
       const position: Position = { line: 0, character: 5 };
-      const ranges = provider.provideSelectionRanges(doc, [position], parsedDoc);
+      const ranges = provider.provideSelectionRanges(doc, [position]);
 
       expect(ranges).toHaveLength(1);
 
@@ -130,13 +125,12 @@ describe('SelectionRangeProvider', () => {
     expenses:food  $50.00
     assets:checking  $-50.00`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsedDoc = parser.parse(doc);
 
       const positions: Position[] = [
         { line: 0, character: 15 }, // In description
         { line: 1, character: 10 }  // In account
       ];
-      const ranges = provider.provideSelectionRanges(doc, positions, parsedDoc);
+      const ranges = provider.provideSelectionRanges(doc, positions);
 
       expect(ranges).toHaveLength(2);
       expect(ranges![0].parent).toBeDefined();
@@ -149,11 +143,10 @@ describe('SelectionRangeProvider', () => {
     expenses:food  $50.00
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsedDoc = parser.parse(doc);
 
       // Position in comment
       const position: Position = { line: 0, character: 5 };
-      const ranges = provider.provideSelectionRanges(doc, [position], parsedDoc);
+      const ranges = provider.provideSelectionRanges(doc, [position]);
 
       expect(ranges).toHaveLength(1);
       // Comment should just select the whole line
@@ -168,11 +161,10 @@ describe('SelectionRangeProvider', () => {
     expenses:food  $50.00
     assets:checking`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsedDoc = parser.parse(doc);
 
       // Position in directive
       const position: Position = { line: 0, character: 10 };
-      const ranges = provider.provideSelectionRanges(doc, [position], parsedDoc);
+      const ranges = provider.provideSelectionRanges(doc, [position]);
 
       expect(ranges).toHaveLength(1);
       // Directive should select the whole line
@@ -184,11 +176,10 @@ describe('SelectionRangeProvider', () => {
     expenses:food:groceries  $50.00
     assets:checking  $-50.00`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsedDoc = parser.parse(doc);
 
       // Position in "groceries" part
       const position: Position = { line: 1, character: 20 };
-      const ranges = provider.provideSelectionRanges(doc, [position], parsedDoc);
+      const ranges = provider.provideSelectionRanges(doc, [position]);
 
       expect(ranges).toHaveLength(1);
 
@@ -204,11 +195,10 @@ describe('SelectionRangeProvider', () => {
     expenses:food  $50.00
     assets:checking  $-50.00`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsedDoc = parser.parse(doc);
 
       // Position at start of line
       const position: Position = { line: 1, character: 0 };
-      const ranges = provider.provideSelectionRanges(doc, [position], parsedDoc);
+      const ranges = provider.provideSelectionRanges(doc, [position]);
 
       expect(ranges).toHaveLength(1);
     });
@@ -219,11 +209,10 @@ describe('SelectionRangeProvider', () => {
     assets:checking  $-50.00
     ; Transaction note`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-      const parsedDoc = parser.parse(doc);
 
       // Position in posting
       const position: Position = { line: 1, character: 10 };
-      const ranges = provider.provideSelectionRanges(doc, [position], parsedDoc);
+      const ranges = provider.provideSelectionRanges(doc, [position]);
 
       expect(ranges).toHaveLength(1);
       // Transaction should include the comment line

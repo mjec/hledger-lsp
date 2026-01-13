@@ -5,7 +5,7 @@
  * across the journal file and its includes.
  */
 
-import { Location, Position, Range } from 'vscode-languageserver';
+import { Location, Position } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument } from '../types';
 import { codeActionProvider } from './codeActions';
@@ -18,7 +18,6 @@ export class FindReferencesProvider {
     document: TextDocument,
     position: Position,
     parsed: ParsedDocument,
-    includeDeclaration: boolean
   ): Location[] | null {
     // Get the item at cursor
     const item = codeActionProvider.getItemAtCursor(document, position, parsed);

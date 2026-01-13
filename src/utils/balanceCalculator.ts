@@ -2,7 +2,7 @@
  * Utilities for calculating transaction balances
  */
 
-import { Transaction, Posting } from '../types';
+import { Transaction } from '../types';
 
 /**
  * Calculate transaction balance grouped by commodity, handling cost conversions
@@ -68,30 +68,3 @@ export function calculateTransactionBalanceSimple(transaction: Transaction): Rec
   return totals;
 }
 
-/**
- * Add a posting's amount to a balance map, handling cost conversions
- *
- * @param balances - The balance map to update
- * @param posting - The posting to add
- */
-export function addPostingToBalance(balances: Map<string, number>, posting: Posting): void {
-  if (posting.amount) {
-    if (posting.cost) {
-      const costCommodity = posting.cost.amount.commodity || '';
-      let costValue: number;
-
-      if (posting.cost.type === 'unit') {
-        costValue = posting.amount.quantity * posting.cost.amount.quantity;
-      } else {
-        costValue = posting.cost.amount.quantity;
-      }
-
-      const current = balances.get(costCommodity) || 0;
-      balances.set(costCommodity, current + costValue);
-    } else {
-      const commodity = posting.amount.commodity || '';
-      const current = balances.get(commodity) || 0;
-      balances.set(commodity, current + posting.amount.quantity);
-    }
-  }
-}

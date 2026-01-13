@@ -28,7 +28,7 @@ describe('FindReferencesProvider', () => {
 
         // Click on "Assets:Checking" in the account directive
         const position = Position.create(0, 10);
-        const references = findReferencesProvider.findReferences(doc, position, parsed, true);
+        const references = findReferencesProvider.findReferences(doc, position, parsed);
 
         expect(references).not.toBeNull();
         expect(references).toHaveLength(3); // 1 declaration + 2 usages
@@ -53,7 +53,7 @@ describe('FindReferencesProvider', () => {
 
         // Click on "Assets:Checking" in first transaction
         const position = Position.create(2, 6);
-        const references = findReferencesProvider.findReferences(doc, position, parsed, true);
+        const references = findReferencesProvider.findReferences(doc, position, parsed);
 
         expect(references).not.toBeNull();
         expect(references).toHaveLength(2);
@@ -70,7 +70,7 @@ describe('FindReferencesProvider', () => {
 
         // Click on whitespace
         const position = Position.create(1, 25);
-        const references = findReferencesProvider.findReferences(doc, position, parsed, true);
+        const references = findReferencesProvider.findReferences(doc, position, parsed);
 
         expect(references).toBeNull();
       });
@@ -97,7 +97,7 @@ describe('FindReferencesProvider', () => {
 
         // Click on "Grocery Store" in the payee directive
         const position = Position.create(0, 10);
-        const references = findReferencesProvider.findReferences(doc, position, parsed, true);
+        const references = findReferencesProvider.findReferences(doc, position, parsed);
 
         expect(references).not.toBeNull();
         expect(references).toHaveLength(3); // 1 declaration + 2 usages
@@ -121,7 +121,7 @@ describe('FindReferencesProvider', () => {
 
         // Click on "Grocery Store" in first transaction
         const position = Position.create(0, 17);
-        const references = findReferencesProvider.findReferences(doc, position, parsed, true);
+        const references = findReferencesProvider.findReferences(doc, position, parsed);
 
         expect(references).not.toBeNull();
         expect(references).toHaveLength(2);
@@ -147,7 +147,7 @@ describe('FindReferencesProvider', () => {
 
         // Click on "$" in the commodity directive
         const position = Position.create(0, 10);
-        const references = findReferencesProvider.findReferences(doc, position, parsed, true);
+        const references = findReferencesProvider.findReferences(doc, position, parsed);
 
         expect(references).not.toBeNull();
         expect(references!.length).toBeGreaterThanOrEqual(1); // At least the declaration
@@ -163,7 +163,7 @@ describe('FindReferencesProvider', () => {
 
         // Click on "$" in first posting
         const position = Position.create(1, 34);
-        const references = findReferencesProvider.findReferences(doc, position, parsed, true);
+        const references = findReferencesProvider.findReferences(doc, position, parsed);
 
         // Should at least detect that we're on a commodity and return a result
         expect(references).not.toBeNull();
@@ -187,7 +187,7 @@ describe('FindReferencesProvider', () => {
 
         // Click on "project" in the tag directive
         const position = Position.create(0, 6);
-        const references = findReferencesProvider.findReferences(doc, position, parsed, true);
+        const references = findReferencesProvider.findReferences(doc, position, parsed);
 
         expect(references).not.toBeNull();
         expect(references).toHaveLength(3); // 1 declaration + 2 usages
@@ -211,7 +211,7 @@ describe('FindReferencesProvider', () => {
 
         // Click on "project" in first comment
         const position = Position.create(0, 21);
-        const references = findReferencesProvider.findReferences(doc, position, parsed, true);
+        const references = findReferencesProvider.findReferences(doc, position, parsed);
 
         expect(references).not.toBeNull();
         expect(references).toHaveLength(2);
@@ -229,7 +229,7 @@ describe('FindReferencesProvider', () => {
 
         // Click on "project" in posting comment
         const position = Position.create(1, 42);
-        const references = findReferencesProvider.findReferences(doc, position, parsed, true);
+        const references = findReferencesProvider.findReferences(doc, position, parsed);
 
         expect(references).not.toBeNull();
         expect(references).toHaveLength(2);
@@ -243,7 +243,7 @@ describe('FindReferencesProvider', () => {
         const parsed = parser.parse(doc);
 
         const position = Position.create(0, 0);
-        const references = findReferencesProvider.findReferences(doc, position, parsed, true);
+        const references = findReferencesProvider.findReferences(doc, position, parsed);
 
         expect(references).toBeNull();
       });
@@ -261,7 +261,7 @@ describe('FindReferencesProvider', () => {
         const parsed = parser.parse(doc);
 
         const position = Position.create(1, 10);
-        const references = findReferencesProvider.findReferences(doc, position, parsed, true);
+        const references = findReferencesProvider.findReferences(doc, position, parsed);
 
         expect(references).not.toBeNull();
         expect(references).toHaveLength(2);
@@ -280,7 +280,7 @@ describe('FindReferencesProvider', () => {
         const parsed = parser.parse(doc);
 
         const position = Position.create(1, 10);
-        const references = findReferencesProvider.findReferences(doc, position, parsed, true);
+        const references = findReferencesProvider.findReferences(doc, position, parsed);
 
         expect(references).not.toBeNull();
         expect(references).toHaveLength(2);
@@ -299,7 +299,7 @@ describe('FindReferencesProvider', () => {
         const parsed = parser.parse(doc);
 
         const position = Position.create(0, 17);
-        const references = findReferencesProvider.findReferences(doc, position, parsed, true);
+        const references = findReferencesProvider.findReferences(doc, position, parsed);
 
         expect(references).not.toBeNull();
         expect(references).toHaveLength(2);

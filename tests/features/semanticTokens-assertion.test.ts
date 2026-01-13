@@ -75,8 +75,7 @@ describe('Semantic Tokens - Balance Assertions', () => {
 `;
 
     const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-    const parsed = parser.parse(doc);
-    const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+    const data = semanticTokensProvider.provideSemanticTokens(doc);
     const tokens = decodeTokens(data);
 
     // Find tokens on line 2 (the first posting with balance assertion)
@@ -109,8 +108,7 @@ describe('Semantic Tokens - Balance Assertions', () => {
 `;
 
     const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-    const parsed = parser.parse(doc);
-    const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+    const data = semanticTokensProvider.provideSemanticTokens(doc);
     const tokens = decodeTokens(data);
 
     // Find tokens on line 2
@@ -145,8 +143,7 @@ describe('Semantic Tokens - Balance Assertions', () => {
 `;
 
     const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-    const parsed = parser.parse(doc);
-    const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+    const data = semanticTokensProvider.provideSemanticTokens(doc);
     const tokens = decodeTokens(data);
 
     const line2Tokens = tokens.filter(t => t.line === 2);
@@ -172,8 +169,7 @@ describe('Semantic Tokens - Balance Assertions', () => {
 `;
 
     const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-    const parsed = parser.parse(doc);
-    const data = semanticTokensProvider.provideSemanticTokens(doc, parsed);
+    const data = semanticTokensProvider.provideSemanticTokens(doc);
     const tokens = decodeTokens(data);
 
     // Line 2: $1.5 = $100.5

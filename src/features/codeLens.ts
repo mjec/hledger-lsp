@@ -11,7 +11,7 @@
 import { CodeLens, Position, Range } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
-import { ParsedDocument, Transaction } from '../types';
+import { ParsedDocument } from '../types';
 import { DEFAULT_CODE_LENS_OPTIONS, type CodeLensOptions } from '../server/settings';
 
 export class CodeLensProvider {

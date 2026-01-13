@@ -1,10 +1,8 @@
 import { SemanticTokensProvider } from '../../src/features/semanticTokens';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { HledgerParser } from '../../src/parser/index';
 
 describe('SemanticTokensProvider - Stock Commodities', () => {
   const provider = new SemanticTokensProvider();
-  const parser = new HledgerParser();
 
   // Helper to decode tokens for easier testing
   function decodeTokens(data: number[]): Array<{
@@ -66,9 +64,8 @@ describe('SemanticTokensProvider - Stock Commodities', () => {
     assets:checking    $-1505.00
 `;
     const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-    const parsed = parser.parse(doc);
 
-    const data = provider.provideSemanticTokens(doc, parsed);
+    const data = provider.provideSemanticTokens(doc);
     const tokens = decodeTokens(data);
 
     const line1Tokens = tokens.filter(t => t.line === 1);
@@ -95,9 +92,8 @@ describe('SemanticTokensProvider - Stock Commodities', () => {
     assets:checking                           $-3105.00
 `;
     const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
-    const parsed = parser.parse(doc);
 
-    const data = provider.provideSemanticTokens(doc, parsed);
+    const data = provider.provideSemanticTokens(doc);
     const tokens = decodeTokens(data);
 
     const line1Tokens = tokens.filter(t => t.line === 1);
