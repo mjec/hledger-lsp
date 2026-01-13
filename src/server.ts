@@ -803,7 +803,7 @@ connection.onPrepareRename((params) => {
   if (!document) return null;
 
   const parsed = parseDocument(document);
-  const item = codeActionProvider.getItemAtCursor(document, params.position, parsed);
+  const item = findReferencesProvider.getItemAtCursor(document, params.position, parsed);
 
   if (!item) return null;
 
@@ -830,7 +830,7 @@ connection.onRenameRequest((params) => {
   if (!document) return null;
 
   const parsed = parseDocument(document);
-  const item = codeActionProvider.getItemAtCursor(document, params.position, parsed);
+  const item = findReferencesProvider.getItemAtCursor(document, params.position, parsed);
 
   if (!item) return null;
 

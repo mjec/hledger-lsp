@@ -1,6 +1,8 @@
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Diagnostic, DiagnosticSeverity, Range, CodeActionKind } from 'vscode-languageserver';
+import { URI } from 'vscode-uri';
 import { codeActionProvider } from '../../src/features/codeActions';
+import { findReferencesProvider } from '../../src/features/findReferences';
 import { HledgerParser } from '../../src/parser';
 
 describe('CodeActionProvider', () => {
@@ -399,7 +401,12 @@ commodity USD
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
       const parsed = parser.parse(doc);
 
-      const references = codeActionProvider.findAccountReferences(doc, 'Assets:Bank', parsed);
+      const references = findReferencesProvider.findAccountReferences(
+        parsed,
+        'Assets:Bank',
+        URI.parse(doc.uri),
+        (uri: URI) => uri.toString() === doc.uri ? doc : null
+      );
 
       // Should find 3 references: 1 directive + 2 postings
       expect(references.length).toBe(3);
@@ -422,7 +429,12 @@ commodity USD
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
       const parsed = parser.parse(doc);
 
-      const references = codeActionProvider.findPayeeReferences(doc, 'Grocery Store', parsed);
+      const references = findReferencesProvider.findPayeeReferences(
+        parsed,
+        'Grocery Store',
+        URI.parse(doc.uri),
+        (uri: URI) => uri.toString() === doc.uri ? doc : null
+      );
 
       // Should find 3 references: 1 directive + 2 transaction headers
       expect(references.length).toBe(3);
@@ -441,7 +453,12 @@ commodity USD
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
       const parsed = parser.parse(doc);
 
-      const references = codeActionProvider.findCommodityReferences(doc, 'USD', parsed);
+      const references = findReferencesProvider.findCommodityReferences(
+        parsed,
+        'USD',
+        URI.parse(doc.uri),
+        (uri: URI) => uri.toString() === doc.uri ? doc : null
+      );
 
       // Should find 3 references: 1 directive + 2 amounts
       expect(references.length).toBeGreaterThanOrEqual(3);
@@ -457,7 +474,12 @@ commodity USD
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
       const parsed = parser.parse(doc);
 
-      const references = codeActionProvider.findTagReferences(doc, 'project', parsed);
+      const references = findReferencesProvider.findTagReferences(
+        parsed,
+        'project',
+        URI.parse(doc.uri),
+        (uri: URI) => uri.toString() === doc.uri ? doc : null
+      );
 
       // Should find 3 references: 1 directive + 2 tags in comments
       expect(references.length).toBe(3);
