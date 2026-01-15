@@ -343,7 +343,7 @@ export class FormattingProvider {
       }
 
       if (posting.comment) {
-        line += '; ' + posting.comment.trim();
+        line += '  ; ' + posting.comment.trim();
       }
 
       formattedPostingLines.push(line);
