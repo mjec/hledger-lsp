@@ -104,16 +104,15 @@ export class HledgerParser {
           directives.push(directive);
 
           // Process the directive to extract metadata
-          const trimmed = line.trim();
-          if (trimmed.startsWith('account ')) {
+          if (directive.type == "account") {
             ast.processAccountDirective(line, accounts, uri, i);
-          } else if (trimmed.startsWith('payee ')) {
+          } else if (directive.type == "payee") {
             ast.processPayeeDirective(line, payees, uri, i);
-          } else if (trimmed.startsWith('commodity ')) {
+          } else if (directive.type == "commodity") {
             // Commodity directives can be multi-line, so we need to handle that
             const lastLine = ast.processCommodityDirective(lines, i, commodities, uri);
             i = lastLine; // Skip past any subdirectives we processed
-          } else if (trimmed.startsWith('tag ')) {
+          } else if (directive.type == "tag") {
             ast.processTagDirective(line, tags, uri, i);
           }
         }
@@ -123,20 +122,8 @@ export class HledgerParser {
 
       // Parse transaction
       if (isTransactionHeader(line)) {
-        const transaction = ast.parseTransaction(lines, i);
-        if (transaction) {
-          transaction.sourceUri = uri;
-          transactions.push(transaction);
 
-          // Extract metadata from the transaction
-          // Add payee
-          if (transaction.payee) {
-            ast.addPayee(payees, transaction.payee, false, uri, i);
-          }
-
-          // Extract accounts, commodities, and tags from postings
-          ast.processTransaction(transaction, accounts, commodities, tags, uri);
-        }
+        const startLine = i;
 
         // Skip past the transaction lines to find where it ends
         i++;
@@ -148,8 +135,32 @@ export class HledgerParser {
             break;
           }
 
+          //Transaction ends at non indented comment line
+          if (isComment(nextLine) && !nextLine.startsWith("  ")) {
+            break;
+          }
+
           i++;
         }
+
+        const endLine = i;
+        const transactionLines = lines.slice(startLine, endLine);
+
+        const transaction = ast.parseTransaction(transactionLines, startLine);
+        if (transaction) {
+          transaction.sourceUri = uri;
+          transactions.push(transaction);
+
+          // Extract metadata from the transaction
+          // Add payee
+          if (transaction.payee) {
+            ast.addPayee(payees, transaction.payee, false, uri, startLine);
+          }
+
+          // Extract accounts, commodities, and tags from postings
+          ast.processTransaction(transaction, accounts, commodities, tags, uri);
+        }
+
         continue;
       }
 

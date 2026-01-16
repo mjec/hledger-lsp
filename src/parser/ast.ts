@@ -1,34 +1,28 @@
 import { URI } from 'vscode-uri';
 import { Transaction, Posting, Amount, Account, Payee, Commodity, Tag, Directive, DecimalMark, ThousandsSeparator, Format } from '../types';
-import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment } from '../utils/index';
+import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment, stripQuotes } from '../utils/index';
 
 /**
  * Parse a transaction starting at startLine within lines array.
  * This is a pure helper extracted from HledgerParser.
  */
 export function parseTransaction(lines: string[], startLine: number): Transaction | null {
-  if (!lines || lines.length === 0 || startLine >= lines.length) {
+  if (!lines || lines.length === 0) {
     return null;
   }
 
-  const headerLine = lines[startLine];
+  const headerLine = lines[0];
   if (!isTransactionHeader(headerLine)) return null;
-
-  // reuse the header parser below
   const header = parseTransactionHeader(headerLine);
   if (!header) return null;
 
   const postings: Posting[] = [];
-  let currentLine = startLine + 1;
+  let currentLine = 1;
   let transactionComment: string | undefined;
   const transactionTags: Record<string, string> = {};
 
   while (currentLine < lines.length) {
     const line = lines[currentLine];
-
-    if (isTransactionHeader(line) || (!line.trim().startsWith(';') && !line.trim().startsWith('#') && line.trim() && !isPosting(line))) {
-      break;
-    }
 
     if (isComment(line)) {
       const commentText = line.trim().substring(1).trim();
@@ -42,16 +36,14 @@ export function parseTransaction(lines: string[], startLine: number): Transactio
     if (isPosting(line)) {
       const posting = parsePosting(line, header.date);
       if (posting) {
-        // Record the line number for the posting so downstream features
-        // (inlay hints, validators, etc.) can position annotations accurately
-        posting.line = currentLine;
+        posting.line = startLine + currentLine;
         postings.push(posting);
       }
+      currentLine++
+      continue
     }
 
     currentLine++;
-
-    if (!line.trim()) break;
   }
 
   const transaction: Transaction = {
@@ -231,6 +223,40 @@ export function inferAmounts(transaction: Transaction): void {
   }
 }
 
+
+// Parse Transaction Header and Helpers
+export function parseTransactionHeader(line: string): { date: string; effectiveDate?: string; status?: 'cleared' | 'pending' | 'unmarked'; code?: string; description: string; payee: string; note: string; comment?: string; tags?: Record<string, string> } | null {
+  const trimmed = line.trim();
+
+  const dateRes = parseDate(trimmed);
+  if (!dateRes) return null;
+  let rest = dateRes.rest;
+
+  const effDateRes = parseEffectiveDate(rest);
+  rest = effDateRes.rest;
+
+  const statusRes = parseStatus(rest);
+  rest = statusRes.rest;
+
+  const codeRes = parseCode(rest);
+  rest = codeRes.rest;
+
+  const descRes = parseDescription(rest);
+  const { payee, note } = parsePayeeAndNote(descRes.description);
+
+  return {
+    date: dateRes.date,
+    effectiveDate: effDateRes.effectiveDate,
+    status: statusRes.status,
+    code: codeRes.code,
+    description: descRes.description,
+    payee,
+    note,
+    comment: descRes.comment,
+    tags: descRes.tags
+  };
+}
+
 function parseDate(line: string): { date: string, rest: string } | null {
   const match = line.match(/^(\d{4})([-/])(\d{1,2})\2(\d{1,2})/);
   if (!match) return null;
@@ -292,90 +318,8 @@ function parsePayeeAndNote(description: string): { payee: string, note: string }
   return { payee: description, note: description };
 }
 
-export function parseTransactionHeader(line: string): { date: string; effectiveDate?: string; status?: 'cleared' | 'pending' | 'unmarked'; code?: string; description: string; payee: string; note: string; comment?: string; tags?: Record<string, string> } | null {
-  const trimmed = line.trim();
 
-  const dateRes = parseDate(trimmed);
-  if (!dateRes) return null;
-  let rest = dateRes.rest;
-
-  const effDateRes = parseEffectiveDate(rest);
-  rest = effDateRes.rest;
-
-  const statusRes = parseStatus(rest);
-  rest = statusRes.rest;
-
-  const codeRes = parseCode(rest);
-  rest = codeRes.rest;
-
-  const descRes = parseDescription(rest);
-  const { payee, note } = parsePayeeAndNote(descRes.description);
-
-  return {
-    date: dateRes.date,
-    effectiveDate: effDateRes.effectiveDate,
-    status: statusRes.status,
-    code: codeRes.code,
-    description: descRes.description,
-    payee,
-    note,
-    comment: descRes.comment,
-    tags: descRes.tags
-  };
-}
-
-function parseCost(text: string): { amountPart: string, cost?: { type: 'unit' | 'total', amount: Amount } } {
-  // Check for @@ first (total price), then @ (unit price)
-  const totalCostMatch = text.match(/@@\s*(.+)$/);
-  const unitCostMatch = !totalCostMatch ? text.match(/@\s*(.+)$/) : null;
-
-  if (totalCostMatch) {
-    const amountPart = text.substring(0, totalCostMatch.index ?? 0).trim();
-    const costPart = totalCostMatch[1].trim();
-    const costAmount = parseAmount(costPart);
-    if (costAmount) {
-      return { amountPart, cost: { type: 'total', amount: costAmount } };
-    }
-  } else if (unitCostMatch) {
-    const amountPart = text.substring(0, unitCostMatch.index ?? 0).trim();
-    const costPart = unitCostMatch[1].trim();
-    const costAmount = parseAmount(costPart);
-    if (costAmount) {
-      return { amountPart, cost: { type: 'unit', amount: costAmount } };
-    }
-  }
-
-  return { amountPart: text.trim() };
-}
-
-/**
- * Parse a posting date, handling partial dates (MM-DD) by defaulting to transaction year.
- *
- * @param dateStr Date string from date: tag or [DATE] syntax
- * @param transactionDate Parent transaction date for year defaulting
- * @returns Parsed date in YYYY-MM-DD format, or null if invalid
- */
-function parsePostingDate(dateStr: string, transactionDate?: string): string | null {
-  // Full date: YYYY-MM-DD or YYYY/MM/DD (with 1 or 2 digit months/days)
-  const fullDateMatch = dateStr.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-  if (fullDateMatch) {
-    const month = fullDateMatch[2].padStart(2, '0');
-    const day = fullDateMatch[3].padStart(2, '0');
-    return `${fullDateMatch[1]}-${month}-${day}`;
-  }
-
-  // Partial date: MM-DD or MM/DD or M-D or M/D (needs transaction year)
-  const partialDateMatch = dateStr.match(/^(\d{1,2})[-/](\d{1,2})$/);
-  if (partialDateMatch && transactionDate) {
-    const txYear = transactionDate.substring(0, 4);
-    const month = partialDateMatch[1].padStart(2, '0');
-    const day = partialDateMatch[2].padStart(2, '0');
-    return `${txYear}-${month}-${day}`;
-  }
-
-  return null; // Invalid format
-}
-
+// Parse Posting and Helpers
 export function parsePosting(line: string, transactionDate?: string): Posting | null {
   if (!isPosting(line)) return null;
   const account = extractAccountFromPosting(line);
@@ -440,6 +384,138 @@ export function parsePosting(line: string, transactionDate?: string): Posting | 
   if (amount) posting.amount = amount;
 
   return posting;
+}
+
+function parsePostingDate(dateStr: string, transactionDate?: string): string | null {
+  // Full date: YYYY-MM-DD or YYYY/MM/DD (with 1 or 2 digit months/days)
+  const fullDateMatch = dateStr.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (fullDateMatch) {
+    const month = fullDateMatch[2].padStart(2, '0');
+    const day = fullDateMatch[3].padStart(2, '0');
+    return `${fullDateMatch[1]}-${month}-${day}`;
+  }
+
+  // Partial date: MM-DD or MM/DD or M-D or M/D (needs transaction year)
+  const partialDateMatch = dateStr.match(/^(\d{1,2})[-/](\d{1,2})$/);
+  if (partialDateMatch && transactionDate) {
+    const txYear = transactionDate.substring(0, 4);
+    const month = partialDateMatch[1].padStart(2, '0');
+    const day = partialDateMatch[2].padStart(2, '0');
+    return `${txYear}-${month}-${day}`;
+  }
+
+  return null; // Invalid format
+}
+
+function parseCost(text: string): { amountPart: string, cost?: { type: 'unit' | 'total', amount: Amount } } {
+  // Check for @@ first (total price), then @ (unit price)
+  const totalCostMatch = text.match(/@@\s*(.+)$/);
+  const unitCostMatch = !totalCostMatch ? text.match(/@\s*(.+)$/) : null;
+
+  if (totalCostMatch) {
+    const amountPart = text.substring(0, totalCostMatch.index ?? 0).trim();
+    const costPart = totalCostMatch[1].trim();
+    const costAmount = parseAmount(costPart);
+    if (costAmount) {
+      return { amountPart, cost: { type: 'total', amount: costAmount } };
+    }
+  } else if (unitCostMatch) {
+    const amountPart = text.substring(0, unitCostMatch.index ?? 0).trim();
+    const costPart = unitCostMatch[1].trim();
+    const costAmount = parseAmount(costPart);
+    if (costAmount) {
+      return { amountPart, cost: { type: 'unit', amount: costAmount } };
+    }
+  }
+
+  return { amountPart: text.trim() };
+}
+
+
+// Parse amount and Helpers
+export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amount | null {
+  const trimmed = amountStr.trim();
+  if (!trimmed) return null;
+
+  // Regex to split commodity and amount
+  // We need to be more permissive with the amount part to capture various formats
+  // Amount part can contain digits, commas, dots, spaces (maybe)
+  // But spaces are tricky. For now let's assume space separates commodity if symbol is on left/right
+
+  const patterns = [
+    {
+      // Symbol on left, with sign prefix (e.g. -$100, +$100, - $100, + $100)
+      pattern: /^([+-])\s*([^\d\s+-]+)\s*([+-]?\d[\d.,\s]*)$/,
+      handler: (m: RegExpMatchArray) => {
+        const sign = m[1];
+        const rawAmount = m[3];
+        const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
+        const quantity = parseNumberWithFormat(rawAmount, mark || undefined);
+        return { quantity: sign === '-' ? -Math.abs(quantity) : Math.abs(quantity), commodity: m[2], rawAmount };
+      },
+      cleaner: (m: RegExpMatchArray, s: string) => s.replace(/^[+-]/, '')
+    },
+    {
+      // Symbol on left
+      pattern: /^([^\d\s+-]+)\s*([+-]?\s*\d[\d.,\s]*)$/,
+      handler: (m: RegExpMatchArray) => {
+        const rawAmount = m[2];
+        const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
+        return { quantity: parseNumberWithFormat(rawAmount, mark || undefined), commodity: m[1], rawAmount };
+      },
+      cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[2], m[2].replace(/[+-]/, ''))
+    },
+    {
+      // Symbol on right
+      pattern: /^([+-]?\s*\d[\d.,\s]*)\s*([^\d\s]+)$/,
+      handler: (m: RegExpMatchArray) => {
+        const rawAmount = m[1];
+        const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
+        return { quantity: parseNumberWithFormat(rawAmount, mark || undefined), commodity: m[2], rawAmount };
+      },
+      cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[1], m[1].replace(/[+-]/, ''))
+    },
+    {
+      // No symbol
+      pattern: /^([+-]?\s*\d[\d.,\s]*)$/,
+      handler: (m: RegExpMatchArray) => {
+        const rawAmount = m[1];
+        const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
+        return { quantity: parseNumberWithFormat(rawAmount, mark || undefined), commodity: '', rawAmount };
+      },
+      cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[1], m[1].replace(/[+-]/, ''))
+    }
+  ];
+
+  for (const { pattern, handler, cleaner } of patterns) {
+    const match = trimmed.match(pattern);
+    if (match) {
+      // Verify that the amount part looks valid (e.g. not just a dot)
+      // and doesn't contain internal spaces that look like commodity separators
+      // This is a heuristic.
+
+      const res = handler(match);
+      if (isNaN(res.quantity)) continue;
+
+      const amount: Amount = { quantity: res.quantity, commodity: res.commodity };
+
+      let sampleForFormat = trimmed;
+      // Strip sign before parsing format to avoid treating +/- as commodity symbol
+      // Check both the full input and the raw amount part for signs
+      if (/^[+-]/.test(trimmed) || /^[+-]/.test(res.rawAmount)) {
+        sampleForFormat = cleaner(match, trimmed);
+      }
+
+      const parsedFormat = parseFormat(sampleForFormat);
+      if (parsedFormat && parsedFormat.format) {
+        amount.format = parsedFormat.format;
+      }
+
+      return amount;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -557,91 +633,6 @@ function parseNumberWithFormat(numStr: string, mark: string | undefined): number
   return parseFloat(cleanStr);
 }
 
-export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amount | null {
-  const trimmed = amountStr.trim();
-  if (!trimmed) return null;
-
-  // Regex to split commodity and amount
-  // We need to be more permissive with the amount part to capture various formats
-  // Amount part can contain digits, commas, dots, spaces (maybe)
-  // But spaces are tricky. For now let's assume space separates commodity if symbol is on left/right
-
-  const patterns = [
-    {
-      // Symbol on left, with sign prefix (e.g. -$100, +$100, - $100, + $100)
-      pattern: /^([+-])\s*([^\d\s+-]+)\s*([+-]?\d[\d.,\s]*)$/,
-      handler: (m: RegExpMatchArray) => {
-        const sign = m[1];
-        const rawAmount = m[3];
-        const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
-        const quantity = parseNumberWithFormat(rawAmount, mark || undefined);
-        return { quantity: sign === '-' ? -Math.abs(quantity) : Math.abs(quantity), commodity: m[2], rawAmount };
-      },
-      cleaner: (m: RegExpMatchArray, s: string) => s.replace(/^[+-]/, '')
-    },
-    {
-      // Symbol on left
-      pattern: /^([^\d\s+-]+)\s*([+-]?\s*\d[\d.,\s]*)$/,
-      handler: (m: RegExpMatchArray) => {
-        const rawAmount = m[2];
-        const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
-        return { quantity: parseNumberWithFormat(rawAmount, mark || undefined), commodity: m[1], rawAmount };
-      },
-      cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[2], m[2].replace(/[+-]/, ''))
-    },
-    {
-      // Symbol on right
-      pattern: /^([+-]?\s*\d[\d.,\s]*)\s*([^\d\s]+)$/,
-      handler: (m: RegExpMatchArray) => {
-        const rawAmount = m[1];
-        const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
-        return { quantity: parseNumberWithFormat(rawAmount, mark || undefined), commodity: m[2], rawAmount };
-      },
-      cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[1], m[1].replace(/[+-]/, ''))
-    },
-    {
-      // No symbol
-      pattern: /^([+-]?\s*\d[\d.,\s]*)$/,
-      handler: (m: RegExpMatchArray) => {
-        const rawAmount = m[1];
-        const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
-        return { quantity: parseNumberWithFormat(rawAmount, mark || undefined), commodity: '', rawAmount };
-      },
-      cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[1], m[1].replace(/[+-]/, ''))
-    }
-  ];
-
-  for (const { pattern, handler, cleaner } of patterns) {
-    const match = trimmed.match(pattern);
-    if (match) {
-      // Verify that the amount part looks valid (e.g. not just a dot)
-      // and doesn't contain internal spaces that look like commodity separators
-      // This is a heuristic.
-
-      const res = handler(match);
-      if (isNaN(res.quantity)) continue;
-
-      const amount: Amount = { quantity: res.quantity, commodity: res.commodity };
-
-      let sampleForFormat = trimmed;
-      // Strip sign before parsing format to avoid treating +/- as commodity symbol
-      // Check both the full input and the raw amount part for signs
-      if (/^[+-]/.test(trimmed) || /^[+-]/.test(res.rawAmount)) {
-        sampleForFormat = cleaner(match, trimmed);
-      }
-
-      const parsedFormat = parseFormat(sampleForFormat);
-      if (parsedFormat && parsedFormat.format) {
-        amount.format = parsedFormat.format;
-      }
-
-      return amount;
-    }
-  }
-
-  return null;
-}
-
 export function parseFormat(sample: string): { name: string; format?: Format } | null {
   if (!sample) return null;
   const s = sample.trim();
@@ -684,139 +675,34 @@ export function parseFormat(sample: string): { name: string; format?: Format } |
 }
 
 
-/**
- * Helper functions used by processCommodityDirective
- */
+//Process Directives
+export function parseDirective(line: string): Directive | null {
+  const trimmed = line.trim();
 
-const stripQuotes = (s: string) => { const t = s.trim(); if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) return t.substring(1, t.length - 1); return t; };
+  // Extract comment if present
+  const commentMatch = trimmed.match(/^([^;]*);(.*)$/);
+  const mainPart = commentMatch ? commentMatch[1].trim() : trimmed;
+  const comment = commentMatch ? commentMatch[2].trim() : undefined;
 
-function parseCommodityDirective(line: string): { name: string, format?: Format } | null {
-  const directive = line.trim().substring(10).split(';')[0].trim();
-  if (!directive) return null;
+  // Parse directive type and value
+  const directives: Array<Directive['type']> = ['account', 'commodity', 'payee', 'tag', 'include', 'alias'];
 
-  let parsed = null;
-  if (/\d/.test(directive)) parsed = parseFormat(directive);
-
-  if (parsed) {
-    return { name: parsed.name, format: parsed.format };
-  } else {
-    return { name: stripQuotes(directive), format: undefined };
-  }
-}
-
-function parseFormatSubDirective(line: string): { name?: string, format?: Format } | null {
-  const trimmedNext = line.trim();
-  if (!trimmedNext.startsWith('format ')) return null;
-
-  const rest = trimmedNext.substring(7).trim();
-  const m = rest.match(/^(".*?"|\S+)\s+(.*)$/);
-  if (m) {
-    const formatSymbolRaw = m[1]; const samplePart = m[2];
-    const parsedFormat = parseFormat(samplePart) || parseFormat(`${samplePart} ${formatSymbolRaw}`);
-    if (parsedFormat && parsedFormat.format) {
-      const fs = stripQuotes(formatSymbolRaw);
-      return { name: fs, format: parsedFormat.format };
+  for (const directiveType of directives) {
+    if (mainPart.startsWith(directiveType + ' ')) {
+      const value = mainPart.substring(directiveType.length + 1).trim();
+      if (value) {
+        return {
+          type: directiveType,
+          value,
+          comment
+        };
+      }
     }
   }
-  // If no match, try parsing rest directly as a format sample (e.g., "format $1,000.00")
-  const parsedDirect = parseFormat(rest);
-  if (parsedDirect && parsedDirect.format) {
-    return { name: parsedDirect.name, format: parsedDirect.format };
-  }
+
   return null;
 }
 
-/**
- * Helper functions for incremental parsing - adding items to Maps
- */
-
-/**
- * Add or update an account in the accounts map
- * If account exists, mark as declared if it wasn't already
- */
-export function addAccount(accountMap: Map<string, Account>, name: string, declared: boolean, sourceUri?: URI, line?: number): void {
-
-  const existing = accountMap.get(name);
-  if (existing) {
-    // If we're adding a declared version, update the existing entry
-    if (declared && !existing.declared) {
-      existing.declared = true;
-      if (sourceUri !== undefined) existing.sourceUri = sourceUri;
-      if (line !== undefined) existing.line = line;
-    }
-  } else {
-    const acc: Account = { name, declared };
-    if (sourceUri !== undefined) { acc.sourceUri = sourceUri; acc.line = line; }
-    accountMap.set(name, acc);
-  }
-}
-
-/**
- * Add or update a payee in the payees map
- */
-export function addPayee(payeeMap: Map<string, Payee>, name: string, declared: boolean, sourceUri?: URI, line?: number): void {
-  const existing = payeeMap.get(name);
-  if (existing) {
-    if (declared && !existing.declared) {
-      existing.declared = true;
-      if (sourceUri !== undefined) existing.sourceUri = sourceUri;
-      if (line !== undefined) existing.line = line;
-    }
-  } else {
-    const p: Payee = { name, declared };
-    if (sourceUri !== undefined) { p.sourceUri = sourceUri; p.line = line; }
-    payeeMap.set(name, p);
-  }
-}
-
-/**
- * Add or update a commodity in the commodities map
- * When merging formats, prefer the one with higher precision or more detail
- */
-export function addCommodity(commodityMap: Map<string, Commodity>, name: string, declared: boolean, format?: Format, sourceUri?: URI, line?: number): void {
-  const existing = commodityMap.get(name);
-  if (existing) {
-    if (declared) {
-      existing.declared = true;
-      if (format) existing.format = format;
-      if (sourceUri !== undefined) existing.sourceUri = sourceUri;
-      if (line !== undefined) existing.line = line;
-    } else if (format && !existing.declared) {
-      // For undeclared commodities, keep the format with better precision
-      const newPrecision = format.precision ?? null;
-      const existingPrecision = existing.format?.precision ?? null;
-      if (!existing.format || (newPrecision !== null && (existingPrecision === null || newPrecision > existingPrecision))) {
-        existing.format = format;
-      }
-    }
-  } else {
-    const c: Commodity = { name, declared, format };
-    if (sourceUri !== undefined) { c.sourceUri = sourceUri; c.line = line; }
-    commodityMap.set(name, c);
-  }
-}
-
-/**
- * Add or update a tag in the tags map
- */
-export function addTag(tagMap: Map<string, Tag>, name: string, declared: boolean, sourceUri?: URI, line?: number): void {
-  const existing = tagMap.get(name);
-  if (existing) {
-    if (declared && !existing.declared) {
-      existing.declared = true;
-      if (sourceUri !== undefined) existing.sourceUri = sourceUri;
-      if (line !== undefined) existing.line = line;
-    }
-  } else {
-    const t: Tag = { name, declared };
-    if (sourceUri !== undefined) { t.sourceUri = sourceUri; t.line = line; }
-    tagMap.set(name, t);
-  }
-}
-
-/**
- * Process an account directive and add it to the accounts map
- */
 export function processAccountDirective(line: string, accountMap: Map<string, Account>, sourceUri?: URI, lineNumber?: number): void {
   const accountName = line.trim().substring(8).split(';')[0].trim();
   if (accountName) {
@@ -824,9 +710,6 @@ export function processAccountDirective(line: string, accountMap: Map<string, Ac
   }
 }
 
-/**
- * Process a payee directive and add it to the payees map
- */
 export function processPayeeDirective(line: string, payeeMap: Map<string, Payee>, sourceUri?: URI, lineNumber?: number): void {
   const payeeName = line.trim().substring(6).split(';')[0].trim();
   if (payeeName) {
@@ -834,49 +717,6 @@ export function processPayeeDirective(line: string, payeeMap: Map<string, Payee>
   }
 }
 
-/**
- * Process a commodity directive and add it to the commodities map
- * Handles multi-line commodity directives with format subdirectives
- */
-export function processCommodityDirective(
-  lines: string[],
-  startLine: number,
-  commodityMap: Map<string, Commodity>,
-  sourceUri?: URI
-): number {
-  const line = lines[startLine];
-  const parsed = parseCommodityDirective(line);
-  if (!parsed) return startLine;
-
-  let commodityName = parsed.name;
-  let format = parsed.format;
-
-  // Check for format subdirective on following lines
-  let look = startLine + 1;
-  while (look < lines.length) {
-    const next = lines[look];
-    if (!next.trim()) { look++; continue; }
-    if (!/^\s+/.test(next)) break;
-
-    const subParsed = parseFormatSubDirective(next);
-    if (subParsed) {
-      if (subParsed.format) format = subParsed.format;
-      if (subParsed.name && subParsed.name !== '' && (!commodityName || commodityName === '' || commodityName === subParsed.name)) {
-        commodityName = subParsed.name;
-      }
-    }
-    look++;
-  }
-
-  addCommodity(commodityMap, commodityName, true, format, sourceUri, startLine);
-
-  // Return the last line we processed
-  return look - 1;
-}
-
-/**
- * Process a tag directive and add it to the tags map
- */
 export function processTagDirective(line: string, tagMap: Map<string, Tag>, sourceUri?: URI, lineNumber?: number): void {
   const tagName = line.trim().substring(4).split(';')[0].trim();
   if (tagName) {
@@ -884,9 +724,6 @@ export function processTagDirective(line: string, tagMap: Map<string, Tag>, sour
   }
 }
 
-/**
- * Extract accounts, commodities, tags from a transaction and add them to the maps
- */
 export function processTransaction(transaction: Transaction, accountMap: Map<string, Account>, commodityMap: Map<string, Commodity>, tagMap: Map<string, Tag>, sourceUri?: URI): void {
   // Extract payee is handled separately since it's in the transaction header
 
@@ -928,31 +765,141 @@ export function processTransaction(transaction: Transaction, accountMap: Map<str
   }
 }
 
-export function parseDirective(line: string): Directive | null {
-  const trimmed = line.trim();
+export function processCommodityDirective(lines: string[], startLine: number, commodityMap: Map<string, Commodity>, sourceUri?: URI): number {
+  const line = lines[startLine];
+  const parsed = parseCommodityDirective(line);
+  if (!parsed) return startLine;
 
-  // Extract comment if present
-  const commentMatch = trimmed.match(/^([^;]*);(.*)$/);
-  const mainPart = commentMatch ? commentMatch[1].trim() : trimmed;
-  const comment = commentMatch ? commentMatch[2].trim() : undefined;
+  let commodityName = parsed.name;
+  let format = parsed.format;
 
-  // Parse directive type and value
-  const directives: Array<Directive['type']> = ['account', 'commodity', 'payee', 'tag', 'include', 'alias'];
+  // Check for format subdirective on following lines
+  let look = startLine + 1;
+  while (look < lines.length) {
+    const next = lines[look];
+    if (!next.trim()) { look++; continue; }
+    if (!/^\s+/.test(next)) break;
 
-  for (const directiveType of directives) {
-    if (mainPart.startsWith(directiveType + ' ')) {
-      const value = mainPart.substring(directiveType.length + 1).trim();
-      if (value) {
-        return {
-          type: directiveType,
-          value,
-          comment
-        };
+    const subParsed = parseFormatSubDirective(next);
+    if (subParsed) {
+      if (subParsed.format) format = subParsed.format;
+      if (subParsed.name && subParsed.name !== '' && (!commodityName || commodityName === '' || commodityName === subParsed.name)) {
+        commodityName = subParsed.name;
       }
     }
+    look++;
   }
 
+  addCommodity(commodityMap, commodityName, true, format, sourceUri, startLine);
+
+  // Return the last line we processed
+  return look - 1;
+}
+
+function parseCommodityDirective(line: string): { name: string, format?: Format } | null {
+  const directive = line.trim().substring(10).split(';')[0].trim();
+  if (!directive) return null;
+
+  let parsed = null;
+  if (/\d/.test(directive)) parsed = parseFormat(directive);
+
+  if (parsed) {
+    return { name: parsed.name, format: parsed.format };
+  } else {
+    return { name: stripQuotes(directive), format: undefined };
+  }
+}
+
+function parseFormatSubDirective(line: string): { name?: string, format?: Format } | null {
+  const trimmedNext = line.trim();
+  if (!trimmedNext.startsWith('format ')) return null;
+
+  const rest = trimmedNext.substring(7).trim();
+  const m = rest.match(/^(".*?"|\S+)\s+(.*)$/);
+  if (m) {
+    const formatSymbolRaw = m[1]; const samplePart = m[2];
+    const parsedFormat = parseFormat(samplePart) || parseFormat(`${samplePart} ${formatSymbolRaw}`);
+    if (parsedFormat && parsedFormat.format) {
+      const fs = stripQuotes(formatSymbolRaw);
+      return { name: fs, format: parsedFormat.format };
+    }
+  }
+  // If no match, try parsing rest directly as a format sample (e.g., "format $1,000.00")
+  const parsedDirect = parseFormat(rest);
+  if (parsedDirect && parsedDirect.format) {
+    return { name: parsedDirect.name, format: parsedDirect.format };
+  }
   return null;
 }
 
 
+// Helper functions for incremental parsing - adding items to Maps
+export function addAccount(accountMap: Map<string, Account>, name: string, declared: boolean, sourceUri?: URI, line?: number): void {
+
+  const existing = accountMap.get(name);
+  if (existing) {
+    // If we're adding a declared version, update the existing entry
+    if (declared && !existing.declared) {
+      existing.declared = true;
+      if (sourceUri !== undefined) existing.sourceUri = sourceUri;
+      if (line !== undefined) existing.line = line;
+    }
+  } else {
+    const acc: Account = { name, declared };
+    if (sourceUri !== undefined) { acc.sourceUri = sourceUri; acc.line = line; }
+    accountMap.set(name, acc);
+  }
+}
+
+export function addPayee(payeeMap: Map<string, Payee>, name: string, declared: boolean, sourceUri?: URI, line?: number): void {
+  const existing = payeeMap.get(name);
+  if (existing) {
+    if (declared && !existing.declared) {
+      existing.declared = true;
+      if (sourceUri !== undefined) existing.sourceUri = sourceUri;
+      if (line !== undefined) existing.line = line;
+    }
+  } else {
+    const p: Payee = { name, declared };
+    if (sourceUri !== undefined) { p.sourceUri = sourceUri; p.line = line; }
+    payeeMap.set(name, p);
+  }
+}
+
+export function addCommodity(commodityMap: Map<string, Commodity>, name: string, declared: boolean, format?: Format, sourceUri?: URI, line?: number): void {
+  const existing = commodityMap.get(name);
+  if (existing) {
+    if (declared) {
+      existing.declared = true;
+      if (format) existing.format = format;
+      if (sourceUri !== undefined) existing.sourceUri = sourceUri;
+      if (line !== undefined) existing.line = line;
+    } else if (format && !existing.declared) {
+      // For undeclared commodities, keep the format with better precision
+      const newPrecision = format.precision ?? null;
+      const existingPrecision = existing.format?.precision ?? null;
+      if (!existing.format || (newPrecision !== null && (existingPrecision === null || newPrecision > existingPrecision))) {
+        existing.format = format;
+      }
+    }
+  } else {
+    const c: Commodity = { name, declared, format };
+    if (sourceUri !== undefined) { c.sourceUri = sourceUri; c.line = line; }
+    commodityMap.set(name, c);
+  }
+}
+
+export function addTag(tagMap: Map<string, Tag>, name: string, declared: boolean, sourceUri?: URI, line?: number): void {
+  const existing = tagMap.get(name);
+  if (existing) {
+    if (declared && !existing.declared) {
+      existing.declared = true;
+      if (sourceUri !== undefined) existing.sourceUri = sourceUri;
+      if (line !== undefined) existing.line = line;
+    }
+  } else {
+    const t: Tag = { name, declared };
+    if (sourceUri !== undefined) { t.sourceUri = sourceUri; t.line = line; }
+    tagMap.set(name, t);
+  }
+}

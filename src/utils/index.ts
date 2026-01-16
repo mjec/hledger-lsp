@@ -116,3 +116,5 @@ export function getEffectiveDate(posting: Posting, transaction: Transaction): st
   const date = posting.date || transaction.date;
   return normalizeDate(date);
 }
+
+export const stripQuotes = (s: string) => { const t = s.trim(); if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) return t.substring(1, t.length - 1); return t; };

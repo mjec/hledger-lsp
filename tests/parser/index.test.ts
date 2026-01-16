@@ -1071,14 +1071,10 @@ include common.journal
       test('should return null for non-transaction lines', () => {
         const lines = ['account assets:bank', '; comment'];
         const result = ast.parseTransaction(lines, 0);
+
         expect(result).toBeNull();
       });
 
-      test('should return null for invalid start line', () => {
-        const lines = ['2024-01-15 * Test'];
-        const result = ast.parseTransaction(lines, 10);
-        expect(result).toBeNull();
-      });
     });
 
     describe('basic transaction parsing', () => {
@@ -1358,39 +1354,6 @@ include common.journal
     });
 
     describe('transaction boundaries', () => {
-      test('should stop at empty line', () => {
-        const lines = [
-          '2024-01-15 Transaction 1',
-          '    expenses:food    $50.00',
-          '    assets:checking',
-          '',
-          '2024-01-16 Transaction 2',
-          '    expenses:rent    $1000',
-          '    assets:checking'
-        ];
-        const result = ast.parseTransaction(lines, 0);
-
-        expect(result).not.toBeNull();
-        expect(result?.date).toBe('2024-01-15');
-        expect(result?.postings).toHaveLength(2);
-      });
-
-      test('should stop at next transaction', () => {
-        const lines = [
-          '2024-01-15 Transaction 1',
-          '    expenses:food    $50.00',
-          '    assets:checking',
-          '2024-01-16 Transaction 2',
-          '    expenses:rent    $1000',
-          '    assets:checking'
-        ];
-        const result = ast.parseTransaction(lines, 0);
-
-        expect(result).not.toBeNull();
-        expect(result?.date).toBe('2024-01-15');
-        expect(result?.postings).toHaveLength(2);
-      });
-
       test('should handle transaction with slash-separated date', () => {
         const lines = [
           '2024/01/15 Grocery Store',
