@@ -57,6 +57,37 @@ describe('FormattingProvider', () => {
       expect(line1DecimalPos).toBe(line2DecimalPos);
     });
 
+    it('should maintain comments in transactions', () => {
+      const content = `2024-01-01 Grocery Store
+  ;this comment should stay here
+  ;so should this
+  expenses:food    $25.5
+  ;and this should stay between the postings
+  assets:checking    $-25.5
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      expect(edits).toHaveLength(1);
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      expect(lines[0]).toBe('2024-01-01 Grocery Store');
+      expect(lines[1]).toContain('this comment should stay here');
+      expect(lines[2]).toContain(';so should this');
+      expect(lines[3]).toContain('expenses:food');
+      expect(lines[3]).toContain('$ 25.5');
+      expect(lines[4]).toContain(';and this should stay between the postings');
+      expect(lines[5]).toContain('assets:checking');
+      expect(lines[5]).toContain('$-25.5');
+
+      // Check decimal alignment - decimals should be at same column
+      const line1DecimalPos = lines[1].indexOf('.5');
+      const line2DecimalPos = lines[2].indexOf('.5');
+      expect(line1DecimalPos).toBe(line2DecimalPos);
+    });
+
     it('should align decimals for mixed commodity positions', () => {
       const content = `2024-01-01 Mixed currencies
   expenses:travel    100.00 EUR
