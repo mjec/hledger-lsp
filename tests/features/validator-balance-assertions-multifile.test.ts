@@ -242,11 +242,53 @@ include later.journal
     expect(assertionErrors).toHaveLength(0);
   });
 
-  test('should validate same-day transactions across files', async () => {
-    // NOTE: This test validates that same-day transactions from multiple files
-    // are correctly merged and validated. The merge concatenates files in BFS
-    // include order: main file transactions first, then included file transactions.
-    // For same-day transactions, balance assertions must account for this order.
+  test('should handle interleaved included dates correctly', async () => {
+    const baseDir = '/test';
+
+    const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
+      if (includePath === 'mid.journal') {
+        return [toFileUri(`${baseDir}/mid.journal`)];
+      }
+      return [];
+    };
+
+    // Main file has dates before and after included file but is parsed first
+    // Check that the transactions are merged in the correct order
+    const workspace = await createTestWorkspace({
+      baseDir,
+      files: {
+        'main.journal': `
+include mid.journal
+
+2024-01-01 Initial
+    assets:checking   $1000
+    equity:opening
+
+2024-01-05 Purchase
+    expenses:food      $50
+    assets:checking   $-50 = $925
+`,
+        'mid.journal': `
+2024-01-02 Mid File Purchase
+    expenses:food      $25
+    assets:checking   $-25 = $975
+`
+      },
+      includePathResolver: includeResolver
+    });
+
+    const parsed = workspace.parseFromFile('main.journal');
+    const mainDoc = workspace.getDocument('main.journal')!;
+
+    const result = validator.validate(mainDoc, parsed);
+
+    const assertionErrors = result.diagnostics.filter(d =>
+      d.message.includes('Balance assertion failed')
+    );
+    expect(assertionErrors).toHaveLength(0);
+  });
+
+  test('should validate same-day transactions across files by include position', async () => {
     const baseDir = '/test';
 
     const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
@@ -256,31 +298,28 @@ include later.journal
       return [];
     };
 
-    // Merge order: main.journal txns, then morning.journal txns
-    // So for same-day (2024-01-15): Evening first, then Morning Coffee, then Lunch
-    // Balance progression: $1000 -> $970 (Evening) -> $965 (Coffee) -> $920 (Lunch)
     const workspace = await createTestWorkspace({
       baseDir,
       files: {
         'main.journal': `
-include morning.journal
-
 2024-01-01 Initial
     assets:checking   $1000
     equity:opening
 
+include morning.journal
+
 2024-01-15 Evening
     expenses:dinner    $30
-    assets:checking   $-30 = $970
+    assets:checking   $-30 = $920
 `,
         'morning.journal': `
 2024-01-15 Morning Coffee
     expenses:food      $5
-    assets:checking   $-5 = $965
+    assets:checking   $-5 = $995
 
 2024-01-15 Lunch
     expenses:food      $45
-    assets:checking   $-45 = $920
+    assets:checking   $-45 = $950
 `
       },
       includePathResolver: includeResolver

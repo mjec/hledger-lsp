@@ -646,6 +646,7 @@ export class Validator {
    * Validate balance assertions
    * Check if balance assertions match calculated balances
    * Respects posting dates for chronological ordering
+   * For same-day transactions across files, orders by include position
    */
   private validateBalanceAssertions(
     transactions: Transaction[],
@@ -656,28 +657,69 @@ export class Validator {
 
     // Normalize document URI to ensure proper encoding
     const documentUri = URI.parse(document.uri).toString();
+    const baseUri = URI.parse(document.uri);
 
-    // Extract all postings with effective dates
+    // Build a map from included file URI to the include directive's line number
+    // This determines the ordering position for transactions from included files
+    const includePositionMap = new Map<string, number>();
+    for (const directive of parsedDoc.directives) {
+      if (directive.type === 'include' && directive.line !== undefined) {
+        // Resolve the include path to get the actual file URI
+        const resolvedUri = resolveIncludePath(directive.value, baseUri);
+        includePositionMap.set(resolvedUri.toString(), directive.line);
+      }
+    }
+
+    // Extract all postings with effective dates and ordering info
     interface PostingWithContext {
       transaction: Transaction;
       posting: Posting;
       effectiveDate: string;
+      orderPosition: number;  // Line number for ordering (include line or transaction line)
+      lineInFile: number;     // Line within source file for secondary ordering
     }
 
     const allPostings: PostingWithContext[] = [];
 
     for (const transaction of transactions) {
+      // Determine the order position for this transaction
+      let orderPosition: number;
+      const txnSourceUri = transaction.sourceUri?.toString() || '';
+
+      if (txnSourceUri === documentUri) {
+        // Transaction is in the root file - use its own line number
+        orderPosition = transaction.line ?? 0;
+      } else {
+        // Transaction is from an included file - use the include directive's line
+        orderPosition = includePositionMap.get(txnSourceUri) ?? 0;
+      }
+
+      const lineInFile = transaction.line ?? 0;
+
       for (const posting of transaction.postings) {
         allPostings.push({
           transaction,
           posting,
-          effectiveDate: getEffectiveDate(posting, transaction)
+          effectiveDate: getEffectiveDate(posting, transaction),
+          orderPosition,
+          lineInFile
         });
       }
     }
 
-    // Sort by effective date for chronological processing
-    allPostings.sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
+    // Sort by: 1) effective date, 2) order position, 3) line within file
+    allPostings.sort((a, b) => {
+      // Primary: sort by date
+      const dateCompare = a.effectiveDate.localeCompare(b.effectiveDate);
+      if (dateCompare !== 0) return dateCompare;
+
+      // Secondary: sort by order position (include line or transaction line in root)
+      const positionCompare = a.orderPosition - b.orderPosition;
+      if (positionCompare !== 0) return positionCompare;
+
+      // Tertiary: sort by line within source file (for multiple transactions in same included file)
+      return a.lineInFile - b.lineInFile;
+    });
 
     // Track running balances
     const runningBalances = new Map<string, Map<string, number>>();

@@ -740,6 +740,57 @@ account expenses:food
       expect(assertionErrors).toHaveLength(0);
     });
 
+
+    test('should accept correct balance assertions on out of order transactions', () => {
+      const content = `2024-01-16 * Store B
+    expenses:food  $30.00
+    assets:checking  $-30.00 = $-80.00
+
+2024-01-15 * Store A
+    expenses:food  $50.00
+    assets:checking  $-50.00
+`;
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsedDoc = parser.parse(doc);
+      const result = validator.validate(doc, parsedDoc);
+
+      const assertionErrors = result.diagnostics.filter(d => d.message.includes('Balance assertion failed'));
+      expect(assertionErrors).toHaveLength(0);
+    });
+
+    test('should detect incorrect balance assertions on out of order transactions but same day', () => {
+      const content = `2024-01-15 * Store B
+    expenses:food  $30.00
+    assets:checking  $-30.00 = $-80.00
+
+2024-01-15 * Store A
+    expenses:food  $50.00
+    assets:checking  $-50.00
+`;
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsedDoc = parser.parse(doc);
+      const result = validator.validate(doc, parsedDoc);
+
+      const assertionErrors = result.diagnostics.filter(d => d.message.includes('Balance assertion failed'));
+      expect(assertionErrors).toHaveLength(1);
+    });
+
+    test('should accept correct balances across multiple transactions on the same day', () => {
+      const content = `2024-01-15 * Store A
+    expenses:food  $50.00
+    assets:checking  $-50.00
+
+2024-01-15 * Store B
+    expenses:food  $30.00
+    assets:checking  $-30.00 = $-80.00`;
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsedDoc = parser.parse(doc);
+      const result = validator.validate(doc, parsedDoc);
+
+      const assertionErrors = result.diagnostics.filter(d => d.message.includes('Balance assertion failed'));
+      expect(assertionErrors).toHaveLength(0);
+    });
+
     test('should handle multiple commodities in assertions', () => {
       const content = `2024-01-15 * Store
     expenses:food  $50.00
