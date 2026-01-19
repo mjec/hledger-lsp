@@ -267,7 +267,7 @@ account Assets:Bank
       };
 
       // Parse main document first
-      const parsed = parser.parse(mainDoc, { fileReader });
+      const parsed = parser.parse(mainDoc);
 
       const fileUris = [
         URI.parse('file:///test/main.journal'),
@@ -320,7 +320,7 @@ account Assets:Bank
         return null;
       };
 
-      const parsed = parser.parse(mainDoc, { fileReader });
+      const parsed = parser.parse(mainDoc);
 
       const fileUris = [
         URI.parse('file:///test/main.journal'),

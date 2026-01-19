@@ -5,7 +5,7 @@
 import { DocumentSymbol, SymbolInformation, SymbolKind, Range, Location } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
-import { ParsedDocument, Transaction, Directive } from '../types';
+import { ParsedDocument } from '../types';
 import { formatAmount } from '../utils/amountFormatter';
 
 

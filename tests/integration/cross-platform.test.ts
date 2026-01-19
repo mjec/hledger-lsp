@@ -7,9 +7,11 @@ import { URI } from 'vscode-uri';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
-import { toFilePath, toFileUri, resolveIncludePath, resolveIncludePaths } from '../../src/utils/uri';
+import { toFilePath, toFileUri, resolveIncludePath, resolveIncludePaths, defaultFileReader } from '../../src/utils/uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { HledgerParser } from '../../src/parser/index';
+import { WorkspaceManager } from '../../src/server/workspace';
+import { createMockConnection } from '../helpers/workspaceTestHelper';
 
 describe('Cross-Platform Compatibility Tests', () => {
   const isWindows = process.platform === 'win32';
@@ -18,10 +20,9 @@ describe('Cross-Platform Compatibility Tests', () => {
   const normalizePath = (p: string): string => {
     if (!isWindows) return p;
     // Convert drive letter to lowercase for consistent comparison
-    return p.replace(/^([A-Z]):/, (match, letter) => letter.toLowerCase() + ':');
+    return p.replace(/^([A-Z]):/, (_match, letter) => letter.toLowerCase() + ':');
   };
   const isMac = process.platform === 'darwin';
-  const isLinux = process.platform === 'linux';
 
   describe('URI to File Path Conversion', () => {
     test('should handle Unix-style file:// URIs', () => {
@@ -310,7 +311,7 @@ describe('Cross-Platform Compatibility Tests', () => {
       expect(parsed.transactions[0].payee).toBe('Test Transaction');
     });
 
-    test('should handle includes with relative paths containing ..', () => {
+    test('should handle includes with relative paths containing ..', async () => {
       // Create structure: tempDir/sub1/main.journal includes ../sub2/other.journal
       const sub1 = path.join(tempDir, 'sub1');
       const sub2 = path.join(tempDir, 'sub2');
@@ -330,19 +331,18 @@ describe('Cross-Platform Compatibility Tests', () => {
 `);
 
       const uri = URI.file(mainFile);
-      const content = fs.readFileSync(mainFile, 'utf-8');
-      const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
-      const fileReader = (uri: URI) => {
-        const filePath = toFilePath(uri);
-        if (fs.existsSync(filePath)) {
-          const content = fs.readFileSync(filePath, 'utf-8');
-          return TextDocument.create(uri.toString(), 'hledger', 1, content);
-        }
-        return null;
-      };
+      // Use WorkspaceManager for include resolution
+      const workspaceManager = new WorkspaceManager();
+      const connection = createMockConnection();
+      await workspaceManager.initialize(
+        [URI.file(tempDir)],
+        parser,
+        defaultFileReader,
+        connection as any
+      );
 
-      const parsed = parser.parse(doc, { baseUri: uri, fileReader });
+      const parsed = workspaceManager.parseFromFile(uri);
 
       expect(parsed.transactions.length).toBe(1);
       expect(parsed.accounts.has('Assets:Cash')).toBe(true);
@@ -373,16 +373,8 @@ describe('Cross-Platform Compatibility Tests', () => {
         const content = fs.readFileSync(mainFile, 'utf-8');
         const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
-        const fileReader = (uri: URI) => {
-          const filePath = toFilePath(uri);
-          if (fs.existsSync(filePath)) {
-            const content = fs.readFileSync(filePath, 'utf-8');
-            return TextDocument.create(uri.toString(), 'hledger', 1, content);
-          }
-          return null;
-        };
 
-        const parsed = parser.parse(doc, { baseUri: uri, fileReader });
+        const parsed = parser.parse(doc);
 
         expect(parsed.transactions.length).toBe(1);
         expect(parsed.accounts.has('Assets:Bank')).toBe(true);
@@ -410,7 +402,6 @@ describe('Cross-Platform Compatibility Tests', () => {
 
         // URI should work regardless of case
         const uri1 = toFileUri(mainFile);
-        const uri2 = toFileUri(lowerCaseFile);
 
         const doc1 = TextDocument.create(uri1.toString(), 'hledger', 1, content);
         const parsed1 = parser.parse(doc1);

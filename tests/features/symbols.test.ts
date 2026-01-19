@@ -1,8 +1,9 @@
-import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { SymbolKind } from 'vscode-languageserver';
 import { documentSymbolProvider, workspaceSymbolProvider } from '../../src/features/symbols';
 import { HledgerParser } from '../../src/parser';
+import { createTestWorkspace, IncludePathResolver } from '../helpers/workspaceTestHelper';
+import { toFileUri } from '../../src/utils/uri';
 
 describe('DocumentSymbolProvider', () => {
   let parser: HledgerParser;
@@ -176,31 +177,41 @@ commodity USD
       expect(commoditySymbol).toBeDefined();
     });
 
-    test('should only include symbols from current document when includes are present', () => {
-      const content = `include other.journal
+    test('should only include symbols from current document when includes are present', async () => {
+      const baseDir = '/test-workspace';
+
+      // Custom resolver for the include path
+      const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
+        if (includePath === 'other.journal') {
+          return [toFileUri(`${baseDir}/other.journal`)];
+        }
+        return [];
+      };
+
+      const workspace = await createTestWorkspace({
+        baseDir,
+        files: {
+          'test.journal': `include other.journal
 
 account Assets:Bank
 
 2023-01-15 Local Transaction
   Expenses:Test  $10.00
   Assets:Bank
-`;
-      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+`,
+          'other.journal': `account Expenses:Other
 
-      // Mock fileReader that returns content for other.journal
-      const fileReader = (uri: URI) => {
-        if (uri.toString().includes('other.journal')) {
-          return TextDocument.create(uri.toString(), 'hledger', 1,
-            'account Expenses:Other\n\n2023-01-10 Other Transaction\n  Expenses:Other  $5.00\n  Assets:Bank\n'
-          );
-        }
-        return null;
-      };
-
-      const parsed = parser.parse(doc, {
-        baseUri: URI.parse(doc.uri),
-        fileReader
+2023-01-10 Other Transaction
+  Expenses:Other  $5.00
+  Assets:Bank
+`
+        },
+        includePathResolver: includeResolver
       });
+
+      const doc = workspace.getDocument('test.journal')!;
+      // Parse from the test.journal which includes other.journal
+      const parsed = workspace.parseFromFile('test.journal');
 
       const symbols = documentSymbolProvider.provideDocumentSymbols(doc, parsed);
 

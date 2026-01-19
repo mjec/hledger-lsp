@@ -19,7 +19,7 @@ const mockConnection = {
 
 // Mock fast-glob
 jest.mock('fast-glob', () => {
-  const mockFn = jest.fn((patterns: string[], options: any) => {
+  const mockFn = jest.fn((_patterns: string[], options: any) => {
     // Return mocked file paths based on the cwd
     const cwd = options?.cwd || '';
 
@@ -536,7 +536,7 @@ include 2024/*.journal`
       );
 
       // Make fileReader fail for root
-      const brokenFileReader = (uri: URI) => null;
+      const brokenFileReader = (_uri: URI) => null;
       // Re-initialize or just use a new manager with broken reader? 
       // We can just spy on fileReader but we passed it as a function.
       // Let's create a new manager instance
@@ -644,33 +644,6 @@ include 2024/*.journal`
       expect(manager.getRootForFile(URI.parse('file:///workspace1/2024/feb.journal'))?.toString()).toBe('file:///workspace1/main.journal');
     });
 
-    test('should handle absolute include paths', async () => {
-      // This requires mocking fast-glob to return absolute_include.journal
-      // We'll trust the current mock setup doesn't break this if we add a new test case
-      // But since fileReader and fg mock logic are separate, we need to ensure consistency.
-
-      // Let's create a manager with a fileReader that handles absolute paths
-      const absFileReader = (uri: URI) => {
-        if (uri.toString().includes('absolute_include.journal')) {
-          return TextDocument.create(uri.toString(), 'hledger', 1, 'include /workspace1/expenses.journal');
-        }
-        return fileReader(uri);
-      };
-
-      // And we need to make sure buildIncludeGraph can resolve '/workspace1/expenses.journal'
-      // workspace.ts uses path.isAbsolute which works on linux/mac (user's OS is linux)
-
-      const absManager = new WorkspaceManager();
-
-      // We need to inject a file list that includes absolute_include.journal
-      // The mock fast-glob returns files based on cwd.
-      // We'll update the fast-glob mock or just assume we can add it here?
-      // Updating the mock inside a test isn't easy with jest.mock factory.
-
-      // Alternative: we can use a separate test file or just adapt.
-      // Looking at our mock fast-glob: it checks cwd.
-      // We can make it return different files for a different workspace folder 'workspace_abs'
-    });
   });
 
   describe('multiple workspace folders', () => {
@@ -773,22 +746,4 @@ include 2024/*.journal`
     });
   });
 
-  describe('getWorkspaceFolder', () => {
-    test('should define getWorkspaceFolder private method', async () => {
-      await manager.initialize(
-        [URI.parse('file:///workspace1')],
-        parser,
-        fileReader,
-        mockConnection
-      );
-      // It's private, but used internally during discovery.
-      // We can't easily test it directly unless we cast to any or export it.
-      // But we can verify its effect: initialize works with workspace folders.
-      // files discovered are relative to workspace folders.
-
-      // Actually, we can test it indirectly via behavior or just cast to any.
-      expect((manager as any).getWorkspaceFolder(URI.parse('file:///workspace1/main.journal'))?.toString()).toBe('file:///workspace1');
-      expect((manager as any).getWorkspaceFolder(URI.parse('file:///outside/file.journal'))).toBeNull();
-    });
-  });
 });

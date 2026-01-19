@@ -1,0 +1,5 @@
+- tidy up process includes in parser index.ts
+- fix comment text in parser index.ts parsetransaction
+- fix parsing of amounts with quoted etc commodities
+- sort out formatter
+- examine if tree sitter can replace ast.ts

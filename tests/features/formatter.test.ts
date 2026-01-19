@@ -1,7 +1,6 @@
 import { FormattingProvider } from '../../src/features/formatter';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { HledgerParser } from '../../src/parser/index';
-import { InlayHint } from 'vscode-languageserver';
 import { InlayHintsOptions } from '../../src/server/settings';
 
 describe('FormattingProvider', () => {

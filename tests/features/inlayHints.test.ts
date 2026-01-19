@@ -1,8 +1,9 @@
-import { URI } from 'vscode-uri';
 import { InlayHintsProvider } from '../../src/features/inlayHints';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Range, InlayHintKind, InlayHintLabelPart } from 'vscode-languageserver';
 import { HledgerParser } from '../../src/parser';
+import { createTestWorkspace, IncludePathResolver } from '../helpers/workspaceTestHelper';
+import { toFileUri } from '../../src/utils/uri';
 
 // Helper to convert InlayHint label to string
 function labelToString(label: string | InlayHintLabelPart[]): string {
@@ -340,7 +341,6 @@ describe('InlayHintsProvider', () => {
       // Should have: 1 cost conversion (@@), 1 running balance (stock), 1 inferred amount (checking)
       expect(hints.length).toBeGreaterThanOrEqual(2);
 
-      const costHint = hints.find(h => labelToString(h.label).includes('@@'));
       const inferredHint = hints.find(h => labelToString(h.label).includes('-$1000') || labelToString(h.label).includes('$-1000'));
 
       expect(inferredHint).toBeDefined();
@@ -402,36 +402,36 @@ describe('InlayHintsProvider', () => {
   });
 
   describe('includes', () => {
-    test('should accumulate running balances across included files', () => {
-      const otherContent = `; Included file
+    test('should accumulate running balances across included files', async () => {
+      const baseDir = '/test-workspace';
+
+      // Custom resolver for the include path
+      const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
+        if (includePath === 'balance-include-other.journal') {
+          return [toFileUri(`${baseDir}/balance-include-other.journal`)];
+        }
+        return [];
+      };
+
+      const workspace = await createTestWorkspace({
+        baseDir,
+        files: {
+          'balance-include-other.journal': `; Included file
 2024-01-15 * First Transaction
     assets:checking                $-50
-    expenses:food                  $50`;
-
-      const baseContent = `; Base file that includes another file
+    expenses:food                  $50`,
+          'balance-include-base.journal': `; Base file that includes another file
 include balance-include-other.journal
 
 2024-01-16 * Second Transaction
     assets:checking                $-40
-    expenses:gas                   $40`;
-
-      const otherUri = URI.parse('file:///home/patrick/Development/hledger_lsp/server/tests/fixtures/balance-include-other.journal');
-      const baseUri = URI.parse('file:///home/patrick/Development/hledger_lsp/server/tests/fixtures/balance-include-base.journal');
-
-      const otherDoc = TextDocument.create(otherUri.toString(), 'hledger', 1, otherContent);
-      const baseDoc = TextDocument.create(baseUri.toString(), 'hledger', 1, baseContent);
-
-      // Create a mock file reader that returns our test documents
-      const fileReader = (uri: URI) => {
-        if (uri.toString() === otherUri.toString()) return otherDoc;
-        return null;
-      };
-
-      // Parse with includes
-      const parsed = parser.parse(baseDoc, {
-        baseUri: baseUri,
-        fileReader: fileReader
+    expenses:gas                   $40`,
+        },
+        includePathResolver: includeResolver
       });
+
+      const parsed = workspace.parseFromFile('balance-include-base.journal');
+      const baseDoc = workspace.getDocument('balance-include-base.journal')!;
 
       const range = Range.create(0, 0, 100, 0);
 

@@ -285,28 +285,30 @@ const sharedParser = new HledgerParser();
 function parseDocument(
   document: TextDocument
 ) {
+  const documentUri = URI.parse(document.uri);
 
   // Workspace mode: parse from root file for global state
   if (workspaceManager) {
-    const root = workspaceManager.getRootForFile(URI.parse(document.uri));
+    const root = workspaceManager.getRootForFile(documentUri);
     if (root) {
+      // File is part of workspace tree - use cached workspace parse
       const parsed = workspaceManager.parseWorkspace();
       if (parsed) {
         return parsed;
       }
     }
-    // Fallback to document mode if no root found (normal during initialization)
+
+    // No workspace root identified, but we can still parse from this file
+    // and follow its includes using the pre-built include graph
     connection.console.info(
-      `[parseDocument] No root found yet for ${document.uri}, using document mode`
+      `[parseDocument] No workspace root, parsing from file: ${document.uri}`
     );
+    return workspaceManager.parseFromFile(documentUri);
   }
 
-  // Document mode: single document only parsing
+  // No workspace manager - fall back to document mode (single file only)
   connection.console.info(`[parseDocument] Document mode for ${document.uri}`);
-  return sharedParser.parse(document, {
-    baseUri: URI.parse(document.uri),
-    parseMode: 'document'
-  });
+  return sharedParser.parse(document);
 }
 
 connection.onDidChangeConfiguration(change => {
@@ -367,9 +369,6 @@ documents.onDidClose(e => {
 documents.onDidChangeContent(change => {
   connection.console.info(`[Document Change] ${change.document.uri} (version: ${change.document.version})`);
 
-  // Clear parser cache since a file changed
-  // This ensures we re-parse files with fresh data
-  sharedParser.clearCache(URI.parse(change.document.uri));
 
   // Invalidate workspace cache for affected roots
   if (workspaceManager) {

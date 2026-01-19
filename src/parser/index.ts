@@ -1,19 +1,22 @@
 /**
  * Parser for hledger journal files
  *
- * This module will handle parsing of hledger journal syntax including:
+ * This module handles parsing of hledger journal syntax including:
  * - Transactions and postings
  * - Account directives
  * - Commodity directives
  * - Comments and tags
- * - Include directives
+ * - Include directives (recording them, not following them)
+ *
+ * Note: Include resolution and multi-file merging is handled by WorkspaceManager,
+ * not by this parser. The parser always operates in "document mode" - parsing
+ * a single file without following includes.
  */
 
-import { ParsedDocument, Transaction, Account, Directive, Payee, Commodity, Tag, FileReader } from '../types';
+import { ParsedDocument, Transaction, Account, Directive, Payee, Commodity, Tag } from '../types';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { extractTags, isTransactionHeader, isComment, isDirective } from '../utils/index';
 import * as ast from './ast';
-import { IncludeManager } from './includes';
 import { URI } from 'vscode-uri';
 
 /**
@@ -21,48 +24,25 @@ import { URI } from 'vscode-uri';
  */
 export interface ParseOptions {
   /**
-   * Base URI for resolving relative include paths
-   * Should be the URI of the document being parsed
+   * Base URI for the document being parsed.
+   * Used to set sourceUri on parsed entities.
    */
   baseUri?: URI;
 
   /**
-   * Function to read file contents by URI
-   * Required if followIncludes is true
-   */
-  fileReader?: FileReader;
-
-  /**
-   * Set of URI strings already visited (for circular include detection)
-   * Internal use only
-   */
-  visited?: Map<string, URI>;
-
-  /**
-   * Parse mode: 'document' or 'workspace'
-   * - 'document': Standard include-based parsing from the current file
-   * - 'workspace': Parse from workspace root for global state
-   * This option is primarily used by the server's parseDocument helper
+   * Parse mode hint (for logging/debugging).
+   * The parser always parses single documents; include resolution
+   * is handled by WorkspaceManager.
    */
   parseMode?: 'document' | 'workspace';
 }
 
 export class HledgerParser {
-  private includeManager = new IncludeManager();
-
-  /**
-   * Clear the include cache
-   * Should be called when included files change
-   */
-  clearCache(uri?: URI): void {
-    // Delegate cache clearing to includeManager
-    this.includeManager.clearCache(uri);
-  }
 
   /**
    * Parse a complete hledger document
    */
-  parse(document: TextDocument, options?: ParseOptions): ParsedDocument {
+  parse(document: TextDocument): ParsedDocument {
     const text = document.getText();
     const uri: URI = URI.parse(document.uri);
     const lines = text.split('\n');
@@ -168,7 +148,7 @@ export class HledgerParser {
       i++;
     }
 
-    let result: ParsedDocument = {
+    return {
       transactions,
       accounts,
       directives,
@@ -176,15 +156,5 @@ export class HledgerParser {
       payees,
       tags,
     };
-
-    // Process includes (delegate to includeManager which owns the cache).
-    if (options?.fileReader && options.parseMode != 'document') {
-      result = this.includeManager.processIncludes(result, uri, { fileReader: options.fileReader, visited: options.visited }, (doc, cbOptions) => {
-        // parseCallback: call back into this parser to parse included documents, preserving options
-        return this.parse(doc, { ...options, ...cbOptions });
-      });
-    }
-
-    return result;
   }
 }

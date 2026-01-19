@@ -8,7 +8,9 @@ import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { HledgerParser } from '../../src/parser';
 import { validator } from '../../src/features/validator';
-import { toFileUri, toFilePath, resolveIncludePath } from '../../src/utils/uri';
+import { toFileUri, toFilePath, resolveIncludePath, defaultFileReader } from '../../src/utils/uri';
+import { WorkspaceManager } from '../../src/server/workspace';
+import { createMockConnection } from '../helpers/workspaceTestHelper';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -28,7 +30,7 @@ describe('File paths with spaces integration test', () => {
   const normalizePath = (p: string): string => {
     if (!isWindows) return p;
     // Convert drive letter to lowercase for consistent comparison
-    return p.replace(/^([A-Z]):/, (match, letter) => letter.toLowerCase() + ':');
+    return p.replace(/^([A-Z]):/, (_match, letter) => letter.toLowerCase() + ':');
   };
 
   beforeAll(() => {
@@ -72,7 +74,7 @@ describe('File paths with spaces integration test', () => {
     expect(decodedPath).toBe(pathWithSpaces);
   });
 
-  test('should parse file with spaces in path and resolve includes', () => {
+  test('should parse file with spaces in path and resolve includes', async () => {
     // Create URI from the main file path
     const mainFileUri = toFileUri(mainFilePath);
 
@@ -80,22 +82,18 @@ describe('File paths with spaces integration test', () => {
     expect(mainFileUri.toString()).toContain('Cloud%20Storage');
     expect(mainFileUri.toString()).toContain('My%20Documents%20%282025%29');
 
-    // Read the file
-    const content = fs.readFileSync(mainFilePath, 'utf-8');
-    const document = TextDocument.create(mainFileUri.toString(), 'hledger', 1, content);
+    // Use WorkspaceManager to handle include resolution
+    const workspaceManager = new WorkspaceManager();
+    const connection = createMockConnection();
+    await workspaceManager.initialize(
+      [URI.file(tempDir)],
+      parser,
+      defaultFileReader,
+      connection as any
+    );
 
-    // Create a file reader that can handle URIs with encoded spaces
-    const fileReader = (uri: URI) => {
-      const filePath = toFilePath(uri);
-      if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        return TextDocument.create(uri.toString(), 'hledger', 1, content);
-      }
-      return null;
-    };
-
-    // Parse the document with includes
-    const parsed = parser.parse(document, { baseUri: mainFileUri, fileReader });
+    // Parse via workspace manager to get includes resolved
+    const parsed = workspaceManager.parseFromFile(mainFileUri);
 
     // Verify the include was processed
     // The directives array contains both the include directive and all directives from the included file
@@ -114,27 +112,28 @@ describe('File paths with spaces integration test', () => {
     expect(assetsCash?.declared).toBe(true);
   });
 
-  test('should validate file with spaces in path without errors', () => {
+  test('should validate file with spaces in path without errors', async () => {
     const mainFileUri = URI.file(mainFilePath);
     const content = fs.readFileSync(mainFilePath, 'utf-8');
     const document = TextDocument.create(mainFileUri.toString(), 'hledger', 1, content);
 
-    const fileReader = (uri: URI) => {
-      const filePath = toFilePath(uri);
-      if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        return TextDocument.create(uri.toString(), 'hledger', 1, content);
-      }
-      return null;
-    };
+    // Use WorkspaceManager to handle include resolution
+    const workspaceManager = new WorkspaceManager();
+    const connection = createMockConnection();
+    await workspaceManager.initialize(
+      [URI.file(tempDir)],
+      parser,
+      defaultFileReader,
+      connection as any
+    );
 
-    // Parse with includes
-    const parsed = parser.parse(document, { baseUri: mainFileUri, fileReader });
+    // Parse with includes via workspace manager
+    const parsed = workspaceManager.parseFromFile(mainFileUri);
 
     // Validate
     const result = validator.validate(document, parsed, {
       baseUri: mainFileUri,
-      fileReader,
+      fileReader: defaultFileReader,
       settings: {
         validation: {
           includeFiles: true,
@@ -173,19 +172,13 @@ describe('File paths with spaces integration test', () => {
     const content = fs.readFileSync(testPath, 'utf-8');
     const document = TextDocument.create(testUri.toString(), 'hledger', 1, content);
 
-    const fileReader = (uri: URI) => {
-      const filePath = uri.toString();
-      if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        return TextDocument.create(filePath, 'hledger', 1, content);
-      }
-      return null;
-    };
+    // Parse without fileReader (parser no longer resolves includes)
+    const parsed = parser.parse(document);
 
-    const parsed = parser.parse(document, { baseUri: testUri, fileReader });
+    // Validate with fileReader so validator can check if include files exist
     const result = validator.validate(document, parsed, {
       baseUri: testUri,
-      fileReader,
+      fileReader: defaultFileReader,
       settings: { validation: { includeFiles: true } }
     });
 
