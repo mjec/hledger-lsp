@@ -23,7 +23,7 @@ describe('ConfigFile', () => {
   const normalizePath = (p: string): string => {
     if (!isWindows) return p;
     // Convert drive letter to lowercase for consistent comparison
-    return p.replace(/^([A-Z]):/, (match, letter) => letter.toLowerCase() + ':');
+    return p.replace(/^([A-Z]):/, (_match, letter) => letter.toLowerCase() + ':');
   };
 
   beforeEach(() => {
