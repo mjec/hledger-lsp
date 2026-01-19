@@ -352,7 +352,7 @@ describe('Cross-Platform Compatibility Tests', () => {
     });
 
     if (isWindows) {
-      test('should handle Windows-style includes', () => {
+      test('should handle Windows-style includes', async () => {
         const subDir = path.join(tempDir, 'includes');
         fs.mkdirSync(subDir);
 
@@ -370,11 +370,18 @@ describe('Cross-Platform Compatibility Tests', () => {
 `);
 
         const uri = toFileUri(mainFile);
-        const content = fs.readFileSync(mainFile, 'utf-8');
-        const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
+        // Use WorkspaceManager for include resolution
+        const workspaceManager = new WorkspaceManager();
+        const connection = createMockConnection();
+        await workspaceManager.initialize(
+          [URI.file(tempDir)],
+          parser,
+          defaultFileReader,
+          connection as any
+        );
 
-        const parsed = parser.parse(doc);
+        const parsed = workspaceManager.parseFromFile(uri);
 
         expect(parsed.transactions.length).toBe(1);
         expect(parsed.accounts.has('Assets:Bank')).toBe(true);
