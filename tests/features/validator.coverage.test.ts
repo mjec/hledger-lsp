@@ -336,7 +336,8 @@ describe('Validator - Coverage Tests', () => {
       fs.writeFileSync(mainPath, mainContent, 'utf-8');
       fs.writeFileSync(subPath, subContent, 'utf-8');
 
-      const doc = TextDocument.create(`file://${mainPath}`, 'hledger', 1, mainContent);
+      const mainUri = URI.file(mainPath);
+      const doc = TextDocument.create(mainUri.toString(), 'hledger', 1, mainContent);
       const parsedDoc = parser.parse(doc);
 
       const fileReader = (uri: URI) => {

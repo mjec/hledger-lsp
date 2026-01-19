@@ -162,9 +162,9 @@ describe('FindReferencesProvider - Coverage Tests', () => {
       const filePath = path.join(tmpDir, 'test.journal');
       fs.writeFileSync(filePath, content, 'utf-8');
 
-      const doc = TextDocument.create(`file://${filePath}`, 'hledger', 1, content);
-      const parsed = parser.parse(doc);
       const uri = URI.file(filePath);
+      const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
+      const parsed = parser.parse(doc);
 
       // fileReader returns null, should fallback to reading from disk
       const fileReader = () => null;
@@ -220,9 +220,9 @@ describe('FindReferencesProvider - Coverage Tests', () => {
       const filePath = path.join(tmpDir, 'test.journal');
       fs.writeFileSync(filePath, content, 'utf-8');
 
-      const doc = TextDocument.create(`file://${filePath}`, 'hledger', 1, content);
-      const parsed = parser.parse(doc);
       const uri = URI.file(filePath);
+      const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
+      const parsed = parser.parse(doc);
 
       const fileReader = () => null;
       const ranges = findReferencesProvider.findPayeeReferences(parsed, 'Grocery Store', uri, fileReader);
@@ -276,9 +276,9 @@ describe('FindReferencesProvider - Coverage Tests', () => {
       const filePath = path.join(tmpDir, 'test.journal');
       fs.writeFileSync(filePath, content, 'utf-8');
 
-      const doc = TextDocument.create(`file://${filePath}`, 'hledger', 1, content);
-      const parsed = parser.parse(doc);
       const uri = URI.file(filePath);
+      const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
+      const parsed = parser.parse(doc);
 
       const fileReader = () => null;
       const ranges = findReferencesProvider.findCommodityReferences(parsed, '$', uri, fileReader);
@@ -332,9 +332,9 @@ describe('FindReferencesProvider - Coverage Tests', () => {
       const filePath = path.join(tmpDir, 'test.journal');
       fs.writeFileSync(filePath, content, 'utf-8');
 
-      const doc = TextDocument.create(`file://${filePath}`, 'hledger', 1, content);
-      const parsed = parser.parse(doc);
       const uri = URI.file(filePath);
+      const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
+      const parsed = parser.parse(doc);
 
       const fileReader = () => null;
       const ranges = findReferencesProvider.findTagReferences(parsed, 'project', uri, fileReader);
