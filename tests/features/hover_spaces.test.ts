@@ -1,5 +1,4 @@
 
-import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { HoverProvider } from '../../src/features/hover';
 import { HledgerParser } from '../../src/parser/index';

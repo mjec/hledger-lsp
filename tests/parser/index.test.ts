@@ -790,7 +790,7 @@ tag category ; type of expense`;
     test('should follow includes when using workspace manager', async () => {
       const baseDir = '/home/user';
 
-      const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+      const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
         if (includePath === 'included.journal') {
           return [toFileUri(`${baseDir}/included.journal`)];
         }
@@ -822,7 +822,7 @@ tag category ; type of expense`;
     test('should resolve relative include paths', async () => {
       const baseDir = '/home/user';
 
-      const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+      const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
         if (includePath === 'subdir/included.journal') {
           return [toFileUri(`${baseDir}/subdir/included.journal`)];
         }
@@ -856,7 +856,7 @@ tag category ; type of expense`;
 
       const baseDir = '/home/user';
 
-      const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+      const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
         if (includePath === '/common.journal') {
           return [toFileUri('/common.journal')];
         }
@@ -887,7 +887,7 @@ tag category ; type of expense`;
       const baseDir = '/home/user';
       const homedir = os.homedir();
 
-      const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+      const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
         if (includePath === '~/common.journal') {
           return [toFileUri(path.join(homedir, 'common.journal'))];
         }
@@ -917,7 +917,7 @@ tag category ; type of expense`;
       const baseDir = '/test-workspace';
 
       // Resolver returns a URI for a file that doesn't exist in our workspace
-      const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+      const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
         if (includePath === 'missing.journal') {
           return [toFileUri(`${baseDir}/missing.journal`)];
         }
@@ -946,7 +946,7 @@ tag category ; type of expense`;
     test('should detect and handle circular includes', async () => {
       const baseDir = '/home/user';
 
-      const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+      const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
         if (includePath === 'file2.journal') {
           return [toFileUri(`${baseDir}/file2.journal`)];
         }
@@ -979,7 +979,7 @@ tag category ; type of expense`;
     test('should merge account declarations from included files', async () => {
       const baseDir = '/test-workspace';
 
-      const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+      const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
         if (includePath === 'included.journal') {
           return [toFileUri(`${baseDir}/included.journal`)];
         }
@@ -1017,7 +1017,7 @@ include included.journal
     test('should not duplicate content for repeated includes', async () => {
       const baseDir = '/test-workspace';
 
-      const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+      const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
         if (includePath === 'common.journal') {
           return [toFileUri(`${baseDir}/common.journal`)];
         }
@@ -1056,9 +1056,6 @@ include common.journal
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
 
       parser.parse(doc);
-
-      // Clear cache (now a no-op, but should not throw)
-      parser.clearCache(URI.parse(doc.uri));
 
       // Should be able to parse again without issues
       const result = parser.parse(doc);

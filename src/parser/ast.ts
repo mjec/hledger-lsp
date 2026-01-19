@@ -453,7 +453,7 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amoun
         const quantity = parseNumberWithFormat(rawAmount, mark || undefined);
         return { quantity: sign === '-' ? -Math.abs(quantity) : Math.abs(quantity), commodity: m[2], rawAmount };
       },
-      cleaner: (m: RegExpMatchArray, s: string) => s.replace(/^[+-]/, '')
+      cleaner: (_m: RegExpMatchArray, s: string) => s.replace(/^[+-]/, '')
     },
     {
       // Symbol on left

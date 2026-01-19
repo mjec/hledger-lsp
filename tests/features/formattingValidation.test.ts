@@ -1,21 +1,7 @@
 import { isSafeToFormat, getFormatUnsafeReason } from '../../src/features/formattingValidation';
-import { Posting, Transaction, ParsedDocument, Amount, Commodity } from '../../src/types';
-import { DiagnosticSeverity } from 'vscode-languageserver/node';
+import { Posting, ParsedDocument } from '../../src/types';
 
 describe('formattingValidation', () => {
-
-
-
-  function createMockTransaction(posting: Posting): Transaction {
-    return {
-      date: '2024-01-15',
-      description: 'Test',
-      payee: 'Test',
-      note: 'Test',
-      postings: [posting],
-      line: 4
-    };
-  }
 
   function createMockParsedDoc(): ParsedDocument {
     return {

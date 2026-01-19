@@ -1,7 +1,6 @@
 import { CodeLensProvider } from '../../src/features/codeLens';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { HledgerParser } from '../../src/parser';
-import { URI } from 'vscode-uri';
 import { createTestWorkspace, IncludePathResolver } from '../helpers/workspaceTestHelper';
 import { toFileUri } from '../../src/utils/uri';
 
@@ -194,7 +193,7 @@ describe('CodeLensProvider', () => {
       const baseDir = '/test-workspace';
 
       // Custom resolver for the include path
-      const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+      const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
         if (includePath === 'sub.journal') {
           return [toFileUri(`${baseDir}/sub.journal`)];
         }

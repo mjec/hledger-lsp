@@ -1,4 +1,3 @@
-import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { SymbolKind } from 'vscode-languageserver';
 import { documentSymbolProvider, workspaceSymbolProvider } from '../../src/features/symbols';
@@ -182,7 +181,7 @@ commodity USD
       const baseDir = '/test-workspace';
 
       // Custom resolver for the include path
-      const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+      const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
         if (includePath === 'other.journal') {
           return [toFileUri(`${baseDir}/other.journal`)];
         }

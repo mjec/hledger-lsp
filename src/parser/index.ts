@@ -38,15 +38,6 @@ export interface ParseOptions {
 }
 
 export class HledgerParser {
-  /**
-   * Clear cache - no-op since caching is now handled by WorkspaceManager.
-   * Kept for backward compatibility with callers.
-   * @deprecated Caching is handled by WorkspaceManager.documentCache
-   */
-  clearCache(_uri?: URI): void {
-    // No-op: caching is now handled by WorkspaceManager
-    // WorkspaceManager.invalidateFile() clears both documentCache and workspaceCache
-  }
 
   /**
    * Parse a complete hledger document

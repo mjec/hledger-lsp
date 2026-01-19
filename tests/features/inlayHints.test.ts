@@ -1,4 +1,3 @@
-import { URI } from 'vscode-uri';
 import { InlayHintsProvider } from '../../src/features/inlayHints';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Range, InlayHintKind, InlayHintLabelPart } from 'vscode-languageserver';
@@ -342,7 +341,6 @@ describe('InlayHintsProvider', () => {
       // Should have: 1 cost conversion (@@), 1 running balance (stock), 1 inferred amount (checking)
       expect(hints.length).toBeGreaterThanOrEqual(2);
 
-      const costHint = hints.find(h => labelToString(h.label).includes('@@'));
       const inferredHint = hints.find(h => labelToString(h.label).includes('-$1000') || labelToString(h.label).includes('$-1000'));
 
       expect(inferredHint).toBeDefined();
@@ -408,7 +406,7 @@ describe('InlayHintsProvider', () => {
       const baseDir = '/test-workspace';
 
       // Custom resolver for the include path
-      const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+      const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
         if (includePath === 'balance-include-other.journal') {
           return [toFileUri(`${baseDir}/balance-include-other.journal`)];
         }

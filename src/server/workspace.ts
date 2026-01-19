@@ -533,32 +533,6 @@ export class WorkspaceManager {
   }
 
   /**
-   * Get the workspace folder that contains the given URI.
-   * Returns null if the file is outside all workspace folders.
-   *
-   * Edge case handling: Files outside workspace folders will return null,
-   * which triggers a fallback to document-mode parsing. This is intentional
-   * and allows the LSP to work with files opened outside the workspace.
-   */
-  private getWorkspaceFolder(uri: URI): URI | null {
-    // Normalize URI to ensure consistent matching
-    const filePath = toFilePath(uri);
-
-    for (const folder of this.workspaceFolders) {
-      const folderPath = toFilePath(folder);
-      if (filePath.startsWith(folderPath)) {
-        return folder;
-      }
-    }
-
-    // File is outside all workspace folders
-    this.connection.console.log(
-      `[WorkspaceManager] File outside workspace folders: ${uri}`
-    );
-    return null;
-  }
-
-  /**
    * Parse the workspace by merging cached documents using the include graph.
    * Returns a cached ParsedDocument if available, otherwise merges and caches.
    *
@@ -729,8 +703,6 @@ export class WorkspaceManager {
       this.connection.console.info(`[WorkspaceManager] File change doesn't affect workspace cache: ${uri}`);
     }
 
-    // Also clear the parser's include cache
-    this.parser.clearCache(uri);
   }
 
   /**

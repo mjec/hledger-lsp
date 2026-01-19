@@ -1092,7 +1092,7 @@ account expenses:food
       const parsedDoc = parser.parse(doc);
 
       // Create a mock fileReader that returns null for missing files
-      const fileReader = (uri: URI) => null;
+      const fileReader = (_uri: URI) => null;
 
       const result = validator.validate(doc, parsedDoc, {
         baseUri: URI.parse(doc.uri),

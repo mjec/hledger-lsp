@@ -6,8 +6,6 @@
  * come from multiple files via includes.
  */
 
-import { URI } from 'vscode-uri';
-import { TextDocument } from 'vscode-languageserver-textdocument';
 import { HledgerParser } from '../../src/parser';
 import { Validator } from '../../src/features/validator';
 import { createTestWorkspace, IncludePathResolver } from '../helpers/workspaceTestHelper';
@@ -25,7 +23,7 @@ describe('Validator - Balance Assertions Across Multiple Files', () => {
   test('should validate balance assertions in chronological order across files', async () => {
     const baseDir = '/test';
 
-    const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+    const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
       if (includePath === 'expenses.journal') {
         return [toFileUri(`${baseDir}/expenses.journal`)];
       }
@@ -90,7 +88,7 @@ include expenses.journal
   test('should detect assertion failures in correct chronological order', async () => {
     const baseDir = '/test';
 
-    const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+    const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
       if (includePath === 'expenses.journal') {
         return [toFileUri(`${baseDir}/expenses.journal`)];
       }
@@ -137,7 +135,7 @@ include expenses.journal
   test('should handle multiple balance assertions across multiple files', async () => {
     const baseDir = '/test';
 
-    const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+    const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
       if (includePath === 'income.journal') {
         return [toFileUri(`${baseDir}/income.journal`)];
       }
@@ -201,7 +199,7 @@ include expenses.journal
   test('should handle out-of-order dates correctly', async () => {
     const baseDir = '/test';
 
-    const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+    const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
       if (includePath === 'later.journal') {
         return [toFileUri(`${baseDir}/later.journal`)];
       }
@@ -251,7 +249,7 @@ include later.journal
     // For same-day transactions, balance assertions must account for this order.
     const baseDir = '/test';
 
-    const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+    const includeResolver: IncludePathResolver = (includePath, _baseUri) => {
       if (includePath === 'morning.journal') {
         return [toFileUri(`${baseDir}/morning.journal`)];
       }

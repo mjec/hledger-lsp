@@ -20,10 +20,9 @@ describe('Cross-Platform Compatibility Tests', () => {
   const normalizePath = (p: string): string => {
     if (!isWindows) return p;
     // Convert drive letter to lowercase for consistent comparison
-    return p.replace(/^([A-Z]):/, (match, letter) => letter.toLowerCase() + ':');
+    return p.replace(/^([A-Z]):/, (_match, letter) => letter.toLowerCase() + ':');
   };
   const isMac = process.platform === 'darwin';
-  const isLinux = process.platform === 'linux';
 
   describe('URI to File Path Conversion', () => {
     test('should handle Unix-style file:// URIs', () => {
@@ -374,14 +373,6 @@ describe('Cross-Platform Compatibility Tests', () => {
         const content = fs.readFileSync(mainFile, 'utf-8');
         const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
-        const fileReader = (uri: URI) => {
-          const filePath = toFilePath(uri);
-          if (fs.existsSync(filePath)) {
-            const content = fs.readFileSync(filePath, 'utf-8');
-            return TextDocument.create(uri.toString(), 'hledger', 1, content);
-          }
-          return null;
-        };
 
         const parsed = parser.parse(doc);
 
@@ -411,7 +402,6 @@ describe('Cross-Platform Compatibility Tests', () => {
 
         // URI should work regardless of case
         const uri1 = toFileUri(mainFile);
-        const uri2 = toFileUri(lowerCaseFile);
 
         const doc1 = TextDocument.create(uri1.toString(), 'hledger', 1, content);
         const parsed1 = parser.parse(doc1);

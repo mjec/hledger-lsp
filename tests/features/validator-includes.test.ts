@@ -14,7 +14,6 @@ import * as os from 'os';
 describe('Validator Include Directives', () => {
   const fixturesPath = path.join(__dirname, '..', 'fixtures');
   const absoluteTestPath = path.join(fixturesPath, 'absolute-test.journal');
-  const isWindows = process.platform === 'win32';
 
   let parser: HledgerParser;
 

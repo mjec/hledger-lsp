@@ -369,9 +369,6 @@ documents.onDidClose(e => {
 documents.onDidChangeContent(change => {
   connection.console.info(`[Document Change] ${change.document.uri} (version: ${change.document.version})`);
 
-  // Clear parser cache since a file changed
-  // This ensures we re-parse files with fresh data
-  sharedParser.clearCache(URI.parse(change.document.uri));
 
   // Invalidate workspace cache for affected roots
   if (workspaceManager) {
