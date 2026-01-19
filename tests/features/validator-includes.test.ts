@@ -33,10 +33,7 @@ include ${absoluteTestPath}
 
     const uri = URI.file(path.join(fixturesPath, 'validator-test.journal'));
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
-    const parsed = parser.parse(doc, {
-      baseUri: uri,
-      fileReader: defaultFileReader
-    });
+    const parsed = parser.parse(doc);
 
     const result = validator.validate(doc, parsed, {
       baseUri: uri,
@@ -67,10 +64,7 @@ include ${fileUri}
 
     const uri = URI.file(path.join(fixturesPath, 'validator-uri-test.journal'));
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
-    const parsed = parser.parse(doc, {
-      baseUri: uri,
-      fileReader: defaultFileReader
-    });
+    const parsed = parser.parse(doc);
 
     const result = validator.validate(doc, parsed, {
       baseUri: uri,
@@ -99,10 +93,7 @@ include ../parent.journal
 
     const uri = URI.file(path.join(fixturesPath, 'nested', 'validator-relative-test.journal'));
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
-    const parsed = parser.parse(doc, {
-      baseUri: uri,
-      fileReader: defaultFileReader
-    });
+    const parsed = parser.parse(doc);
 
     const result = validator.validate(doc, parsed, {
       baseUri: uri,
@@ -132,10 +123,7 @@ include ${nonExistentPath}
 
     const uri = URI.file(path.join(fixturesPath, 'validator-nonexistent.journal'));
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
-    const parsed = parser.parse(doc, {
-      baseUri: uri,
-      fileReader: defaultFileReader
-    });
+    const parsed = parser.parse(doc);
 
     const result = validator.validate(doc, parsed, {
       baseUri: uri,
@@ -176,10 +164,7 @@ include ~/.hledger-validator-test.journal
 
     const uri = URI.file(path.join(fixturesPath, 'validator-tilde.journal'));
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
-    const parsed = parser.parse(doc, {
-      baseUri: uri,
-      fileReader: defaultFileReader
-    });
+    const parsed = parser.parse(doc);
 
     const result = validator.validate(doc, parsed, {
       baseUri: uri,
@@ -212,10 +197,7 @@ include ~/.hledger-validator-test.journal
     const uri = URI.file(integrationTestPath);
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
-    const parsed = parser.parse(doc, {
-      baseUri: uri,
-      fileReader: defaultFileReader
-    });
+    const parsed = parser.parse(doc);
 
     const result = validator.validate(doc, parsed, {
       baseUri: uri,
@@ -252,10 +234,7 @@ include ~/.hledger-validator-test.journal
     const uri = URI.file(mainJournalPath);
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
 
-    const parsed = parser.parse(doc, {
-      baseUri: uri,
-      fileReader: defaultFileReader
-    });
+    const parsed = parser.parse(doc);
 
     const result = validator.validate(doc, parsed, {
       baseUri: uri,
@@ -286,10 +265,7 @@ include nonexistent/*.journal
 
     const uri = URI.file(path.join(fixturesPath, 'validator-glob-empty.journal'));
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
-    const parsed = parser.parse(doc, {
-      baseUri: uri,
-      fileReader: defaultFileReader
-    });
+    const parsed = parser.parse(doc);
 
     const result = validator.validate(doc, parsed, {
       baseUri: uri,
@@ -325,10 +301,7 @@ include 2023/*.journal
 
     const uri = URI.file(testPath);
     const doc = TextDocument.create(uri.toString(), 'hledger', 1, content);
-    const parsed = parser.parse(doc, {
-      baseUri: uri,
-      fileReader: defaultFileReader
-    });
+    const parsed = parser.parse(doc);
 
     const result = validator.validate(doc, parsed, {
       baseUri: uri,

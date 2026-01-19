@@ -2,6 +2,8 @@ import { CodeLensProvider } from '../../src/features/codeLens';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { HledgerParser } from '../../src/parser';
 import { URI } from 'vscode-uri';
+import { createTestWorkspace, IncludePathResolver } from '../helpers/workspaceTestHelper';
+import { toFileUri } from '../../src/utils/uri';
 
 describe('CodeLensProvider', () => {
   let provider: CodeLensProvider;
@@ -188,35 +190,34 @@ describe('CodeLensProvider', () => {
   });
 
   describe('includes', () => {
-    test('should accumulate counts across included files', () => {
-      // Main file
-      const mainContent = `include sub.journal
+    test('should accumulate counts across included files', async () => {
+      const baseDir = '/test-workspace';
+
+      // Custom resolver for the include path
+      const includeResolver: IncludePathResolver = (includePath, baseUri) => {
+        if (includePath === 'sub.journal') {
+          return [toFileUri(`${baseDir}/sub.journal`)];
+        }
+        return [];
+      };
+
+      const workspace = await createTestWorkspace({
+        baseDir,
+        files: {
+          'main.journal': `include sub.journal
 
 2024-01-15 * Main file transaction
     expenses:food                 $50
-    assets:checking               $-50`;
-
-      const mainDoc = TextDocument.create('file:///main.journal', 'hledger', 1, mainContent);
-
-      // Included file
-      const subContent = `2024-01-10 * Sub file transaction
+    assets:checking               $-50`,
+          'sub.journal': `2024-01-10 * Sub file transaction
     expenses:food                 $30
-    assets:checking               $-30`;
-
-      const subDoc = TextDocument.create('file:///sub.journal', 'hledger', 1, subContent);
-
-      // File reader that returns our test documents
-      const fileReader = (uri: URI) => {
-        const uriString = uri.toString();
-        if (uriString === 'file:///main.journal') return mainDoc;
-        if (uriString === 'file:///sub.journal') return subDoc;
-        return null;
-      };
-
-      const parsed = parser.parse(mainDoc, {
-        baseUri: URI.parse('file:///main.journal'),
-        fileReader
+    assets:checking               $-30`
+        },
+        includePathResolver: includeResolver
       });
+
+      const mainDoc = workspace.getDocument('main.journal')!;
+      const parsed = workspace.parseFromFile('main.journal');
 
       const lenses = provider.provideCodeLenses(mainDoc, parsed, {
         showTransactionCounts: true

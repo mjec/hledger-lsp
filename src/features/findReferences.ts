@@ -87,7 +87,9 @@ export class FindReferencesProvider {
           doc = TextDocument.create(fileUri.toString(), 'hledger', 1, content);
         }
 
-        const parsedFile = parser.parse(doc, { fileReader });
+        // Parse in document mode - we're iterating through all workspace files,
+        // so we don't need recursive include resolution
+        const parsedFile = parser.parse(doc, { baseUri: fileUri, parseMode: 'document' });
         parsedDocs.set(fileUri.toString(), parsedFile);
       } catch (error) {
         // Skip files that can't be parsed
