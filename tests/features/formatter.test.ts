@@ -901,6 +901,139 @@ payee Grocery Store;main grocery store
     });
   });
 
+  describe('periodic transactions', () => {
+    it('should preserve periodic transaction header as-is', () => {
+      const content = `~ monthly
+    expenses:rent          $2000
+    assets:bank:checking
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      // Header should be preserved exactly as-is
+      expect(lines[0]).toBe('~ monthly');
+    });
+
+    it('should preserve crucial double space in periodic transaction header', () => {
+      const content = `~ every 2 months  in 2023, we will review
+    assets:bank:checking   $1500
+    income:acme inc
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      // The double space between "months" and "in" must be preserved
+      expect(lines[0]).toBe('~ every 2 months  in 2023, we will review');
+      expect(lines[0]).toContain('  in'); // Double space before "in"
+    });
+
+    it('should format postings in periodic transactions', () => {
+      const content = `~ monthly
+    expenses:rent    $2000
+    assets:bank:checking    $-2000
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      // Header preserved
+      expect(lines[0]).toBe('~ monthly');
+
+      // Postings should be formatted with proper indentation
+      expect(lines[1]).toMatch(/^    expenses:rent/);
+      expect(lines[2]).toMatch(/^    assets:bank:checking/);
+    });
+
+    it('should handle multiple periodic transactions', () => {
+      const content = `~ monthly
+    expenses:rent          $2000
+    assets:bank:checking
+
+~ weekly
+    expenses:groceries     $100
+    assets:cash
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      expect(lines[0]).toBe('~ monthly');
+      expect(lines[4]).toBe('~ weekly');
+    });
+
+    it('should handle periodic transactions mixed with regular transactions', () => {
+      const content = `2024-01-01 Grocery Store
+    expenses:food    $50
+    assets:checking
+
+~ monthly
+    expenses:rent          $2000
+    assets:bank:checking
+
+2024-01-15 Gas Station
+    expenses:gas    $40
+    assets:checking
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      // Regular transaction header should be formatted
+      expect(lines[0]).toBe('2024-01-01 Grocery Store');
+      // Periodic transaction header should be preserved
+      expect(lines[4]).toBe('~ monthly');
+      // Another regular transaction
+      expect(lines[8]).toBe('2024-01-15 Gas Station');
+    });
+
+    it('should preserve periodic transaction with date range', () => {
+      const content = `~ monthly from 2023-04-15 to 2023-06-16
+    expenses:utilities          $400
+    assets:bank:checking
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      expect(lines[0]).toBe('~ monthly from 2023-04-15 to 2023-06-16');
+    });
+
+    it('should preserve periodic transaction with complex period expression', () => {
+      const content = `~ every 10th day of month from 2023/01
+    expenses:phone          $80
+    assets:bank:checking
+`;
+      const doc = createDocument(content);
+      const parsed = parser.parse(doc);
+      const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+      const formatted = edits[0].newText;
+      const lines = formatted.split('\n');
+
+      expect(lines[0]).toBe('~ every 10th day of month from 2023/01');
+    });
+  });
+
   describe('precision handling', () => {
     it('should never reduce precision if posting has higher precision than declared commodity', () => {
       const content = `commodity $

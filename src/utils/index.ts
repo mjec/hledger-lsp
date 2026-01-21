@@ -35,11 +35,22 @@ export function isComment(line: string): boolean {
 }
 
 /**
+ * Check if a line is a periodic transaction header
+ * Periodic transactions start with ~ followed by a period expression
+ * e.g., "~ monthly", "~ every 2 months  in 2023, we will review"
+ */
+export function isPeriodicTransactionHeader(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith('~ ');
+}
+
+/**
  * Check if a line is a directive
  */
 export function isDirective(line: string): boolean {
   const trimmed = line.trim();
-  const directives = ['account', 'commodity', 'payee', 'tag', 'include', 'alias', 'end', 'comment', 'decimal-mark', '~', '=', 'P'];
+  // Note: '~' is handled separately as periodic transaction headers
+  const directives = ['account', 'commodity', 'payee', 'tag', 'include', 'alias', 'end', 'comment', 'decimal-mark', '=', 'P'];
   return directives.some(d => {
     if (d === 'end') {
       // 'end' can be standalone or followed by a space

@@ -7,7 +7,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 import { ParsedDocument, Transaction } from '../types';
 import { parseTransactionHeader } from '../parser/ast';
-import { isTransactionHeader, isComment, isDirective } from '../utils/index';
+import { isTransactionHeader, isComment, isDirective, isPeriodicTransactionHeader } from '../utils/index';
 import { getAmountLayout, AmountLayout, renderAmountLayout, AmountWidths } from '../utils/amountFormatter';
 import { FormattingOptions, DEFAULT_FORMATTING_OPTIONS, InlayHintsOptions, DEFAULT_INLAY_HINTS_OPTIONS } from '../server/settings';
 import { isSafeToFormat } from './formattingValidation';
@@ -58,8 +58,8 @@ export class FormattingProvider {
           const postingLine = lines[i];
           const postingTrimmed = postingLine.trim();
 
-          // Stop at empty line, next transaction, or directive
-          if (!postingTrimmed || isTransactionHeader(postingTrimmed) || isDirective(postingTrimmed)) {
+          // Stop at empty line, next transaction, periodic transaction, or directive
+          if (!postingTrimmed || isTransactionHeader(postingTrimmed) || isPeriodicTransactionHeader(postingTrimmed) || isDirective(postingTrimmed)) {
             break;
           }
 
@@ -71,6 +71,30 @@ export class FormattingProvider {
         formattedLines.push(...this.formatTransactionLines(transactionLines, transaction, parsed, options, inlayHintsConfig));
 
         // Don't increment i here as we've already moved past the transaction
+        continue;
+      } else if (isPeriodicTransactionHeader(trimmed)) {
+        // Preserve periodic transaction header as-is to maintain the crucial double space
+        // between period expression and description (e.g., "~ every 2 months  in 2023, we will review")
+        formattedLines.push(trimmed);
+        const transactionLines: string[] = [];
+        i++;
+
+        while (i < lines.length) {
+          const postingLine = lines[i];
+          const postingTrimmed = postingLine.trim();
+
+          // Stop at empty line, next transaction, periodic transaction, or directive
+          if (!postingTrimmed || isTransactionHeader(postingTrimmed) || isPeriodicTransactionHeader(postingTrimmed) || isDirective(postingTrimmed)) {
+            break;
+          }
+
+          transactionLines.push(postingLine);
+          i++;
+        }
+
+        // Format postings (no Transaction object available, so basic formatting only)
+        formattedLines.push(...this.formatTransactionLines(transactionLines, undefined, parsed, options, inlayHintsConfig));
+
         continue;
       } else if (isDirective(trimmed)) {
         formattedLines.push(this.formatDirective(trimmed));
