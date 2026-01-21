@@ -3,6 +3,10 @@
 <!--toc:start-->
 - [hledger Language Server](#hledger-language-server)
   - [Installation](#installation)
+  - [Command Line Usage](#command-line-usage)
+    - [LSP Server Mode (default)](#lsp-server-mode-default)
+    - [Standalone Formatter](#standalone-formatter)
+    - [Other Options](#other-options)
   - [IDE Integration](#ide-integration)
     - [VS Code](#vs-code)
     - [Neovim](#neovim)
@@ -50,6 +54,49 @@ npm install -g hledger-lsp
 
 This provides the `hledger-lsp` command globally. After installation, the
 language server can be used with any LSP-compatible editor.
+
+## Command Line Usage
+
+The `hledger-lsp` command can be used in two modes:
+
+### LSP Server Mode (default)
+
+```bash
+hledger-lsp --stdio
+```
+
+This starts the language server for use with LSP-compatible editors.
+
+### Standalone Formatter
+
+Format journal files directly from the command line without an IDE:
+
+```bash
+# Format a file and output to stdout
+hledger-lsp --format myfile.journal
+
+# Format a file and write to output file
+hledger-lsp --format myfile.journal -o formatted.journal
+hledger-lsp --format myfile.journal --output formatted.journal
+
+# Format stdin and write to file
+cat myfile.journal | hledger-lsp --format - -o formatted.journal
+
+# Format in place (overwrite original file)
+hledger-lsp --format myfile.journal -o myfile.journal
+```
+
+The formatter applies default formatting settings:
+- 4-space indentation for postings
+- Decimal point alignment at column 52
+- Normalized transaction header spacing
+
+### Other Options
+
+```bash
+hledger-lsp --help      # Show help message
+hledger-lsp --version   # Show version
+```
 
 ## IDE Integration
 
