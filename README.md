@@ -1,5 +1,9 @@
 # hledger Language Server
 
+A Language Server Protocol (LSP) implementation for
+[hledger](https://hledger.org/), a plain text accounting tool. With
+plugins for [vscode](https://marketplace.visualstudio.com/items?itemName=patrickt.hledger-lsp-vscode) and [nvim](https://github.com/ptimoney/hledger-nvim)
+
 <!--toc:start-->
 - [hledger Language Server](#hledger-language-server)
   - [Installation](#installation)
@@ -42,9 +46,6 @@
   - [License](#license)
   - [Links](#links)
 <!--toc:end-->
-
-A Language Server Protocol (LSP) implementation for
-[hledger](https://hledger.org/), a plain text accounting tool.
 
 ## Installation
 
@@ -104,7 +105,7 @@ This language server can be used with any LSP-compatible editor. Currently avail
 
 ### VS Code
 
-**Extension**: [hledger-vscode](https://marketplace.visualstudio.com/items?itemName=patrickt.hledger-vscode)
+**Extension**: [hledger-vscode](https://marketplace.visualstudio.com/items?itemName=patrickt.hledger-lsp-vscode)
 
 **GitHub**: [hledger-vscode](https://github.com/ptimoney/hledger-vscode)
 
@@ -461,6 +462,12 @@ for future features):
 
 - `codeLens.showTransactionCounts` (boolean, default: false): Show transaction
 counts for each account on transaction headers
+
+## Known Limitations
+
+- Auto postings and periodic transactions are broadly unsupported. Though we try
+to avoid breaking them. Please report any breaking issues, and consider suggestions
+or contributions for any deeper integration
 
 ## Development
 
