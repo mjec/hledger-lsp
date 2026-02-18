@@ -721,6 +721,299 @@ include 2024/*.journal`
     });
   });
 
+  describe('dotfile journal files', () => {
+    test('should discover and parse dotfile journals like .hledger.journal', async () => {
+      // Simulate a workspace with .hledger.journal as the main file
+      const dotfileReader: FileReader = (uri: URI): TextDocument | null => {
+        if (uri.toString().includes('.hledger.journal')) {
+          return TextDocument.create(
+            uri.toString(),
+            'hledger',
+            1,
+            `include expenses.journal
+
+2024-01-01 * Opening
+    assets:checking  $1000.00
+    equity:opening`
+          );
+        } else if (uri.toString().includes('expenses.journal')) {
+          return TextDocument.create(
+            uri.toString(),
+            'hledger',
+            1,
+            `2024-01-15 * Grocery
+    expenses:food  $50.00
+    assets:checking`
+          );
+        }
+        return null;
+      };
+
+      const dotfileManager = new WorkspaceManager();
+      await dotfileManager.initializeWithFiles(
+        [
+          URI.file('/finances/.hledger.journal'),
+          URI.file('/finances/expenses.journal')
+        ],
+        parser,
+        dotfileReader,
+        mockConnection
+      );
+
+      // .hledger.journal should be detected as root (it includes expenses.journal)
+      const diagnostics = dotfileManager.getDiagnosticInfo();
+      expect(diagnostics.totalFiles).toBe(2);
+      expect(diagnostics.rootFile?.toString()).toContain('.hledger.journal');
+
+      // Should be able to parse workspace
+      const parsed = dotfileManager.parseWorkspace();
+      expect(parsed).toBeDefined();
+      expect(parsed!.transactions.length).toBeGreaterThan(0);
+    });
+
+    test('should handle .hledger.journal as the only file', async () => {
+      const singleDotfileReader: FileReader = (uri: URI): TextDocument | null => {
+        if (uri.toString().includes('.hledger.journal')) {
+          return TextDocument.create(
+            uri.toString(),
+            'hledger',
+            1,
+            `2024-01-01 * Test
+    expenses:test  $10.00
+    assets:checking`
+          );
+        }
+        return null;
+      };
+
+      const dotfileManager = new WorkspaceManager();
+      await dotfileManager.initializeWithFiles(
+        [URI.file('/finances/.hledger.journal')],
+        parser,
+        singleDotfileReader,
+        mockConnection
+      );
+
+      const diagnostics = dotfileManager.getDiagnosticInfo();
+      expect(diagnostics.totalFiles).toBe(1);
+      expect(diagnostics.rootFile?.toString()).toContain('.hledger.journal');
+
+      const parsed = dotfileManager.parseWorkspace();
+      expect(parsed).toBeDefined();
+      expect(parsed!.transactions.length).toBe(1);
+    });
+
+    test('should pass dot: true to fast-glob for dotfile discovery', async () => {
+      const mockFg = require('fast-glob');
+      // Return a dotfile from fast-glob mock
+      mockFg.mockImplementationOnce((_patterns: string[], _options: any) =>
+        Promise.resolve(['/dotworkspace/.hledger.journal'])
+      );
+
+      const dotfileReader: FileReader = (uri: URI): TextDocument | null => {
+        if (uri.toString().includes('.hledger.journal')) {
+          return TextDocument.create(uri.toString(), 'hledger', 1, '');
+        }
+        return null;
+      };
+
+      const dotfileManager = new WorkspaceManager();
+      await dotfileManager.initialize(
+        [URI.parse('file:///dotworkspace')],
+        parser,
+        dotfileReader,
+        mockConnection
+      );
+
+      // Verify fast-glob was called with dot: true
+      expect(mockFg).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ dot: true })
+      );
+    });
+  });
+
+  describe('dotfile .hledger.journal bug reproduction (GitHub issue)', () => {
+    /**
+     * Reproduces the exact bug reported:
+     *
+     * [parseDocument] No workspace root, parsing from file: .../.hledger.journal
+     * [WorkspaceManager] Parsing from file: .../.hledger.journal
+     * [WorkspaceManager] Merging 1 files from .../.hledger.journal
+     * [WorkspaceManager] Could not get document for: .../.hledger.journal
+     * [WorkspaceManager] Merged from file in 0ms (0 transactions, 0 accounts)
+     *
+     * Root cause: .hledger.journal is a dotfile, excluded by dot:false and glob exclude pattern
+     */
+    test('should discover .hledger.journal and use it as workspace root', async () => {
+      // Mock fast-glob to simulate what SHOULD happen: .hledger.journal is discovered
+      const mockFg = require('fast-glob');
+      mockFg.mockImplementationOnce((_patterns: string[], options: any) => {
+        // With dot: true, fast-glob discovers the dotfile
+        if (options.dot === true) {
+          return Promise.resolve([
+            `${options.cwd}/.hledger.journal`,
+            `${options.cwd}/expenses.journal`
+          ]);
+        }
+        // Simulates the bug: dot: false excludes dotfiles
+        return Promise.resolve([
+          `${options.cwd}/expenses.journal`
+        ]);
+      });
+
+      const dotfileReader: FileReader = (uri: URI): TextDocument | null => {
+        const uriStr = uri.toString();
+        if (uriStr.endsWith('.hledger.journal')) {
+          return TextDocument.create(
+            uriStr,
+            'hledger',
+            1,
+            `include expenses.journal
+
+2024-01-01 * Opening Balance
+    assets:checking  $1000.00
+    equity:opening`
+          );
+        } else if (uriStr.includes('expenses.journal')) {
+          return TextDocument.create(
+            uriStr,
+            'hledger',
+            1,
+            `2024-01-15 * Grocery Store
+    expenses:food  $50.00
+    assets:checking`
+          );
+        }
+        return null;
+      };
+
+      const dotfileManager = new WorkspaceManager();
+      await dotfileManager.initialize(
+        [URI.parse('file:///finances')],
+        parser,
+        dotfileReader,
+        mockConnection
+      );
+
+      const diagnostics = dotfileManager.getDiagnosticInfo();
+
+      // With the fix (dot: true), .hledger.journal should be discovered and detected as root
+      expect(diagnostics.totalFiles).toBe(2);
+      expect(diagnostics.rootFile?.toString()).toContain('.hledger.journal');
+
+      // getRootForFile should return the dotfile as root for included files
+      const rootForExpenses = dotfileManager.getRootForFile(
+        URI.parse('file:///finances/expenses.journal')
+      );
+      expect(rootForExpenses?.toString()).toContain('.hledger.journal');
+
+      // parseWorkspace should return all transactions from both files
+      const parsed = dotfileManager.parseWorkspace();
+      expect(parsed).not.toBeNull();
+      expect(parsed!.transactions.length).toBe(2);
+      expect(parsed!.accounts.size).toBeGreaterThan(0);
+    });
+
+    test('should reproduce the reported failure: parseFromFile returns 0 transactions for undiscovered dotfile', async () => {
+      // This test simulates what happens when .hledger.journal is NOT discovered
+      // (i.e., the bug condition: dot: false excludes it from journalFiles)
+      //
+      // We use initializeWithFiles with ONLY the non-dotfile to simulate the bug state:
+      // .hledger.journal exists and is readable, but was excluded from discovery
+
+      const dotfileReader: FileReader = (uri: URI): TextDocument | null => {
+        const uriStr = uri.toString();
+        if (uriStr.endsWith('.hledger.journal')) {
+          return TextDocument.create(
+            uriStr,
+            'hledger',
+            1,
+            `2024-01-01 * Opening Balance
+    assets:checking  $1000.00
+    equity:opening`
+          );
+        } else if (uriStr.includes('expenses.journal')) {
+          return TextDocument.create(
+            uriStr,
+            'hledger',
+            1,
+            `2024-01-15 * Grocery Store
+    expenses:food  $50.00
+    assets:checking`
+          );
+        }
+        return null;
+      };
+
+      // Initialize with ONLY expenses.journal known (simulating .hledger.journal excluded)
+      const buggyManager = new WorkspaceManager();
+      await buggyManager.initializeWithFiles(
+        [URI.file('/finances/expenses.journal')],
+        parser,
+        dotfileReader,
+        mockConnection
+      );
+
+      // getRootForFile returns null for the dotfile (not in workspace)
+      const root = buggyManager.getRootForFile(URI.file('/finances/.hledger.journal'));
+      expect(root).toBeNull();
+
+      // This simulates the parseDocument flow in server.ts when getRootForFile returns null:
+      // it falls through to parseFromFile
+      const parsed = buggyManager.parseFromFile(URI.file('/finances/.hledger.journal'));
+
+      // With the resilience fix, parseFromFile should still return data
+      // via direct fileReader fallback even for files not in journalFiles
+      expect(parsed.transactions.length).toBe(1);
+      expect(parsed.transactions[0].payee).toBe('Opening Balance');
+    });
+  });
+
+  describe('parseFromFile resilience', () => {
+    test('should parse file not in journalFiles via direct read', async () => {
+      // Initialize workspace with only registered.journal in journalFiles
+      const resilientReader: FileReader = (uri: URI): TextDocument | null => {
+        const uriStr = uri.toString();
+        if (uriStr.includes('registered.journal')) {
+          return TextDocument.create(
+            uriStr,
+            'hledger',
+            1,
+            `2024-01-01 * Registered
+    expenses:registered  $10.00
+    assets:checking`
+          );
+        } else if (uriStr.includes('external.journal')) {
+          return TextDocument.create(
+            uriStr,
+            'hledger',
+            1,
+            `2024-01-15 * External file
+    expenses:external  $20.00
+    assets:checking`
+          );
+        }
+        return null;
+      };
+
+      const resilientManager = new WorkspaceManager();
+      await resilientManager.initializeWithFiles(
+        [URI.file('/workspace/registered.journal')],
+        parser,
+        resilientReader,
+        mockConnection
+      );
+
+      // Parse a file that was NOT in the discovered journalFiles
+      const parsed = resilientManager.parseFromFile(URI.file('/workspace/external.journal'));
+
+      // Should still parse successfully via direct fileReader fallback
+      expect(parsed.transactions.length).toBe(1);
+      expect(parsed.transactions[0].payee).toBe('External file');
+    });
+  });
+
   describe('getWorkspaceTreeStructured', () => {
     test('should return structured tree', async () => {
       await manager.initialize(

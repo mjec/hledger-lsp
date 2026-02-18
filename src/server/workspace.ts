@@ -259,14 +259,14 @@ export class WorkspaceManager {
 
     // Use patterns from config, or defaults
     const patterns = this.config?.include ?? ['**/*.journal', '**/*.hledger'];
-    const ignore = this.config?.exclude ?? ['**/node_modules/**', '**/.git/**', '**/.*'];
+    const ignore = this.config?.exclude ?? ['**/node_modules/**', '**/.git/**'];
 
     try {
       const entries = await fg(patterns, {
         cwd: folderPath,
         onlyFiles: true,
         absolute: true,
-        dot: false,
+        dot: true,
         ignore
       });
 
@@ -662,11 +662,20 @@ export class WorkspaceManager {
     let merged = createEmptyParsedDocument();
 
     for (const fileUri of orderedFiles) {
-      const parsed = this.getCachedDocument(fileUri);
+      let parsed = this.getCachedDocument(fileUri);
+      if (!parsed) {
+        // File not in journalFiles (e.g., dotfile excluded from discovery)
+        // Fall back to reading and parsing directly
+        const doc = this.fileReader(fileUri);
+        if (doc) {
+          parsed = this.parser.parse(doc);
+          this.connection.console.info(`[WorkspaceManager] Parsed file directly (not in workspace files): ${fileUri}`);
+        } else {
+          this.connection.console.warn(`[WorkspaceManager] Could not get document for: ${fileUri}`);
+        }
+      }
       if (parsed) {
         merged = mergeParsedDocuments(merged, parsed);
-      } else {
-        this.connection.console.warn(`[WorkspaceManager] Could not get document for: ${fileUri}`);
       }
     }
 
