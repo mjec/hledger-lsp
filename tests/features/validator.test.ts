@@ -149,6 +149,33 @@ describe('Validator', () => {
       expect(balanceErrors[0].message).toContain('$5 off');
     });
 
+    test('should validate balanced transaction with @@ total cost and negative amount', () => {
+      const content = `2026-01-01 Opening balances
+    Assets:Investments                            10 FUND @@ 1000 USD
+    Equity:OpeningBalances                       -10 FUND @@ 1000 USD`;
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsedDoc = parser.parse(doc);
+      const result = validator.validate(doc, parsedDoc);
+
+      const balanceErrors = result.diagnostics.filter(d => d.message.includes('does not balance'));
+      expect(balanceErrors).toHaveLength(0);
+    });
+
+    test('should detect unbalanced transaction with @@ and double negative', () => {
+      // 10 FUND @@ 1000 USD → sign(10) * 1000 = +1000 USD
+      // -10 FUND @@ -1000 USD → sign(-10) * -1000 = +1000 USD
+      // Both postings contribute +1000 USD, so the transaction is unbalanced
+      const content = `2026-01-01 Opening balances
+    Assets:Investments2                            10 FUND @@ 1000 USD
+    Equity:OpeningBalances2                       -10 FUND @@ -1000 USD`;
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsedDoc = parser.parse(doc);
+      const result = validator.validate(doc, parsedDoc);
+
+      const balanceErrors = result.diagnostics.filter(d => d.message.includes('does not balance'));
+      expect(balanceErrors.length).toBeGreaterThan(0);
+    });
+
     test('should validate transaction with multiple costs', () => {
       const content = `2009-01-01 Stock Purchase
     assets:stock1    10 AAPL @ $150

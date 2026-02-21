@@ -26,9 +26,13 @@ export function calculateTransactionBalance(transaction: Transaction): Map<strin
         if (posting.cost.type === 'unit') {
           // @ unitPrice: total cost = quantity * unitPrice
           costValue = posting.amount.quantity * posting.cost.amount.quantity;
-        } else {
-          // @@ totalPrice: use total price directly
+        } else if (posting.cost.inferred) {
+          // @@ totalPrice (inferred): sign is already correct from inferCosts()
           costValue = posting.cost.amount.quantity;
+        } else {
+          // @@ totalPrice (explicit): sign comes from the posting amount
+          // e.g. -10 FUND @@ 1000 USD → -1000 USD, -10 FUND @@ -1000 USD → +1000 USD
+          costValue = Math.sign(posting.amount.quantity) * posting.cost.amount.quantity;
         }
 
         const current = balances.get(costCommodity) || 0;

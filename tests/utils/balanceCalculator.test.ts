@@ -100,6 +100,42 @@ describe('balanceCalculator', () => {
       const balance = calculateTransactionBalance(transaction);
       expect(balance.get('USD')).toBe(0);
     });
+
+    test('should inherit sign from posting amount for @@ total cost (negative amount, positive cost)', () => {
+      // -10 FUND @@ 1000 USD should contribute -1000 USD (sign from amount)
+      const transaction: Transaction = {
+        date: '2024-01-01',
+        description: 'Opening balances',
+        payee: 'Opening balances',
+        note: '',
+        postings: [
+          createPostingWithCost(10, 'FUND', 1000, 'USD', 'total'),
+          createPostingWithCost(-10, 'FUND', 1000, 'USD', 'total'),
+        ]
+      };
+
+      const balance = calculateTransactionBalance(transaction);
+      expect(balance.get('USD')).toBe(0);
+    });
+
+    test('should detect unbalanced @@ when amount and cost signs differ (double negative)', () => {
+      // 10 FUND @@ 1000 USD → sign(10) * 1000 = +1000 USD
+      // -10 FUND @@ -1000 USD → sign(-10) * -1000 = +1000 USD
+      // Both contribute +1000, so unbalanced (net +2000)
+      const transaction: Transaction = {
+        date: '2024-01-01',
+        description: 'Opening balances',
+        payee: 'Opening balances',
+        note: '',
+        postings: [
+          createPostingWithCost(10, 'FUND', 1000, 'USD', 'total'),
+          createPostingWithCost(-10, 'FUND', -1000, 'USD', 'total'),
+        ]
+      };
+
+      const balance = calculateTransactionBalance(transaction);
+      expect(balance.get('USD')).toBe(2000);
+    });
   });
 
   describe('calculateTransactionBalanceSimple', () => {

@@ -1,0 +1,8 @@
+commodity FUND
+commodity USD
+account Assets:Investments
+account Equity:OpeningBalances
+
+2026-01-01 Opening balances
+    Assets:Investments                            10 FUND @@ 1000 USD = 10 FUND
+    Equity:OpeningBalances                       -10 FUND @@ 1000 USD
