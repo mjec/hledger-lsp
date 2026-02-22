@@ -83,6 +83,24 @@ describe('Validator', () => {
       expect(balanceErrors).toHaveLength(0);
     });
 
+    test('should report error on correct transaction when duplicates have same description', () => {
+      const content = `2024-04-01 Test Transaction
+    Equity:Opening                              -10.00
+    Assets:Cash                                  10.00
+
+2024-04-01 Test Transaction
+    Assets:Cash                                  -1.00
+    Expenses:Food                                 2.00`;
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsedDoc = parser.parse(doc);
+      const result = validator.validate(doc, parsedDoc);
+
+      const balanceErrors = result.diagnostics.filter(d => d.message.includes('does not balance'));
+      expect(balanceErrors).toHaveLength(1);
+      // Error should be on line 4 (the second transaction), not line 0 (the first)
+      expect(balanceErrors[0].range.start.line).toBe(4);
+    });
+
     test('should handle floating point precision', () => {
       const content = `2024-01-15 * Store
     expenses:food  $33.33

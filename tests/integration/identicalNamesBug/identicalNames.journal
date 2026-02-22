@@ -1,0 +1,13 @@
+account Equity:Opening
+account Assets:Cash
+account Expenses:Food
+commodity £1,000.00
+
+2024-04-01 Test Transaction
+    Equity:Opening                              £-10.00
+    Assets:Cash                                 £ 10.00
+
+
+2024-04-01 Test Transaction
+    Assets:Cash                                  £-1.00
+    Expenses:Food                                £ 2.00

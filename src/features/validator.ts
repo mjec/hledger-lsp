@@ -569,21 +569,18 @@ export class Validator {
    * Get the range for a transaction (first line only for now)
    */
   private getTransactionRange(transaction: Transaction, document: TextDocument): { start: { line: number; character: number }; end: { line: number; character: number } } {
-    const text = document.getText();
-    const lines = text.split('\n');
-
-    // Find the transaction in the document
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.includes(transaction.date) && line.includes(transaction.description)) {
-        return {
-          start: { line: i, character: 0 },
-          end: { line: i, character: line.length }
-        };
-      }
+    // Use the transaction's stored line number directly
+    if (transaction.line !== undefined) {
+      const text = document.getText();
+      const lines = text.split('\n');
+      const line = lines[transaction.line] || '';
+      return {
+        start: { line: transaction.line, character: 0 },
+        end: { line: transaction.line, character: line.length }
+      };
     }
 
-    // Fallback to first line if not found
+    // Fallback to first line if no line number available
     return {
       start: { line: 0, character: 0 },
       end: { line: 0, character: 0 }
@@ -778,31 +775,25 @@ export class Validator {
    * Find the range for a specific posting within a transaction
    */
   private findPostingRange(transaction: Transaction, posting: Posting, document: TextDocument): { start: { line: number; character: number }; end: { line: number; character: number } } {
-    const text = document.getText();
-    const lines = text.split('\n');
+    if (transaction.line !== undefined) {
+      const text = document.getText();
+      const lines = text.split('\n');
 
-    // Find the transaction, then find the posting
-    let inTransaction = false;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+      // Search for the posting within the transaction's lines
+      for (let i = transaction.line + 1; i < lines.length; i++) {
+        const line = lines[i];
 
-      // Check if this is our transaction
-      if (line.includes(transaction.date) && line.includes(transaction.description)) {
-        inTransaction = true;
-        continue;
-      }
+        // Stop if we hit another transaction or empty line
+        if (!line.trim() || line.match(/^\d{4}[-/]\d{2}[-/]\d{2}/)) {
+          break;
+        }
 
-      // If we're in the transaction, look for the posting
-      if (inTransaction && line.trim().startsWith(posting.account)) {
-        return {
-          start: { line: i, character: 0 },
-          end: { line: i, character: line.length }
-        };
-      }
-
-      // Stop if we hit another transaction or empty line after being in a transaction
-      if (inTransaction && (!line.trim() || line.match(/^\d{4}[-/]\d{2}[-/]\d{2}/))) {
-        break;
+        if (line.trim().startsWith(posting.account)) {
+          return {
+            start: { line: i, character: 0 },
+            end: { line: i, character: line.length }
+          };
+        }
       }
     }
 
