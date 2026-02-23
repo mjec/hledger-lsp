@@ -102,15 +102,14 @@ describeConformance('hledger conformance', () => {
       expect(hledgerResult.success).toBe(false);
     });
 
-    test('KNOWN DIVERGENCE: LSP infers costs for multi-commodity transactions', () => {
+    test.failing('LSP should reject implicit commodity conversion when strict balance is enabled', () => {
       // balanced.j has: a  1 A / b  -1 B (no explicit @ price)
       // hledger's "balanced" check rejects this, requiring explicit cost notation.
-      // The LSP parser auto-infers a cost (like hledger's default "autobalanced"),
-      // so the LSP considers this transaction balanced.
+      // The LSP currently always auto-infers costs (matching hledger's "autobalanced").
       //
-      // This documents a known behavioral difference: the LSP does NOT implement
-      // hledger's stricter "balanced" check mode. The LSP always auto-infers costs,
-      // matching hledger's default autobalanced behavior.
+      // To fix: add a validation setting (e.g., "requireExplicitCosts") that,
+      // when enabled, rejects multi-commodity transactions without explicit @ cost
+      // notation — mirroring hledger's stricter "balanced" check.
       const filePath = path.join(errorsDir, 'balanced.j');
       const { doc } = createDoc(filePath);
       const parsed = parser.parse(doc);
@@ -120,16 +119,20 @@ describeConformance('hledger conformance', () => {
           validation: {
             ...disableAll(),
             balance: true,
+            // When we add this setting, enable it here:
+            // requireExplicitCosts: true,
           },
         },
       });
 
-      // LSP auto-infers costs, so it considers this balanced (0 diagnostics)
-      expect(result.diagnostics.length).toBe(0);
-
-      // Verify the parser inferred a cost on the first posting
-      const firstPosting = parsed.transactions[0]?.postings[0];
-      expect(firstPosting?.cost?.inferred).toBe(true);
+      // LSP should reject the implicit commodity conversion
+      expect(result.diagnostics.length).toBeGreaterThan(0);
+      const balanceDiag = result.diagnostics.find(d =>
+        d.message.toLowerCase().includes('cost') ||
+        d.message.toLowerCase().includes('balance') ||
+        d.message.toLowerCase().includes('commodity')
+      );
+      expect(balanceDiag).toBeDefined();
     });
   });
 
@@ -481,12 +484,6 @@ describeConformance('hledger conformance', () => {
       'vat.journal',
     ];
 
-    // Files that pass hledger check but the LSP parser can't fully handle
-    // (short dates, virtual postings, etc.)
-    const hledgerOnlyFixtures = [
-      'borrowing.journal', // Uses short dates (1/1, 2/1) — parser requires 4-digit years
-    ];
-
     test.each(parseableFixtures)('%s passes both hledger and LSP', (filename) => {
       const filePath = path.join(validDir, filename);
       const { doc } = createDoc(filePath);
@@ -515,26 +512,71 @@ describeConformance('hledger conformance', () => {
       expect(errors).toEqual([]);
     });
 
-    test.each(hledgerOnlyFixtures)('%s passes hledger check', (filename) => {
-      const filePath = path.join(validDir, filename);
-      const hledgerResult = runHledgerCheck(filePath);
-      expect(hledgerResult.success).toBe(true);
-    });
+    // ── Parser gaps: these test.failing() tests document real divergences ──
+    // They pass in CI today (Jest inverts the assertion) and will start
+    // failing once the underlying issue is fixed, prompting us to flip
+    // them to normal tests.
 
-    test('KNOWN DIVERGENCE: unicode.journal virtual postings treated as unbalanced', () => {
-      // unicode.journal uses virtual (parenthesized) postings like (ß).
-      // hledger auto-balances virtual postings; the LSP does not.
-      const filePath = path.join(validDir, 'unicode.journal');
-      const hledgerResult = runHledgerCheck(filePath);
-      expect(hledgerResult.success).toBe(true);
-
+    test.failing('borrowing.journal: parser should handle short (yearless) dates', () => {
+      // borrowing.journal uses dates like "1/1", "2/1" without a 4-digit year.
+      // hledger accepts these (defaults to current year). The LSP parser
+      // requires 4-digit years, so it produces 0 transactions.
+      const filePath = path.join(validDir, 'borrowing.journal');
       const { doc } = createDoc(filePath);
       const parsed = parser.parse(doc);
+
+      // Ground truth
+      const hledgerResult = runHledgerCheck(filePath);
+      expect(hledgerResult.success).toBe(true);
+
+      // This is what we WANT to pass — parser should find transactions
       expect(parsed.transactions.length).toBeGreaterThan(0);
 
-      // The parser keeps parentheses in account names for virtual postings
+      const result = validator.validate(doc, parsed, {
+        settings: {
+          validation: {
+            ...disableAll(),
+            balance: true,
+            balanceAssertions: true,
+            invalidDates: true,
+          },
+        },
+      });
+
+      const errors = result.diagnostics.filter(d => d.severity === 1);
+      expect(errors).toEqual([]);
+    });
+
+    test.failing('unicode.journal: parser should handle virtual postings', () => {
+      // unicode.journal uses virtual (parenthesized) postings like (ß).
+      // hledger auto-balances virtual postings; the LSP parser should
+      // strip parens from account names and not report balance errors.
+      const filePath = path.join(validDir, 'unicode.journal');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      // Ground truth
+      const hledgerResult = runHledgerCheck(filePath);
+      expect(hledgerResult.success).toBe(true);
+
+      expect(parsed.transactions.length).toBeGreaterThan(0);
+
+      // Account names should NOT include parentheses
       const accounts = [...parsed.accounts.keys()];
-      expect(accounts.some(a => a.startsWith('('))).toBe(true);
+      expect(accounts.every(a => !a.startsWith('('))).toBe(true);
+
+      // Validation should produce no errors (virtual postings auto-balance)
+      const result = validator.validate(doc, parsed, {
+        settings: {
+          validation: {
+            ...disableAll(),
+            balance: true,
+          },
+        },
+      });
+
+      const errors = result.diagnostics.filter(d => d.severity === 1);
+      expect(errors).toEqual([]);
     });
   });
 
@@ -569,7 +611,9 @@ describeConformance('hledger conformance', () => {
       }
     );
 
-    test('KNOWN DIVERGENCE: unicode.journal virtual posting account names include parens', () => {
+    test.failing('unicode.journal: virtual posting account names should not include parens', () => {
+      // The parser keeps parentheses in account names: "(ß)" instead of "ß".
+      // hledger strips parens — they denote virtual postings, not part of the name.
       const filePath = path.join(validDir, 'unicode.journal');
       const { doc } = createDoc(filePath);
       const parsed = parser.parse(doc);
@@ -577,11 +621,20 @@ describeConformance('hledger conformance', () => {
       const lspAccounts = [...parsed.accounts.keys()].sort();
       const hledgerAccounts = runHledgerAccounts(filePath).sort();
 
-      // LSP includes parentheses: "(ß)" vs hledger's "ß"
-      expect(lspAccounts).not.toEqual(hledgerAccounts);
-      // But the underlying names match after stripping parens
-      const stripped = lspAccounts.map(a => a.replace(/[()]/g, '')).sort();
-      expect(stripped).toEqual(hledgerAccounts);
+      expect(lspAccounts).toEqual(hledgerAccounts);
+    });
+
+    test.failing('borrowing.journal: parser should discover accounts from short-date files', () => {
+      // Parser requires 4-digit years, so it finds 0 accounts.
+      // hledger finds all accounts from short-date entries.
+      const filePath = path.join(validDir, 'borrowing.journal');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      const lspAccounts = [...parsed.accounts.keys()].sort();
+      const hledgerAccounts = runHledgerAccounts(filePath).sort();
+
+      expect(lspAccounts).toEqual(hledgerAccounts);
     });
   });
 
@@ -645,6 +698,43 @@ describeConformance('hledger conformance', () => {
         }
       }
     );
+
+    test.failing('borrowing.journal: LSP final balances should match hledger', () => {
+      // Parser can't handle short dates (1/1, 2/1), so it finds 0 transactions
+      // and therefore 0 balances. Once short dates are supported this should pass.
+      const filePath = path.join(validDir, 'borrowing.journal');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+      const runningBalances = calculateRunningBalances(parsed);
+
+      const lspFinalBalances = new Map<string, Map<string, number>>();
+      parsed.transactions.forEach((tx, txIdx) => {
+        tx.postings.forEach((p, pIdx) => {
+          const postingBalances = runningBalances.get(txIdx)?.get(pIdx);
+          if (postingBalances) {
+            for (const [commodity, balance] of postingBalances) {
+              if (!lspFinalBalances.has(p.account)) {
+                lspFinalBalances.set(p.account, new Map());
+              }
+              lspFinalBalances.get(p.account)!.set(commodity, balance);
+            }
+          }
+        });
+      });
+
+      const hledgerEntries = runHledgerBalance(filePath);
+
+      for (const entry of hledgerEntries) {
+        const lspAmounts = lspFinalBalances.get(entry.account);
+        expect(lspAmounts).toBeDefined();
+        if (!lspAmounts) continue;
+
+        for (const [commodity, hledgerQty] of entry.amounts) {
+          const lspQty = lspAmounts.get(commodity) ?? 0;
+          expect(Math.abs(lspQty - hledgerQty)).toBeLessThan(0.005);
+        }
+      }
+    });
   });
 
   // ─── Running balances (aregister) ─────────────────────────────────
@@ -717,6 +807,30 @@ describeConformance('hledger conformance', () => {
         }
       }
     });
+
+    test.failing('borrowing.journal: assets:cash running balance should match hledger', () => {
+      // Parser can't handle short dates, so it finds 0 transactions.
+      const filePath = path.join(validDir, 'borrowing.journal');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+      const runningBalances = calculateRunningBalances(parsed);
+
+      const hledgerEntries = runHledgerAregister(filePath, 'assets:cash');
+
+      const lspEntries: { txIdx: number; balance: Map<string, number> }[] = [];
+      parsed.transactions.forEach((tx, txIdx) => {
+        tx.postings.forEach((p, pIdx) => {
+          if (p.account === 'assets:cash') {
+            const balances = runningBalances.get(txIdx)?.get(pIdx);
+            if (balances) {
+              lspEntries.push({ txIdx, balance: balances });
+            }
+          }
+        });
+      });
+
+      expect(lspEntries.length).toBe(hledgerEntries.length);
+    });
   });
 
   // ─── Inferred amounts ────────────────────────────────────────────
@@ -786,6 +900,195 @@ describeConformance('hledger conformance', () => {
           expect(Math.abs(lspPosting.amount.quantity - hAmount.quantity)).toBeLessThan(0.005);
         }
       }
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Parser divergences — test.failing() tests for known gaps
+  //
+  // These tests assert what the CORRECT behavior should be. They pass
+  // in CI because Jest's test.failing() inverts the result. When a gap
+  // is fixed, the test will start "failing" (i.e., passing internally),
+  // prompting us to flip it to a normal test().
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ─── comment/end comment block directive ──────────────────────────
+
+  describe('comment block directive', () => {
+    test.failing('parser should ignore content inside comment/end comment blocks', () => {
+      // hledger's `comment` directive starts a multi-line comment block;
+      // `end comment` ends it. Everything between is ignored.
+      // The LSP parser does not implement this — it parses content inside
+      // the block as real transactions and directives.
+      const filePath = path.join(validDir, 'comment-block.journal');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      const hledgerResult = runHledgerCheck(filePath);
+      expect(hledgerResult.success).toBe(true);
+
+      // hledger sees 2 transactions (the one inside `comment` block is ignored)
+      const hledgerAccounts = runHledgerAccounts(filePath);
+      expect(hledgerAccounts).not.toContain('income:bonus');
+
+      // LSP should also see only 2 transactions
+      expect(parsed.transactions.length).toBe(2);
+      expect([...parsed.accounts.keys()]).not.toContain('income:bonus');
+    });
+  });
+
+  // ─── Dot-separated dates ──────────────────────────────────────────
+
+  describe('dot-separated dates', () => {
+    test.failing('parser should handle dot-separated dates (2024.01.01)', () => {
+      // hledger accepts `.` as a date separator alongside `-` and `/`.
+      // The LSP parser only recognizes `-` and `/`.
+      const filePath = path.join(validDir, 'dot-dates.journal');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      const hledgerResult = runHledgerCheck(filePath);
+      expect(hledgerResult.success).toBe(true);
+
+      // hledger finds 2 transactions
+      const hledgerAccounts = runHledgerAccounts(filePath);
+      expect(hledgerAccounts.length).toBeGreaterThan(0);
+
+      // LSP should also find transactions
+      expect(parsed.transactions.length).toBe(2);
+    });
+  });
+
+  // ─── Virtual postings ────────────────────────────────────────────
+
+  describe('virtual postings', () => {
+    test.failing('parser should strip parens/brackets and recognize virtual postings', () => {
+      // hledger supports two types of virtual postings:
+      //   (account)  — unbalanced virtual (auto-balances)
+      //   [account]  — balanced virtual (must balance with other balanced virtuals)
+      // The LSP parser keeps the delimiters in the account name and doesn't
+      // recognize the virtual posting semantics.
+      const filePath = path.join(validDir, 'virtual-postings.journal');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      const hledgerResult = runHledgerCheck(filePath);
+      expect(hledgerResult.success).toBe(true);
+
+      const hledgerAccounts = runHledgerAccounts(filePath).sort();
+      const lspAccounts = [...parsed.accounts.keys()].sort();
+
+      // Account names should NOT include parentheses or brackets
+      expect(lspAccounts.every(a => !a.startsWith('(') && !a.startsWith('['))).toBe(true);
+
+      // Should match hledger's account list
+      expect(lspAccounts).toEqual(hledgerAccounts);
+
+      // Validation: no balance errors (virtual postings auto-balance)
+      const result = validator.validate(doc, parsed, {
+        settings: {
+          validation: {
+            ...disableAll(),
+            balance: true,
+          },
+        },
+      });
+      const errors = result.diagnostics.filter(d => d.severity === 1);
+      expect(errors).toEqual([]);
+    });
+  });
+
+  // ─── Posting-level status markers ────────────────────────────────
+
+  describe('posting-level status markers', () => {
+    test.failing('parser should strip */! status from posting account names', () => {
+      // hledger supports per-posting status markers:
+      //   * account  $100  — cleared posting
+      //   ! account  $50   — pending posting
+      // The LSP parser includes the marker as part of the account name.
+      const filePath = path.join(validDir, 'posting-status.journal');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      const hledgerResult = runHledgerCheck(filePath);
+      expect(hledgerResult.success).toBe(true);
+
+      const hledgerAccounts = runHledgerAccounts(filePath).sort();
+      const lspAccounts = [...parsed.accounts.keys()].sort();
+
+      // Account names should NOT start with * or !
+      expect(lspAccounts.every(a => !a.startsWith('*') && !a.startsWith('!'))).toBe(true);
+
+      // Should match hledger's account list
+      expect(lspAccounts).toEqual(hledgerAccounts);
+    });
+  });
+
+  // ─── Thousands separator parsing ─────────────────────────────────
+
+  describe('thousands separator parsing', () => {
+    test.failing('parser should correctly parse amounts with thousands separators', () => {
+      // With a commodity directive establishing comma as thousands separator,
+      // amounts like $18,000,000 and $1,500 should be parsed correctly.
+      // The LSP parser mishandles these:
+      //   $18,000,000 → 18 (only first segment)
+      //   $1,000 → 1 (treated as decimal)
+      const filePath = path.join(validDir, 'thousands.journal');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      const hledgerResult = runHledgerCheck(filePath);
+      expect(hledgerResult.success).toBe(true);
+
+      // Find the lottery transaction
+      const lotteryPosting = parsed.transactions
+        .flatMap(t => t.postings)
+        .find(p => p.account === 'assets:savings');
+      expect(lotteryPosting?.amount).toBeDefined();
+      expect(lotteryPosting!.amount!.quantity).toBe(18000000);
+
+      // Find the rent posting
+      const rentPosting = parsed.transactions
+        .flatMap(t => t.postings)
+        .find(p => p.account === 'expenses:rent');
+      expect(rentPosting?.amount).toBeDefined();
+      expect(rentPosting!.amount!.quantity).toBe(1500);
+
+      // Find the car posting
+      const carPosting = parsed.transactions
+        .flatMap(t => t.postings)
+        .find(p => p.account === 'expenses:car');
+      expect(carPosting?.amount).toBeDefined();
+      expect(carPosting!.amount!.quantity).toBe(1000);
+    });
+
+    test.failing('Cody.journal: $18,000,000 should be parsed as 18 million', () => {
+      // Cody.journal has a lottery win of $18,000,000 which the parser
+      // currently reads as $18. This causes the final balance of
+      // Assets:Savings to be $153,654 instead of $18,146,836.
+      const filePath = path.join(validDir, 'Cody.journal');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+      const runningBalances = calculateRunningBalances(parsed);
+
+      // Extract final balance for Assets:Savings
+      let lspSavings = 0;
+      parsed.transactions.forEach((tx, txIdx) => {
+        tx.postings.forEach((p, pIdx) => {
+          if (p.account === 'Assets:Savings') {
+            const b = runningBalances.get(txIdx)?.get(pIdx);
+            if (b) lspSavings = b.get('$') ?? 0;
+          }
+        });
+      });
+
+      // hledger reports $18,146,836
+      const hledgerEntries = runHledgerBalance(filePath);
+      const hledgerSavings = hledgerEntries.find(e => e.account === 'Assets:Savings');
+      expect(hledgerSavings).toBeDefined();
+      const hledgerAmount = hledgerSavings!.amounts.get('$') ?? 0;
+
+      expect(Math.abs(lspSavings - hledgerAmount)).toBeLessThan(0.005);
     });
   });
 });

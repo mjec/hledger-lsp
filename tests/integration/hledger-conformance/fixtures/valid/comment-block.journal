@@ -1,0 +1,13 @@
+2024/01/01 real transaction
+  assets:checking  $100
+  income:salary
+
+comment
+2024/01/02 this should be ignored
+  assets:checking  $999
+  income:bonus
+end comment
+
+2024/01/03 also real
+  expenses:food  $50
+  assets:checking
