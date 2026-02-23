@@ -19,6 +19,18 @@ const baseConfig = {
   },
 };
 
+// Conformance tests run against the real hledger CLI — no timezone variation needed
+const conformanceConfig = {
+  ...baseConfig,
+  displayName: 'conformance',
+  testMatch: ['<rootDir>/tests/integration/hledger-conformance/**/*.test.ts'],
+  transform: {
+    '^.+\\.ts$': ['ts-jest', {
+      tsconfig: 'tsconfig.json',
+    }],
+  },
+};
+
 // Run tests in multiple timezones to catch UTC/local time bugs
 // This ensures date handling works correctly regardless of timezone
 // NOTE: maxWorkers=1 forces sequential execution to avoid file conflicts between timezone projects
@@ -35,6 +47,8 @@ module.exports = {
         }],
       },
       setupFiles: ['<rootDir>/tests/setup-timezone-utc.js'],
+      // Exclude conformance tests from timezone runs — they have their own project
+      testPathIgnorePatterns: ['<rootDir>/tests/integration/hledger-conformance/'],
     },
     {
       ...baseConfig,
@@ -46,6 +60,7 @@ module.exports = {
         }],
       },
       setupFiles: ['<rootDir>/tests/setup-timezone-us-east.js'],
+      testPathIgnorePatterns: ['<rootDir>/tests/integration/hledger-conformance/'],
     },
     {
       ...baseConfig,
@@ -57,6 +72,8 @@ module.exports = {
         }],
       },
       setupFiles: ['<rootDir>/tests/setup-timezone-asia.js'],
+      testPathIgnorePatterns: ['<rootDir>/tests/integration/hledger-conformance/'],
     },
+    conformanceConfig,
   ],
 };
