@@ -916,7 +916,7 @@ describeConformance('hledger conformance', () => {
   // ─── comment/end comment block directive ──────────────────────────
 
   describe('comment block directive', () => {
-    test.failing('parser should ignore content inside comment/end comment blocks', () => {
+    test('parser should ignore content inside comment/end comment blocks', () => {
       // hledger's `comment` directive starts a multi-line comment block;
       // `end comment` ends it. Everything between is ignored.
       // The LSP parser does not implement this — it parses content inside
