@@ -102,14 +102,11 @@ describeConformance('hledger conformance', () => {
       expect(hledgerResult.success).toBe(false);
     });
 
-    test.failing('LSP should reject implicit commodity conversion when strict balance is enabled', () => {
+    test('LSP should reject implicit commodity conversion when strict balance is enabled', () => {
       // balanced.j has: a  1 A / b  -1 B (no explicit @ price)
       // hledger's "balanced" check rejects this, requiring explicit cost notation.
-      // The LSP currently always auto-infers costs (matching hledger's "autobalanced").
-      //
-      // To fix: add a validation setting (e.g., "requireExplicitCosts") that,
-      // when enabled, rejects multi-commodity transactions without explicit @ cost
-      // notation — mirroring hledger's stricter "balanced" check.
+      // With requireExplicitCosts enabled, the LSP mirrors hledger's stricter
+      // "balanced" check (vs the default "autobalanced").
       const filePath = path.join(errorsDir, 'balanced.j');
       const { doc } = createDoc(filePath);
       const parsed = parser.parse(doc);
@@ -119,8 +116,7 @@ describeConformance('hledger conformance', () => {
           validation: {
             ...disableAll(),
             balance: true,
-            // When we add this setting, enable it here:
-            // requireExplicitCosts: true,
+            requireExplicitCosts: true,
           },
         },
       });
@@ -1096,6 +1092,7 @@ describeConformance('hledger conformance', () => {
 function disableAll(): typeof defaultSettings.validation {
   return {
     balance: false,
+    requireExplicitCosts: false,
     missingAmounts: false,
     undeclaredAccounts: false,
     undeclaredPayees: false,

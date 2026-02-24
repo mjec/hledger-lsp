@@ -295,6 +295,10 @@ problems to report per file
 Most validation settings default to `true` and can be individually disabled:
 
 - `validation.balance` (default: true): Verify transactions balance to zero per commodity
+- `validation.requireExplicitCosts` (default: **false**): Require explicit `@` or
+`@@` cost notation for multi-commodity transactions. When disabled (default), the
+LSP auto-infers costs like hledger's `autobalanced` mode. When enabled, mirrors
+hledger's stricter `balanced` check.
 - `validation.missingAmounts` (default: true): Ensure at most one posting per
 transaction omits an amount
 - `validation.undeclaredAccounts` (default: true): Warn about accounts used but
