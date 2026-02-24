@@ -278,10 +278,10 @@ function parseDate(line: string, defaultYear?: string): { date: string, rest: st
   const shortMatch = line.match(/^(\d{1,2})([-/])(\d{1,2})(?=[\s=*!(]|$)/);
   if (shortMatch) {
     const year = defaultYear || new Date().getFullYear().toString();
-    const month = shortMatch[1];
+    // Zero-pad month and day for consistent date format
+    const month = shortMatch[1].padStart(2, '0');
     const sep = shortMatch[2];
-    const day = shortMatch[3];
-    // Reconstruct as full date with the default year
+    const day = shortMatch[3].padStart(2, '0');
     const dateStr = `${year}${sep}${month}${sep}${day}`;
     return { date: dateStr, rest: line.substring(shortMatch[0].length).trim() };
   }
@@ -301,9 +301,9 @@ function parseEffectiveDate(line: string, defaultYear?: string): { effectiveDate
   const shortMatch = line.match(/^=(\d{1,2})([-/])(\d{1,2})(?=\s|$)/);
   if (shortMatch) {
     const year = defaultYear || new Date().getFullYear().toString();
-    const month = shortMatch[1];
+    const month = shortMatch[1].padStart(2, '0');
     const sep = shortMatch[2];
-    const day = shortMatch[3];
+    const day = shortMatch[3].padStart(2, '0');
     const dateStr = `${year}${sep}${month}${sep}${day}`;
     return { effectiveDate: dateStr, rest: line.substring(shortMatch[0].length).trim() };
   }
