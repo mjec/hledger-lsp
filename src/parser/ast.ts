@@ -362,6 +362,26 @@ export function parsePosting(line: string, transactionDate?: string, commodities
   if (!account) return null;
   const posting: Posting = { account };
 
+  // Detect and strip posting-level status markers (* or !)
+  if (account.startsWith('* ')) {
+    posting.account = account.substring(2);
+    posting.status = 'cleared';
+    account = posting.account; // Update for downstream virtual posting check
+  } else if (account.startsWith('! ')) {
+    posting.account = account.substring(2);
+    posting.status = 'pending';
+    account = posting.account;
+  }
+
+  // Detect and strip virtual posting delimiters
+  if (posting.account.startsWith('(') && posting.account.endsWith(')')) {
+    posting.account = posting.account.substring(1, posting.account.length - 1);
+    posting.virtual = 'unbalanced';
+  } else if (posting.account.startsWith('[') && posting.account.endsWith(']')) {
+    posting.account = posting.account.substring(1, posting.account.length - 1);
+    posting.virtual = 'balanced';
+  }
+
   const commentMatch = line.match(/^([^;]*);(.*)$/);
   let mainPart = line;
   let commentPart = '';
