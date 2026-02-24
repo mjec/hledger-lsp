@@ -55,11 +55,27 @@ export class HledgerParser {
     const tags = new Map<string, Tag>();
 
     let i = 0;
+    let inCommentBlock = false;
     while (i < lines.length) {
       const line = lines[i];
+      const trimmedLine = line.trim();
+
+      // Handle comment/end comment block directives
+      if (inCommentBlock) {
+        if (trimmedLine === 'end comment') {
+          inCommentBlock = false;
+        }
+        i++;
+        continue;
+      }
+      if (trimmedLine === 'comment') {
+        inCommentBlock = true;
+        i++;
+        continue;
+      }
 
       // Skip empty lines and comments (but process tags from comments)
-      if (!line.trim()) {
+      if (!trimmedLine) {
         i++;
         continue;
       }
@@ -126,7 +142,7 @@ export class HledgerParser {
         const endLine = i;
         const transactionLines = lines.slice(startLine, endLine);
 
-        const transaction = ast.parseTransaction(transactionLines, startLine);
+        const transaction = ast.parseTransaction(transactionLines, startLine, commodities);
         if (transaction) {
           transaction.sourceUri = uri;
           transactions.push(transaction);

@@ -11,6 +11,7 @@ export interface HledgerSettings {
   hledgerPath: string;
   validation: {
     balance: boolean;
+    requireExplicitCosts: boolean;
     missingAmounts: boolean;
     undeclaredAccounts: boolean;
     undeclaredPayees: boolean;
@@ -84,6 +85,7 @@ export const defaultSettings: HledgerSettings = {
   hledgerPath: 'hledger',
   validation: {
     balance: true,
+    requireExplicitCosts: false,
     missingAmounts: true,
     undeclaredAccounts: true,
     undeclaredPayees: false,

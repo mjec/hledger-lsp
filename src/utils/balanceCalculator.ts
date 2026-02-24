@@ -17,6 +17,9 @@ export function calculateTransactionBalance(transaction: Transaction): Map<strin
   const balances = new Map<string, number>();
 
   for (const posting of transaction.postings) {
+    // Unbalanced virtual postings () don't participate in balance checks
+    if (posting.virtual === 'unbalanced') continue;
+
     if (posting.amount) {
       // If posting has a cost, use the cost commodity for balance calculation
       if (posting.cost) {

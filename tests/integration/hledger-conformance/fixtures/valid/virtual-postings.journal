@@ -1,0 +1,14 @@
+; Virtual (unbalanced) posting — auto-balances
+2024/01/01 budget allocation
+  (budget:food)  $500
+
+; Virtual (balanced) posting — must balance with other balanced virtuals
+2024/01/02 budget transfer
+  [budget:food]  $-100
+  [budget:rent]  $100
+
+; Mixed: real postings plus virtual
+2024/01/03 paycheck with budget
+  assets:checking  $1000
+  income:salary
+  (budget:savings)  $200

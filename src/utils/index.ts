@@ -6,15 +6,17 @@ import type { Posting, Transaction } from '../types';
 
 /**
  * Check if a line is a transaction header
- * Transaction headers start with a date in YYYY-MM-DD or YYYY/MM/DD format
+ * Transaction headers start with a date in YYYY-MM-DD, YYYY/MM/DD, or short M/D format
  * Supports single or double digit months and days (e.g., 2024-1-5 or 2024-01-05)
+ * Also supports dot separators (e.g., 2024.01.01)
  */
 export function isTransactionHeader(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) return false;
 
-  // Regex for date patterns with 1 or 2 digit months and days
-  const datePattern = /^\d{4}[-/]\d{1,2}[-/]\d{1,2}/;
+  // Full date (YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD) — no lookahead needed, unambiguous
+  // Short date (M/D, M-D) — requires lookahead to avoid false positives
+  const datePattern = /^(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/]\d{1,2}(?=[\s=*!(]|$))/;
   return datePattern.test(trimmed);
 }
 

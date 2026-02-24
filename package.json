@@ -19,6 +19,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:verbose": "jest --verbose",
+    "test:conformance": "jest --selectProjects conformance",
     "prepare": "npm run build"
   },
   "keywords": [

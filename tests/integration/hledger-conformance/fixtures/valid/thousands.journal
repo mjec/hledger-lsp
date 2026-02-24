@@ -1,0 +1,14 @@
+; commodity directive establishes that comma is thousands separator
+commodity $1,000.00
+
+2024/01/01 large amounts
+  assets:savings  $18,000,000
+  income:lottery
+
+2024/01/02 smaller thousands
+  expenses:rent  $1,500
+  assets:checking
+
+2024/01/03 single comma
+  expenses:car  $1,000
+  assets:checking
