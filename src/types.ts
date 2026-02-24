@@ -40,6 +40,8 @@ export interface Posting {
   tags?: Record<string, string>;
   line?: number; // 0-based line number where this posting appears
   date?: string; // Posting date from date: tag or [DATE] syntax
+  virtual?: 'unbalanced' | 'balanced'; // () = unbalanced, [] = balanced virtual posting
+  status?: 'cleared' | 'pending'; // * = cleared, ! = pending
 }
 
 export interface Amount {

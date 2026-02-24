@@ -164,17 +164,18 @@ export class Validator {
     // Calculate transaction balance by commodity
     const balances = calculateTransactionBalance(transaction);
 
-    // Count how many postings have explicit (non-inferred) amounts
+    // Count how many real (non-virtual-unbalanced) postings have explicit amounts
+    const realPostings = transaction.postings.filter(p => p.virtual !== 'unbalanced');
     let postingsWithExplicitAmounts = 0;
-    for (const posting of transaction.postings) {
+    for (const posting of realPostings) {
       if (posting.amount && !posting.amount.inferred) {
         postingsWithExplicitAmounts++;
       }
     }
 
-    // If all postings have explicit amounts, check if they balance
+    // If all real postings have explicit amounts, check if they balance
     // (skip checking for transactions with inferred amounts)
-    if (postingsWithExplicitAmounts === transaction.postings.length) {
+    if (postingsWithExplicitAmounts === realPostings.length) {
       for (const [commodity, balance] of balances.entries()) {
         // Allow for small floating point errors
         if (Math.abs(balance) > 0.005) {
@@ -201,7 +202,9 @@ export class Validator {
   private validateMissingAmounts(transaction: Transaction, document: TextDocument): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
-    const postingsWithoutAmounts = transaction.postings.filter(p => !p.amount);
+    // Exclude unbalanced virtual postings — they don't participate in balancing
+    const realPostings = transaction.postings.filter(p => p.virtual !== 'unbalanced');
+    const postingsWithoutAmounts = realPostings.filter(p => !p.amount);
 
     if (postingsWithoutAmounts.length > 1) {
       diagnostics.push({

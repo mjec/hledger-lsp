@@ -517,7 +517,7 @@ describeConformance('hledger conformance', () => {
     // failing once the underlying issue is fixed, prompting us to flip
     // them to normal tests.
 
-    test.failing('borrowing.journal: parser should handle short dates and virtual postings', () => {
+    test('borrowing.journal: parser should handle short dates and virtual postings', () => {
       // Short dates (1/1, 2/1) are now parsed correctly.
       // Still fails because borrowing.journal uses virtual postings (assets:bank:checking)
       // which the parser doesn't strip — causing false balance errors.
@@ -548,7 +548,7 @@ describeConformance('hledger conformance', () => {
       expect(errors).toEqual([]);
     });
 
-    test.failing('unicode.journal: parser should handle virtual postings', () => {
+    test('unicode.journal: parser should handle virtual postings', () => {
       // unicode.journal uses virtual (parenthesized) postings like (ß).
       // hledger auto-balances virtual postings; the LSP parser should
       // strip parens from account names and not report balance errors.
@@ -612,7 +612,7 @@ describeConformance('hledger conformance', () => {
       }
     );
 
-    test.failing('unicode.journal: virtual posting account names should not include parens', () => {
+    test('unicode.journal: virtual posting account names should not include parens', () => {
       // The parser keeps parentheses in account names: "(ß)" instead of "ß".
       // hledger strips parens — they denote virtual postings, not part of the name.
       const filePath = path.join(validDir, 'unicode.journal');
@@ -625,7 +625,7 @@ describeConformance('hledger conformance', () => {
       expect(lspAccounts).toEqual(hledgerAccounts);
     });
 
-    test.failing('borrowing.journal: parser should discover accounts from short-date files', () => {
+    test('borrowing.journal: parser should discover accounts from short-date files', () => {
       // Short dates now parse correctly. Fails because virtual posting
       // delimiters () are kept in account names (e.g. "(assets:bank:checking)").
       const filePath = path.join(validDir, 'borrowing.journal');
@@ -700,7 +700,7 @@ describeConformance('hledger conformance', () => {
       }
     );
 
-    test.failing('borrowing.journal: LSP final balances should match hledger', () => {
+    test('borrowing.journal: LSP final balances should match hledger', () => {
       // Short dates now parse correctly. Fails because virtual posting
       // delimiters () cause account name mismatch with hledger.
       const filePath = path.join(validDir, 'borrowing.journal');
@@ -963,7 +963,7 @@ describeConformance('hledger conformance', () => {
   // ─── Virtual postings ────────────────────────────────────────────
 
   describe('virtual postings', () => {
-    test.failing('parser should strip parens/brackets and recognize virtual postings', () => {
+    test('parser should strip parens/brackets and recognize virtual postings', () => {
       // hledger supports two types of virtual postings:
       //   (account)  — unbalanced virtual (auto-balances)
       //   [account]  — balanced virtual (must balance with other balanced virtuals)
@@ -1002,7 +1002,7 @@ describeConformance('hledger conformance', () => {
   // ─── Posting-level status markers ────────────────────────────────
 
   describe('posting-level status markers', () => {
-    test.failing('parser should strip */! status from posting account names', () => {
+    test('parser should strip */! status from posting account names', () => {
       // hledger supports per-posting status markers:
       //   * account  $100  — cleared posting
       //   ! account  $50   — pending posting

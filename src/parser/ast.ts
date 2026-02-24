@@ -145,28 +145,31 @@ export function inferCosts(transaction: Transaction): void {
  * - Cost conversions are considered when calculating the balance
  */
 export function inferAmounts(transaction: Transaction): void {
-  // Find postings without amounts
+  // Find real (non-unbalanced-virtual) postings without amounts
   const postingsWithoutAmounts: number[] = [];
   for (let i = 0; i < transaction.postings.length; i++) {
-    if (!transaction.postings[i].amount) {
+    const p = transaction.postings[i];
+    if (p.virtual === 'unbalanced') continue; // Virtual postings don't participate
+    if (!p.amount) {
       postingsWithoutAmounts.push(i);
     }
   }
 
-  // Can only infer if exactly one posting is missing an amount
+  // Can only infer if exactly one real posting is missing an amount
   if (postingsWithoutAmounts.length !== 1) {
     return;
   }
 
   const targetIndex = postingsWithoutAmounts[0];
 
-  // Calculate balance from all explicit amounts
+  // Calculate balance from all explicit amounts (excluding unbalanced virtual)
   const balances = new Map<string, number>();
 
   for (let i = 0; i < transaction.postings.length; i++) {
     if (i === targetIndex) continue; // Skip the posting we're inferring
 
     const posting = transaction.postings[i];
+    if (posting.virtual === 'unbalanced') continue; // Virtual postings don't participate
     if (!posting.amount) continue;
 
     // If posting has a cost, use the cost commodity for balance calculation
@@ -355,7 +358,7 @@ function parsePayeeAndNote(description: string): { payee: string, note: string }
 // Parse Posting and Helpers
 export function parsePosting(line: string, transactionDate?: string, commodities?: Map<string, Commodity>): Posting | null {
   if (!isPosting(line)) return null;
-  const account = extractAccountFromPosting(line);
+  let account = extractAccountFromPosting(line);
   if (!account) return null;
   const posting: Posting = { account };
 
