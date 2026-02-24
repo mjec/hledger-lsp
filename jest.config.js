@@ -33,11 +33,11 @@ const conformanceConfig = {
 
 // Run tests in multiple timezones to catch UTC/local time bugs
 // This ensures date handling works correctly regardless of timezone
-// NOTE: maxWorkers=1 forces sequential execution to avoid file conflicts between timezone projects
+// Only date-sensitive tests run in non-UTC timezones (validator, postingDates)
 module.exports = {
-  maxWorkers: 1,
   projects: [
     {
+      // Full test suite — runs once in UTC
       ...baseConfig,
       displayName: 'UTC',
       testEnvironment: 'node',
@@ -51,6 +51,7 @@ module.exports = {
       testPathIgnorePatterns: ['<rootDir>/tests/integration/hledger-conformance/'],
     },
     {
+      // Only date-sensitive tests — US East timezone
       ...baseConfig,
       displayName: 'America/New_York (UTC-5)',
       testEnvironment: 'node',
@@ -60,9 +61,13 @@ module.exports = {
         }],
       },
       setupFiles: ['<rootDir>/tests/setup-timezone-us-east.js'],
-      testPathIgnorePatterns: ['<rootDir>/tests/integration/hledger-conformance/'],
+      testMatch: [
+        '<rootDir>/tests/features/validator.test.ts',
+        '<rootDir>/tests/parser/postingDates.test.ts',
+      ],
     },
     {
+      // Only date-sensitive tests — Asia/Tokyo timezone
       ...baseConfig,
       displayName: 'Asia/Tokyo (UTC+9)',
       testEnvironment: 'node',
@@ -72,7 +77,10 @@ module.exports = {
         }],
       },
       setupFiles: ['<rootDir>/tests/setup-timezone-asia.js'],
-      testPathIgnorePatterns: ['<rootDir>/tests/integration/hledger-conformance/'],
+      testMatch: [
+        '<rootDir>/tests/features/validator.test.ts',
+        '<rootDir>/tests/parser/postingDates.test.ts',
+      ],
     },
     conformanceConfig,
   ],
