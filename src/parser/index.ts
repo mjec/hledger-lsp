@@ -126,7 +126,7 @@ export class HledgerParser {
         const endLine = i;
         const transactionLines = lines.slice(startLine, endLine);
 
-        const transaction = ast.parseTransaction(transactionLines, startLine);
+        const transaction = ast.parseTransaction(transactionLines, startLine, commodities);
         if (transaction) {
           transaction.sourceUri = uri;
           transactions.push(transaction);

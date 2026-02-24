@@ -940,7 +940,7 @@ describeConformance('hledger conformance', () => {
   // ─── Dot-separated dates ──────────────────────────────────────────
 
   describe('dot-separated dates', () => {
-    test.failing('parser should handle dot-separated dates (2024.01.01)', () => {
+    test('parser should handle dot-separated dates (2024.01.01)', () => {
       // hledger accepts `.` as a date separator alongside `-` and `/`.
       // The LSP parser only recognizes `-` and `/`.
       const filePath = path.join(validDir, 'dot-dates.journal');
@@ -1027,12 +1027,9 @@ describeConformance('hledger conformance', () => {
   // ─── Thousands separator parsing ─────────────────────────────────
 
   describe('thousands separator parsing', () => {
-    test.failing('parser should correctly parse amounts with thousands separators', () => {
+    test('parser should correctly parse amounts with thousands separators', () => {
       // With a commodity directive establishing comma as thousands separator,
       // amounts like $18,000,000 and $1,500 should be parsed correctly.
-      // The LSP parser mishandles these:
-      //   $18,000,000 → 18 (only first segment)
-      //   $1,000 → 1 (treated as decimal)
       const filePath = path.join(validDir, 'thousands.journal');
       const { doc } = createDoc(filePath);
       const parsed = parser.parse(doc);
@@ -1062,22 +1059,20 @@ describeConformance('hledger conformance', () => {
       expect(carPosting!.amount!.quantity).toBe(1000);
     });
 
-    test.failing('Cody.journal: $18,000,000 should be parsed as 18 million', () => {
-      // Cody.journal has a lottery win of $18,000,000 which the parser
-      // currently reads as $18. This causes the final balance of
-      // Assets:Savings to be $153,654 instead of $18,146,836.
+    test('Cody.journal: $18,000,000 should be parsed as 18 million', () => {
+      // Cody.journal has a lottery win of $18,000,000.
+      // Sum posting amounts directly (running balances are date-ordered and
+      // Cody.journal has out-of-order dates, making last-txIdx unreliable).
       const filePath = path.join(validDir, 'Cody.journal');
       const { doc } = createDoc(filePath);
       const parsed = parser.parse(doc);
-      const runningBalances = calculateRunningBalances(parsed);
 
-      // Extract final balance for Assets:Savings
+      // Sum all Assets:Savings posting amounts
       let lspSavings = 0;
-      parsed.transactions.forEach((tx, txIdx) => {
-        tx.postings.forEach((p, pIdx) => {
-          if (p.account === 'Assets:Savings') {
-            const b = runningBalances.get(txIdx)?.get(pIdx);
-            if (b) lspSavings = b.get('$') ?? 0;
+      parsed.transactions.forEach(tx => {
+        tx.postings.forEach(p => {
+          if (p.account === 'Assets:Savings' && p.amount) {
+            lspSavings += p.amount.quantity;
           }
         });
       });

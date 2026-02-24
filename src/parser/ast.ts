@@ -6,7 +6,7 @@ import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader,
  * Parse a transaction starting at startLine within lines array.
  * This is a pure helper extracted from HledgerParser.
  */
-export function parseTransaction(lines: string[], startLine: number): Transaction | null {
+export function parseTransaction(lines: string[], startLine: number, commodities?: Map<string, Commodity>): Transaction | null {
   if (!lines || lines.length === 0) {
     return null;
   }
@@ -34,7 +34,7 @@ export function parseTransaction(lines: string[], startLine: number): Transactio
     }
 
     if (isPosting(line)) {
-      const posting = parsePosting(line, header.date);
+      const posting = parsePosting(line, header.date, commodities);
       if (posting) {
         posting.line = startLine + currentLine;
         postings.push(posting);
@@ -326,7 +326,7 @@ function parsePayeeAndNote(description: string): { payee: string, note: string }
 
 
 // Parse Posting and Helpers
-export function parsePosting(line: string, transactionDate?: string): Posting | null {
+export function parsePosting(line: string, transactionDate?: string, commodities?: Map<string, Commodity>): Posting | null {
   if (!isPosting(line)) return null;
   const account = extractAccountFromPosting(line);
   if (!account) return null;
@@ -378,15 +378,15 @@ export function parsePosting(line: string, transactionDate?: string): Posting | 
 
   if (assertionMatch) {
     const assertionPart = assertionMatch[1].trim();
-    const assertionAmount = parseAmount(assertionPart);
+    const assertionAmount = parseAmount(assertionPart, undefined, commodities);
     if (assertionAmount) posting.assertion = assertionAmount;
   }
 
   // Now parse amount and cost from beforeAssertion
-  const { amountPart, cost } = parseCost(beforeAssertion);
+  const { amountPart, cost } = parseCost(beforeAssertion, commodities);
   if (cost) posting.cost = cost;
 
-  const amount = parseAmount(amountPart);
+  const amount = parseAmount(amountPart, undefined, commodities);
   if (amount) posting.amount = amount;
 
   return posting;
@@ -413,7 +413,7 @@ function parsePostingDate(dateStr: string, transactionDate?: string): string | n
   return null; // Invalid format
 }
 
-function parseCost(text: string): { amountPart: string, cost?: { type: 'unit' | 'total', amount: Amount } } {
+function parseCost(text: string, commodities?: Map<string, Commodity>): { amountPart: string, cost?: { type: 'unit' | 'total', amount: Amount } } {
   // Check for @@ first (total price), then @ (unit price)
   const totalCostMatch = text.match(/@@\s*(.+)$/);
   const unitCostMatch = !totalCostMatch ? text.match(/@\s*(.+)$/) : null;
@@ -421,14 +421,14 @@ function parseCost(text: string): { amountPart: string, cost?: { type: 'unit' | 
   if (totalCostMatch) {
     const amountPart = text.substring(0, totalCostMatch.index ?? 0).trim();
     const costPart = totalCostMatch[1].trim();
-    const costAmount = parseAmount(costPart);
+    const costAmount = parseAmount(costPart, undefined, commodities);
     if (costAmount) {
       return { amountPart, cost: { type: 'total', amount: costAmount } };
     }
   } else if (unitCostMatch) {
     const amountPart = text.substring(0, unitCostMatch.index ?? 0).trim();
     const costPart = unitCostMatch[1].trim();
-    const costAmount = parseAmount(costPart);
+    const costAmount = parseAmount(costPart, undefined, commodities);
     if (costAmount) {
       return { amountPart, cost: { type: 'unit', amount: costAmount } };
     }
@@ -439,7 +439,7 @@ function parseCost(text: string): { amountPart: string, cost?: { type: 'unit' | 
 
 
 // Parse amount and Helpers
-export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amount | null {
+export function parseAmount(amountStr: string, decimalMark?: DecimalMark, commodities?: Map<string, Commodity>): Amount | null {
   const trimmed = amountStr.trim();
   if (!trimmed) return null;
 
@@ -448,6 +448,23 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amoun
   // Amount part can contain digits, commas, dots, spaces (maybe)
   // But spaces are tricky. For now let's assume space separates commodity if symbol is on left/right
 
+  // Convert decimalMark from detectNumberFormat (null = no decimal mark) to
+  // the format parseNumberWithFormat expects (null → 'none', value → value, undefined → undefined)
+  const toMarkArg = (mark: DecimalMark): string | 'none' | undefined =>
+    mark === null ? 'none' : mark === undefined ? undefined : mark;
+
+  // Look up the effective decimal mark for a commodity: explicit parameter > commodity directive format > undefined
+  const effectiveDecimalMark = (commodity: string): DecimalMark | undefined => {
+    if (decimalMark !== undefined) return decimalMark;
+    if (commodities && commodity) {
+      const commodityInfo = commodities.get(commodity);
+      if (commodityInfo?.format?.decimalMark !== undefined) {
+        return commodityInfo.format.decimalMark;
+      }
+    }
+    return undefined;
+  };
+
   const patterns = [
     {
       // Symbol on left, with sign prefix (e.g. -$100, +$100, - $100, + $100)
@@ -455,8 +472,8 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amoun
       handler: (m: RegExpMatchArray) => {
         const sign = m[1];
         const rawAmount = m[3];
-        const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
-        const quantity = parseNumberWithFormat(rawAmount, mark || undefined);
+        const { decimalMark: mark } = detectNumberFormat(rawAmount, effectiveDecimalMark(m[2]));
+        const quantity = parseNumberWithFormat(rawAmount, toMarkArg(mark));
         return { quantity: sign === '-' ? -Math.abs(quantity) : Math.abs(quantity), commodity: m[2], rawAmount };
       },
       cleaner: (_m: RegExpMatchArray, s: string) => s.replace(/^[+-]/, '')
@@ -466,8 +483,8 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amoun
       pattern: /^([^\d\s+-]+)\s*([+-]?\s*\d[\d.,\s]*)$/,
       handler: (m: RegExpMatchArray) => {
         const rawAmount = m[2];
-        const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
-        return { quantity: parseNumberWithFormat(rawAmount, mark || undefined), commodity: m[1], rawAmount };
+        const { decimalMark: mark } = detectNumberFormat(rawAmount, effectiveDecimalMark(m[1]));
+        return { quantity: parseNumberWithFormat(rawAmount, toMarkArg(mark)), commodity: m[1], rawAmount };
       },
       cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[2], m[2].replace(/[+-]/, ''))
     },
@@ -476,8 +493,8 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amoun
       pattern: /^([+-]?\s*\d[\d.,\s]*)\s*([^\d\s]+)$/,
       handler: (m: RegExpMatchArray) => {
         const rawAmount = m[1];
-        const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
-        return { quantity: parseNumberWithFormat(rawAmount, mark || undefined), commodity: m[2], rawAmount };
+        const { decimalMark: mark } = detectNumberFormat(rawAmount, effectiveDecimalMark(m[2]));
+        return { quantity: parseNumberWithFormat(rawAmount, toMarkArg(mark)), commodity: m[2], rawAmount };
       },
       cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[1], m[1].replace(/[+-]/, ''))
     },
@@ -486,8 +503,8 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amoun
       pattern: /^([+-]?\s*\d[\d.,\s]*)$/,
       handler: (m: RegExpMatchArray) => {
         const rawAmount = m[1];
-        const { decimalMark: mark } = detectNumberFormat(rawAmount, decimalMark);
-        return { quantity: parseNumberWithFormat(rawAmount, mark || undefined), commodity: '', rawAmount };
+        const { decimalMark: mark } = detectNumberFormat(rawAmount, effectiveDecimalMark(''));
+        return { quantity: parseNumberWithFormat(rawAmount, toMarkArg(mark)), commodity: '', rawAmount };
       },
       cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[1], m[1].replace(/[+-]/, ''))
     }
@@ -528,32 +545,42 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark): Amoun
  * Helper to detect decimal mark and thousands separator from a number string.
  */
 function detectNumberFormat(numStr: string, defaultDecimalMark?: DecimalMark): { decimalMark: DecimalMark, thousandsSeparator: ThousandsSeparator } {
-  let decimalMark = defaultDecimalMark;
+  let decimalMark: DecimalMark | undefined;
 
-  if (!decimalMark) {
-    const lastDot = numStr.lastIndexOf('.');
-    const lastComma = numStr.lastIndexOf(',');
+  const lastDot = numStr.lastIndexOf('.');
+  const lastComma = numStr.lastIndexOf(',');
 
-    if (lastDot > -1 && lastComma > -1) {
-      decimalMark = lastDot > lastComma ? '.' : ',';
-    } else if (lastDot > -1) {
-      // Check if it's a thousands separator
-      const parts = numStr.split('.');
-      if (parts.length > 2) {
-        decimalMark = null; // Multiple dots -> thousands separator
+  if (lastDot > -1 && lastComma > -1) {
+    // Both separators present — unambiguous: last one is decimal
+    decimalMark = lastDot > lastComma ? '.' : ',';
+  } else if (lastDot > -1) {
+    const parts = numStr.split('.');
+    if (parts.length > 2) {
+      decimalMark = null; // Multiple dots → thousands separator, no decimal
+    } else {
+      // Single dot: ambiguous if exactly 3 trailing digits (could be thousands)
+      const trailing = parts[1];
+      if (trailing.length === 3 && defaultDecimalMark !== undefined) {
+        decimalMark = defaultDecimalMark;
       } else {
         decimalMark = '.';
       }
-    } else if (lastComma > -1) {
-      const parts = numStr.split(',');
-      if (parts.length > 2) {
-        decimalMark = null; // Multiple commas -> thousands separator
+    }
+  } else if (lastComma > -1) {
+    const parts = numStr.split(',');
+    if (parts.length > 2) {
+      decimalMark = null; // Multiple commas → thousands separator, no decimal
+    } else {
+      // Single comma: ambiguous if exactly 3 trailing digits (could be thousands)
+      const trailing = parts[1];
+      if (trailing.length === 3 && defaultDecimalMark !== undefined) {
+        decimalMark = defaultDecimalMark;
       } else {
         decimalMark = ',';
       }
-    } else {
-      decimalMark = null;
     }
+  } else {
+    decimalMark = null; // No separators at all
   }
 
   // Detect thousands separator
@@ -603,14 +630,24 @@ function detectNumberFormat(numStr: string, defaultDecimalMark?: DecimalMark): {
 }
 
 /**
- * Helper to parse number string given a decimal mark
+ * Helper to parse number string given a decimal mark.
+ *
+ * @param numStr The raw number string (e.g., "18,000,000", "1.000,50")
+ * @param mark The decimal mark character, or 'none' if detectNumberFormat
+ *             determined there is no decimal mark (all separators are thousands).
+ *             If undefined, the function will attempt to auto-detect.
  */
-function parseNumberWithFormat(numStr: string, mark: string | undefined): number {
+function parseNumberWithFormat(numStr: string, mark: string | 'none' | undefined): number {
+  if (mark === 'none') {
+    // No decimal mark — all separators are thousands separators.
+    // Strip everything that isn't a digit or sign.
+    const cleanStr = numStr.replace(/[^0-9+-]/g, '');
+    return parseFloat(cleanStr);
+  }
+
   if (!mark) {
-    // If no mark provided/detected, assume standard float parsing (remove all non-digits/dots/minus)
-    // But wait, if no mark, we need to decide what to do.
-    // If ambiguous (e.g. 1.000), hledger assumes decimal mark.
-    // So we should treat the last separator as decimal if it exists.
+    // Auto-detect: if no mark provided, treat the last separator as decimal.
+    // This matches hledger's default behavior for ambiguous amounts like "1,000" or "1.000".
     const lastDot = numStr.lastIndexOf('.');
     const lastComma = numStr.lastIndexOf(',');
     if (lastDot > -1 && lastComma > -1) {
