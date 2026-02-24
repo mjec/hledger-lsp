@@ -263,21 +263,48 @@ export function parseTransactionHeader(line: string): { date: string; effectiveD
   };
 }
 
-function parseDate(line: string): { date: string, rest: string } | null {
-  const match = line.match(/^(\d{4})([-/])(\d{1,2})\2(\d{1,2})/);
-  if (!match) return null;
-  // Preserve the original format as written in the source
-  const dateStr = match[0];
-  return { date: dateStr, rest: line.substring(dateStr.length).trim() };
+function parseDate(line: string, defaultYear?: string): { date: string, rest: string } | null {
+  // Try full date first: YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD
+  const fullMatch = line.match(/^(\d{4})([-/.])(\d{1,2})\2(\d{1,2})/);
+  if (fullMatch) {
+    const dateStr = fullMatch[0];
+    return { date: dateStr, rest: line.substring(dateStr.length).trim() };
+  }
+
+  // Try short date: M/D, M-D (no dot — dot would be ambiguous with decimals)
+  const shortMatch = line.match(/^(\d{1,2})([-/])(\d{1,2})(?=[\s=*!(]|$)/);
+  if (shortMatch) {
+    const year = defaultYear || new Date().getFullYear().toString();
+    const month = shortMatch[1];
+    const sep = shortMatch[2];
+    const day = shortMatch[3];
+    // Reconstruct as full date with the default year
+    const dateStr = `${year}${sep}${month}${sep}${day}`;
+    return { date: dateStr, rest: line.substring(shortMatch[0].length).trim() };
+  }
+
+  return null;
 }
 
-function parseEffectiveDate(line: string): { effectiveDate?: string, rest: string } {
-  const match = line.match(/^=(\d{4})([-/])(\d{1,2})\2(\d{1,2})/);
-  if (match) {
-    // Preserve the original format, but skip the = sign
-    const dateStr = match[0].substring(1); // Remove the = prefix
-    return { effectiveDate: dateStr, rest: line.substring(match[0].length).trim() };
+function parseEffectiveDate(line: string, defaultYear?: string): { effectiveDate?: string, rest: string } {
+  // Full date: =YYYY-MM-DD, =YYYY/MM/DD, =YYYY.MM.DD
+  const fullMatch = line.match(/^=(\d{4})([-/.])(\d{1,2})\2(\d{1,2})/);
+  if (fullMatch) {
+    const dateStr = fullMatch[0].substring(1);
+    return { effectiveDate: dateStr, rest: line.substring(fullMatch[0].length).trim() };
   }
+
+  // Short date: =M/D, =M-D
+  const shortMatch = line.match(/^=(\d{1,2})([-/])(\d{1,2})(?=\s|$)/);
+  if (shortMatch) {
+    const year = defaultYear || new Date().getFullYear().toString();
+    const month = shortMatch[1];
+    const sep = shortMatch[2];
+    const day = shortMatch[3];
+    const dateStr = `${year}${sep}${month}${sep}${day}`;
+    return { effectiveDate: dateStr, rest: line.substring(shortMatch[0].length).trim() };
+  }
+
   return { effectiveDate: undefined, rest: line };
 }
 

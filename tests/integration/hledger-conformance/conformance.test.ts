@@ -517,10 +517,10 @@ describeConformance('hledger conformance', () => {
     // failing once the underlying issue is fixed, prompting us to flip
     // them to normal tests.
 
-    test.failing('borrowing.journal: parser should handle short (yearless) dates', () => {
-      // borrowing.journal uses dates like "1/1", "2/1" without a 4-digit year.
-      // hledger accepts these (defaults to current year). The LSP parser
-      // requires 4-digit years, so it produces 0 transactions.
+    test.failing('borrowing.journal: parser should handle short dates and virtual postings', () => {
+      // Short dates (1/1, 2/1) are now parsed correctly.
+      // Still fails because borrowing.journal uses virtual postings (assets:bank:checking)
+      // which the parser doesn't strip — causing false balance errors.
       const filePath = path.join(validDir, 'borrowing.journal');
       const { doc } = createDoc(filePath);
       const parsed = parser.parse(doc);
@@ -529,7 +529,7 @@ describeConformance('hledger conformance', () => {
       const hledgerResult = runHledgerCheck(filePath);
       expect(hledgerResult.success).toBe(true);
 
-      // This is what we WANT to pass — parser should find transactions
+      // Short dates now parse correctly
       expect(parsed.transactions.length).toBeGreaterThan(0);
 
       const result = validator.validate(doc, parsed, {
@@ -543,6 +543,7 @@ describeConformance('hledger conformance', () => {
         },
       });
 
+      // Fails due to virtual posting balance errors (parens not stripped)
       const errors = result.diagnostics.filter(d => d.severity === 1);
       expect(errors).toEqual([]);
     });
@@ -625,8 +626,8 @@ describeConformance('hledger conformance', () => {
     });
 
     test.failing('borrowing.journal: parser should discover accounts from short-date files', () => {
-      // Parser requires 4-digit years, so it finds 0 accounts.
-      // hledger finds all accounts from short-date entries.
+      // Short dates now parse correctly. Fails because virtual posting
+      // delimiters () are kept in account names (e.g. "(assets:bank:checking)").
       const filePath = path.join(validDir, 'borrowing.journal');
       const { doc } = createDoc(filePath);
       const parsed = parser.parse(doc);
@@ -700,8 +701,8 @@ describeConformance('hledger conformance', () => {
     );
 
     test.failing('borrowing.journal: LSP final balances should match hledger', () => {
-      // Parser can't handle short dates (1/1, 2/1), so it finds 0 transactions
-      // and therefore 0 balances. Once short dates are supported this should pass.
+      // Short dates now parse correctly. Fails because virtual posting
+      // delimiters () cause account name mismatch with hledger.
       const filePath = path.join(validDir, 'borrowing.journal');
       const { doc } = createDoc(filePath);
       const parsed = parser.parse(doc);
@@ -808,7 +809,7 @@ describeConformance('hledger conformance', () => {
       }
     });
 
-    test.failing('borrowing.journal: assets:cash running balance should match hledger', () => {
+    test('borrowing.journal: assets:cash running balance should match hledger', () => {
       // Parser can't handle short dates, so it finds 0 transactions.
       const filePath = path.join(validDir, 'borrowing.journal');
       const { doc } = createDoc(filePath);
