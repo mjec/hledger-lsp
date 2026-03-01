@@ -169,13 +169,41 @@ export class WorkspaceManager {
 
     if (includePath.includes('*') || includePath.includes('?')) {
       // Glob pattern - find matching files
-      const pattern = path.isAbsolute(includePath)
-        ? includePath
-        : path.join(baseDir, includePath);
+      // IMPORTANT: Do not join baseDir into the pattern string. If the base
+      // directory contains characters that are special in glob syntax (e.g.
+      // parentheses, brackets), fast-glob/picomatch will misinterpret them.
+      // Instead, pass the include path as a relative pattern and let fast-glob
+      // resolve it against the cwd option, which is treated as a plain path.
+      let cwd: string;
+      let pattern: string;
+
+      if (path.isAbsolute(includePath)) {
+        // For absolute glob paths, split into directory (cwd) and pattern parts
+        // so that special characters in the directory are not treated as glob syntax
+        const normalizedPath = path.normalize(includePath);
+        const dir = path.dirname(normalizedPath);
+        const base = path.basename(normalizedPath);
+
+        if (/[*?]/.test(base)) {
+          // Glob characters in the basename — use parent dir as cwd
+          cwd = dir;
+          pattern = base;
+        } else {
+          // Glob characters in directory parts — use filesystem root as cwd
+          cwd = path.parse(normalizedPath).root;
+          pattern = path.relative(cwd, normalizedPath);
+        }
+      } else if (includePath.startsWith('~/')) {
+        cwd = os.homedir();
+        pattern = includePath.slice(2);
+      } else {
+        cwd = baseDir;
+        pattern = includePath;
+      }
 
       try {
         const matches = fg.sync(pattern, {
-          cwd: baseDir,
+          cwd,
           absolute: true,
           onlyFiles: true
         });
