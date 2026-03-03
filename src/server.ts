@@ -30,6 +30,7 @@ import { validator } from './features/validator';
 import { foldingRangesProvider } from './features/foldingRanges';
 import { documentLinksProvider } from './features/documentLinks';
 import { selectionRangeProvider } from './features/selectionRange';
+import { callHierarchyProvider } from './features/callHierarchy';
 import { HledgerParser } from './parser/index';
 import { HledgerSettings, defaultSettings, getDocumentSettings as getDocumentSettingsModule, clearDocumentSettings, clearAllDocumentSettings } from './server/settings';
 import { defaultFileReader, resolveIncludePath as resolveIncludePathUtil, toFileUri } from './utils/uri';
@@ -289,6 +290,7 @@ connection.onInitialize((params: InitializeParams) => {
         resolveProvider: false
       },
       selectionRangeProvider: true,
+      callHierarchyProvider: true,
       executeCommandProvider: {
         commands: [
           'hledger.addBalanceAssertion',
@@ -994,6 +996,45 @@ connection.onSelectionRanges((params) => {
   if (!document) return [];
 
   return selectionRangeProvider.provideSelectionRanges(document, params.positions) || [];
+});
+
+// Provide call hierarchy (prepare)
+connection.languages.callHierarchy.onPrepare((params) => {
+  if (!workspaceManager) return null;
+
+  const document = getDocument(params.textDocument.uri);
+  if (!document) return null;
+
+  const parsedDoc = parseDocument(document);
+  return callHierarchyProvider.prepareCallHierarchy(
+    document,
+    params.position.line,
+    params.position.character,
+    parsedDoc,
+    workspaceManager
+  );
+});
+
+// Provide call hierarchy (incoming calls)
+connection.languages.callHierarchy.onIncomingCalls((params) => {
+  if (!workspaceManager) return null;
+
+  return callHierarchyProvider.resolveIncomingCalls(
+    params.item,
+    workspaceManager,
+    fileReader
+  );
+});
+
+// Provide call hierarchy (outgoing calls)
+connection.languages.callHierarchy.onOutgoingCalls((params) => {
+  if (!workspaceManager) return null;
+
+  return callHierarchyProvider.resolveOutgoingCalls(
+    params.item,
+    workspaceManager,
+    fileReader
+  );
 });
 
 // Handle command execution

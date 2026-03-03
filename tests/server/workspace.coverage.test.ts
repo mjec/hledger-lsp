@@ -423,8 +423,9 @@ include income.journal`,
 
   describe('cycle detection in tree', () => {
     test('should detect cycles in workspace tree', async () => {
-      // Create a circular include structure
+      // Create a structure with a root that leads into a cycle: root → a → b → a
       const files: Record<string, string> = {
+        'file:///workspace/root.journal': `include a.journal`,
         'file:///workspace/a.journal': `include b.journal`,
         'file:///workspace/b.journal': `include a.journal`
       };
@@ -438,17 +439,17 @@ include income.journal`,
       };
 
       const includeResolver = (includePath: string, _baseUri: URI) => {
-        if (includePath === 'b.journal') {
-          return [URI.parse('file:///workspace/b.journal')];
-        }
         if (includePath === 'a.journal') {
           return [URI.parse('file:///workspace/a.journal')];
+        }
+        if (includePath === 'b.journal') {
+          return [URI.parse('file:///workspace/b.journal')];
         }
         return [];
       };
 
       await manager.initializeWithFiles(
-        [URI.parse('file:///workspace/a.journal'), URI.parse('file:///workspace/b.journal')],
+        [URI.parse('file:///workspace/root.journal'), URI.parse('file:///workspace/a.journal'), URI.parse('file:///workspace/b.journal')],
         parser,
         fileReader,
         mockConnection,
@@ -461,7 +462,9 @@ include income.journal`,
     });
 
     test('should detect cycles in structured tree', async () => {
+      // Create a structure with a root that leads into a cycle: root → a → b → a
       const files: Record<string, string> = {
+        'file:///workspace/root.journal': `include a.journal`,
         'file:///workspace/a.journal': `include b.journal`,
         'file:///workspace/b.journal': `include a.journal`
       };
@@ -475,17 +478,17 @@ include income.journal`,
       };
 
       const includeResolver = (includePath: string, _baseUri: URI) => {
-        if (includePath === 'b.journal') {
-          return [URI.parse('file:///workspace/b.journal')];
-        }
         if (includePath === 'a.journal') {
           return [URI.parse('file:///workspace/a.journal')];
+        }
+        if (includePath === 'b.journal') {
+          return [URI.parse('file:///workspace/b.journal')];
         }
         return [];
       };
 
       await manager.initializeWithFiles(
-        [URI.parse('file:///workspace/a.journal'), URI.parse('file:///workspace/b.journal')],
+        [URI.parse('file:///workspace/root.journal'), URI.parse('file:///workspace/a.journal'), URI.parse('file:///workspace/b.journal')],
         parser,
         fileReader,
         mockConnection,
@@ -500,8 +503,8 @@ include income.journal`,
   });
 
   describe('no root candidates', () => {
-    test('should warn when all files are included by others', async () => {
-      // Create a structure where every file is included by another (circular)
+    test('should return null root when all files are included by others', async () => {
+      // Create a purely circular structure where every file is included by another
       const files: Record<string, string> = {
         'file:///workspace/a.journal': `include b.journal`,
         'file:///workspace/b.journal': `include a.journal`
@@ -534,10 +537,9 @@ include income.journal`,
       );
 
       // Both files include each other, so both have parents
-      // The algorithm should still select a root based on heuristics
+      // No root candidate exists - workspace features are disabled
       const diagnostics = manager.getDiagnosticInfo();
-      // In circular case, should pick one
-      expect(diagnostics.rootFile).not.toBeNull();
+      expect(diagnostics.rootFile).toBeNull();
     });
   });
 });
