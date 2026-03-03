@@ -359,11 +359,11 @@ export class WorkspaceManager {
       }
 
       // Update reverse graph
-      for (const includedFile of includedFiles) {
-        let parents = this.reverseGraph.get(includedFile.toString());
+      for (const [includedString, includedUri] of includedFiles) {
+        let parents = this.reverseGraph.get(includedString);
         if (!parents) {
           parents = new Map<string, URI>();
-          this.reverseGraph.set(includedFile.toString(), parents);
+          this.reverseGraph.set(includedString, parents);
         }
         parents.set(fileUri.toString(), fileUri);
       }
@@ -800,6 +800,61 @@ export class WorkspaceManager {
       result.set(fileUri, Array.from(includes.values()).map(uri => uri.toString()));
     }
     return result;
+  }
+
+  /**
+   * Get the reverse include graph for debugging/testing.
+   * Returns a map where keys are file URIs and values are arrays of URIs of files that include them.
+   */
+  getReverseIncludeGraph(): Map<string, string[]> {
+    const result = new Map<string, string[]>();
+    for (const [fileUri, parents] of this.reverseGraph) {
+      result.set(fileUri, Array.from(parents.values()).map(uri => uri.toString()));
+    }
+    return result;
+  }
+
+  /**
+   * Get files that directly include the given file.
+   * Returns URIs of parent files from the reverse include graph.
+   */
+  getFilesIncluding(fileUri: URI): URI[] {
+    const parents = this.reverseGraph.get(fileUri.toString());
+    if (!parents) return [];
+    return Array.from(parents.values());
+  }
+
+  /**
+   * Get include directives from a file with their resolved target URIs.
+   * Returns the directive and the URIs it resolves to (may be multiple for glob includes).
+   */
+  getIncludeDirectivesForFile(fileUri: URI): Array<{ directive: Directive; targets: URI[] }> {
+    const parsed = this.documentCache.get(fileUri.toString());
+    if (!parsed) return [];
+
+    const includeDirectives = parsed.directives.filter(
+      (d: Directive) => d.type === 'include' && d.sourceUri?.toString() === fileUri.toString()
+    );
+
+    const result: Array<{ directive: Directive; targets: URI[] }> = [];
+
+    for (const directive of includeDirectives) {
+      const resolver = this.includePathResolver ?? this.defaultResolveIncludePaths.bind(this);
+      const resolvedPaths = resolver(directive.value, fileUri);
+
+      // Filter to known workspace files
+      const targets = resolvedPaths.filter(uri => this.journalFiles.has(uri.toString()));
+      result.push({ directive, targets });
+    }
+
+    return result;
+  }
+
+  /**
+   * Check if a URI is a known file in the workspace.
+   */
+  isKnownFile(fileUri: URI): boolean {
+    return this.journalFiles.has(fileUri.toString());
   }
 
   /**
