@@ -1,5 +1,5 @@
 import { URI } from 'vscode-uri';
-import { Transaction, Posting, Amount, Account, Payee, Commodity, Tag, Directive, DecimalMark, ThousandsSeparator, Format } from '../types';
+import { Transaction, Posting, Amount, Account, Payee, Commodity, Tag, Directive, DecimalMark, ThousandsSeparator, Format, PeriodicTransaction, AutoPosting, AutoPostingEntry, MultiplierAmount } from '../types';
 import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment, stripQuotes } from '../utils/index';
 
 /**
@@ -232,6 +232,335 @@ export function inferAmounts(transaction: Transaction): void {
   }
 }
 
+
+/**
+ * Parse a periodic transaction starting at startLine within lines array.
+ * Periodic transactions start with ~ followed by a period expression.
+ * e.g., "~ monthly", "~ every 2 weeks from 2024-01"
+ */
+export function parsePeriodicTransaction(lines: string[], startLine: number, commodities?: Map<string, Commodity>): PeriodicTransaction | null {
+  if (!lines || lines.length === 0) return null;
+
+  const headerLine = lines[0];
+  const trimmed = headerLine.trim();
+  if (!trimmed.startsWith('~ ')) return null;
+
+  // Parse header: ~ PERIOD_EXPRESSION  [DESCRIPTION] [; COMMENT]
+  const afterTilde = trimmed.substring(2);
+
+  // Extract comment first
+  let mainPart = afterTilde;
+  let headerComment: string | undefined;
+  let headerTags: Record<string, string> | undefined;
+  const commentMatch = afterTilde.match(/^([^;]*);(.*)$/);
+  if (commentMatch) {
+    mainPart = commentMatch[1].trimEnd();
+    headerComment = commentMatch[2].trim();
+    const extracted = extractTags(headerComment);
+    if (Object.keys(extracted).length > 0) headerTags = extracted;
+  }
+
+  // Split on double-space for description (period expression  description)
+  let periodExpression = mainPart;
+  let description = '';
+  const doubleSpaceIndex = mainPart.indexOf('  ');
+  if (doubleSpaceIndex !== -1) {
+    periodExpression = mainPart.substring(0, doubleSpaceIndex);
+    description = mainPart.substring(doubleSpaceIndex).trim();
+  }
+
+  // Parse postings
+  const postings: Posting[] = [];
+  let currentLine = 1;
+  let transactionComment: string | undefined;
+  const transactionTags: Record<string, string> = {};
+
+  while (currentLine < lines.length) {
+    const line = lines[currentLine];
+
+    if (isComment(line)) {
+      const commentText = line.trim().substring(1).trim();
+      if (!transactionComment) transactionComment = commentText;
+      const tags = extractTags(commentText);
+      Object.assign(transactionTags, tags);
+      currentLine++;
+      continue;
+    }
+
+    if (isPosting(line)) {
+      const posting = parsePosting(line, undefined, commodities);
+      if (posting) {
+        posting.line = startLine + currentLine;
+        postings.push(posting);
+      }
+      currentLine++;
+      continue;
+    }
+
+    currentLine++;
+  }
+
+  const periodicTx: PeriodicTransaction = {
+    periodExpression,
+    description,
+    postings,
+    line: startLine,
+  };
+
+  if (headerComment || transactionComment) periodicTx.comment = headerComment || transactionComment;
+  const allTags = { ...transactionTags, ...headerTags };
+  if (Object.keys(allTags).length > 0) periodicTx.tags = allTags;
+
+  // Infer amounts for postings without explicit amounts (periodic transactions must balance)
+  inferAmountsForPostings(periodicTx.postings);
+
+  return periodicTx;
+}
+
+/**
+ * Parse an auto posting rule starting at startLine within lines array.
+ * Auto postings start with = followed by a query string.
+ * e.g., "= expenses:food", "= ^assets"
+ */
+export function parseAutoPosting(lines: string[], startLine: number, commodities?: Map<string, Commodity>): AutoPosting | null {
+  if (!lines || lines.length === 0) return null;
+
+  const headerLine = lines[0];
+  const trimmed = headerLine.trim();
+  if (!trimmed.startsWith('= ')) return null;
+
+  // Parse header: = QUERY [; COMMENT]
+  const afterEquals = trimmed.substring(2);
+
+  let query = afterEquals;
+  let headerComment: string | undefined;
+  let headerTags: Record<string, string> | undefined;
+  const commentMatch = afterEquals.match(/^([^;]*);(.*)$/);
+  if (commentMatch) {
+    query = commentMatch[1].trim();
+    headerComment = commentMatch[2].trim();
+    const extracted = extractTags(headerComment);
+    if (Object.keys(extracted).length > 0) headerTags = extracted;
+  }
+
+  // Parse postings
+  const postings: AutoPostingEntry[] = [];
+  let currentLine = 1;
+  let ruleComment: string | undefined;
+  const ruleTags: Record<string, string> = {};
+
+  while (currentLine < lines.length) {
+    const line = lines[currentLine];
+
+    if (isComment(line)) {
+      const commentText = line.trim().substring(1).trim();
+      if (!ruleComment) ruleComment = commentText;
+      const tags = extractTags(commentText);
+      Object.assign(ruleTags, tags);
+      currentLine++;
+      continue;
+    }
+
+    if (isPosting(line)) {
+      const entry = parseAutoPostingEntry(line, commodities);
+      if (entry) {
+        entry.line = startLine + currentLine;
+        postings.push(entry);
+      }
+      currentLine++;
+      continue;
+    }
+
+    currentLine++;
+  }
+
+  const autoPosting: AutoPosting = {
+    query,
+    postings,
+    line: startLine,
+  };
+
+  if (headerComment || ruleComment) autoPosting.comment = headerComment || ruleComment;
+  const allTags = { ...ruleTags, ...headerTags };
+  if (Object.keys(allTags).length > 0) autoPosting.tags = allTags;
+
+  return autoPosting;
+}
+
+/**
+ * Parse a single auto posting entry line.
+ * Similar to parsePosting but supports multiplier amounts (*0.25, *$2).
+ */
+function parseAutoPostingEntry(line: string, commodities?: Map<string, Commodity>): AutoPostingEntry | null {
+  if (!isPosting(line)) return null;
+  const account = extractAccountFromPosting(line);
+  if (!account) return null;
+
+  const entry: AutoPostingEntry = { account };
+
+  // Extract comment
+  const commentMatch = line.match(/^([^;]*);(.*)$/);
+  let mainPart = line;
+  if (commentMatch) {
+    mainPart = commentMatch[1];
+    entry.comment = commentMatch[2].trim();
+    const tags = extractTags(commentMatch[2]);
+    if (Object.keys(tags).length > 0) entry.tags = tags;
+  }
+
+  const trimmed = mainPart.trim();
+  const afterAccount = trimmed.substring(account.length).trim();
+  if (!afterAccount) return entry;
+
+  // Check for multiplier amount (starts with *)
+  if (afterAccount.startsWith('*')) {
+    const multiplier = parseMultiplierAmount(afterAccount.substring(1).trim(), commodities);
+    if (multiplier) {
+      entry.multiplier = multiplier;
+    }
+  } else {
+    // Regular amount
+    const amount = parseAmount(afterAccount, undefined, commodities);
+    if (amount) {
+      entry.amount = amount;
+    }
+  }
+
+  return entry;
+}
+
+/**
+ * Parse a multiplier amount string (after the * prefix).
+ * e.g., "0.25", "$2", "-1", "$-3.50"
+ */
+export function parseMultiplierAmount(amountStr: string, commodities?: Map<string, Commodity>): MultiplierAmount | null {
+  const amount = parseAmount(amountStr, undefined, commodities);
+  if (!amount) return null;
+
+  return {
+    factor: amount.quantity,
+    commodity: amount.commodity || undefined,
+    format: amount.format,
+  };
+}
+
+/**
+ * Infer amounts for a list of postings (used by both regular transactions and periodic transactions).
+ * At most one posting may omit an amount; the inferred amount balances to zero.
+ */
+function inferAmountsForPostings(postings: Posting[]): void {
+  // Find real (non-unbalanced-virtual) postings without amounts
+  const postingsWithoutAmounts: number[] = [];
+  for (let i = 0; i < postings.length; i++) {
+    const p = postings[i];
+    if (p.virtual === 'unbalanced') continue;
+    if (!p.amount) {
+      postingsWithoutAmounts.push(i);
+    }
+  }
+
+  if (postingsWithoutAmounts.length !== 1) return;
+
+  const targetIndex = postingsWithoutAmounts[0];
+  const balances = new Map<string, number>();
+
+  for (let i = 0; i < postings.length; i++) {
+    if (i === targetIndex) continue;
+    const posting = postings[i];
+    if (posting.virtual === 'unbalanced') continue;
+    if (!posting.amount) continue;
+
+    if (posting.cost) {
+      const costCommodity = posting.cost.amount.commodity || '';
+      let costValue: number;
+      if (posting.cost.type === 'unit') {
+        costValue = posting.amount.quantity * posting.cost.amount.quantity;
+      } else {
+        if (posting.cost.inferred) {
+          costValue = posting.cost.amount.quantity;
+        } else {
+          costValue = Math.sign(posting.amount.quantity) * posting.cost.amount.quantity;
+        }
+      }
+      const current = balances.get(costCommodity) || 0;
+      balances.set(costCommodity, current + costValue);
+    } else {
+      const commodity = posting.amount.commodity || '';
+      const current = balances.get(commodity) || 0;
+      balances.set(commodity, current + posting.amount.quantity);
+    }
+  }
+
+  if (balances.size === 1) {
+    const entry = balances.entries().next().value;
+    if (entry) {
+      const [commodity, balance] = entry;
+      postings[targetIndex].amount = {
+        quantity: -balance,
+        commodity: commodity,
+        inferred: true
+      };
+    }
+  } else if (balances.size > 1) {
+    const entry = balances.entries().next().value;
+    if (entry) {
+      const [commodity, balance] = entry;
+      postings[targetIndex].amount = {
+        quantity: -balance,
+        commodity: commodity,
+        inferred: true
+      };
+    }
+  }
+}
+
+/**
+ * Extract entities (accounts, commodities, tags) from postings.
+ * Used by both regular transactions, periodic transactions, and auto postings.
+ */
+export function processPostings(postings: Posting[], accountMap: Map<string, Account>, commodityMap: Map<string, Commodity>, tagMap: Map<string, Tag>, sourceUri?: URI): void {
+  for (const posting of postings) {
+    if (posting.account) {
+      addAccount(accountMap, posting.account, false, sourceUri);
+    }
+    if (posting.amount?.commodity && posting.amount.commodity !== '') {
+      addCommodity(commodityMap, posting.amount.commodity, false, posting.amount.format, sourceUri);
+    }
+    if (posting.cost?.amount?.commodity && posting.cost.amount.commodity !== '') {
+      addCommodity(commodityMap, posting.cost.amount.commodity, false, posting.cost.amount.format, sourceUri);
+    }
+    if (posting.assertion?.commodity && posting.assertion.commodity !== '') {
+      addCommodity(commodityMap, posting.assertion.commodity, false, posting.assertion.format, sourceUri);
+    }
+    if (posting.tags) {
+      for (const tagName of Object.keys(posting.tags)) {
+        addTag(tagMap, tagName, false, sourceUri);
+      }
+    }
+  }
+}
+
+/**
+ * Extract entities from auto posting entries (accounts, commodities, tags).
+ */
+export function processAutoPostingEntries(entries: AutoPostingEntry[], accountMap: Map<string, Account>, commodityMap: Map<string, Commodity>, tagMap: Map<string, Tag>, sourceUri?: URI): void {
+  for (const entry of entries) {
+    if (entry.account) {
+      addAccount(accountMap, entry.account, false, sourceUri);
+    }
+    if (entry.amount?.commodity && entry.amount.commodity !== '') {
+      addCommodity(commodityMap, entry.amount.commodity, false, entry.amount.format, sourceUri);
+    }
+    if (entry.multiplier?.commodity) {
+      addCommodity(commodityMap, entry.multiplier.commodity, false, entry.multiplier.format, sourceUri);
+    }
+    if (entry.tags) {
+      for (const tagName of Object.keys(entry.tags)) {
+        addTag(tagMap, tagName, false, sourceUri);
+      }
+    }
+  }
+}
 
 // Parse Transaction Header and Helpers
 export function parseTransactionHeader(line: string): { date: string; effectiveDate?: string; status?: 'cleared' | 'pending' | 'unmarked'; code?: string; description: string; payee: string; note: string; comment?: string; tags?: Record<string, string> } | null {

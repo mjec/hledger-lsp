@@ -35,6 +35,8 @@ describe('Validator URI Encoding', () => {
 
     mockParsedDoc = {
       transactions: [transaction],
+      periodicTransactions: [],
+      autoPostings: [],
       accounts: new Map([['Expenses:Food', { name: 'Expenses:Food', declared: false, sourceUri: decodedUri } as any]]),
       commodities: new Map(),
       payees: new Map(),

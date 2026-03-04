@@ -123,8 +123,44 @@ export interface Directive {
   line?: number; // 0-based line number of the directive
 }
 
+export interface PeriodicTransaction {
+  periodExpression: string;  // "monthly", "every 2 weeks from 2024-01", etc.
+  description: string;       // optional text after double-space
+  comment?: string;
+  postings: Posting[];
+  tags?: Record<string, string>;
+  sourceUri?: URI;
+  line?: number;
+}
+
+export interface AutoPosting {
+  query: string;             // account matcher, e.g. "expenses:food", "^assets"
+  comment?: string;
+  postings: AutoPostingEntry[];
+  tags?: Record<string, string>;
+  sourceUri?: URI;
+  line?: number;
+}
+
+export interface AutoPostingEntry {
+  account: string;
+  amount?: Amount;
+  multiplier?: MultiplierAmount;  // for *0.25, *$2 syntax
+  comment?: string;
+  tags?: Record<string, string>;
+  line?: number;
+}
+
+export interface MultiplierAmount {
+  factor: number;
+  commodity?: string;    // optional: *$2 has commodity, *0.25 does not
+  format?: Format;
+}
+
 export interface ParsedDocument {
   transactions: Transaction[];
+  periodicTransactions: PeriodicTransaction[];
+  autoPostings: AutoPosting[];
   accounts: Map<string, Account>;
   directives: Directive[];
   commodities: Map<string, Commodity>;

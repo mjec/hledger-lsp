@@ -12,6 +12,8 @@ describe('definition provider', () => {
 
     const parsed: ParsedDocument = {
       transactions: [],
+      periodicTransactions: [],
+      autoPostings: [],
       accounts: new Map([['Assets:Bank', { name: 'Assets:Bank', declared: true, sourceUri: uri, line: 0 }]]),
       directives: [],
       commodities: new Map(),
@@ -35,6 +37,8 @@ describe('definition provider', () => {
 
     const parsed: ParsedDocument = {
       transactions: [],
+      periodicTransactions: [],
+      autoPostings: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map(),
@@ -55,6 +59,8 @@ describe('definition provider', () => {
 
     const parsed: ParsedDocument = {
       transactions: [],
+      periodicTransactions: [],
+      autoPostings: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map(),
@@ -74,6 +80,8 @@ describe('definition provider', () => {
     const aUriString = 'file:///a.journal';
     const parsed: ParsedDocument = {
       transactions: [],
+      periodicTransactions: [],
+      autoPostings: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map(),
@@ -98,6 +106,8 @@ describe('definition provider', () => {
 
     const parsed: ParsedDocument = {
       transactions: [],
+      periodicTransactions: [],
+      autoPostings: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map([
@@ -120,6 +130,8 @@ describe('definition provider', () => {
 
     const parsed: ParsedDocument = {
       transactions: [],
+      periodicTransactions: [],
+      autoPostings: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map([
@@ -143,6 +155,8 @@ describe('definition provider', () => {
 
     const parsed: ParsedDocument = {
       transactions: [],
+      periodicTransactions: [],
+      autoPostings: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map(),
@@ -165,6 +179,8 @@ describe('definition provider', () => {
 
     const parsed: ParsedDocument = {
       transactions: [],
+      periodicTransactions: [],
+      autoPostings: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map(),
@@ -183,6 +199,8 @@ describe('definition provider', () => {
 
     const parsed: ParsedDocument = {
       transactions: [],
+      periodicTransactions: [],
+      autoPostings: [],
       accounts: new Map([
         // Account exists but is not declared (no sourceUri)
         ['Expenses:Unknown', { name: 'Expenses:Unknown', declared: false }]

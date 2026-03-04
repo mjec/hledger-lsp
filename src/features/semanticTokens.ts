@@ -117,6 +117,16 @@ export class SemanticTokensProvider {
       return;
     }
 
+    // Handle periodic transaction headers (~ ...)
+    if (this.tokenizePeriodicTransactionHeader(line, lineIndex, builder)) {
+      return;
+    }
+
+    // Handle auto posting headers (= ...)
+    if (this.tokenizeAutoPostingHeader(line, lineIndex, builder)) {
+      return;
+    }
+
     // Handle directives
     if (this.tokenizeDirective(line, lineIndex, builder)) {
       return;
@@ -131,6 +141,104 @@ export class SemanticTokensProvider {
     if (this.tokenizePosting(line, lineIndex, builder)) {
       return;
     }
+  }
+
+  /**
+   * Tokenize a periodic transaction header line (~ ...).
+   * Returns true if the line was a periodic transaction header.
+   */
+  private tokenizePeriodicTransactionHeader(
+    line: string,
+    lineIndex: number,
+    builder: SemanticTokensBuilder
+  ): boolean {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('~ ')) return false;
+
+    const tildeStart = line.indexOf('~');
+
+    // Tokenize ~ as operator
+    builder.push(lineIndex, tildeStart, 1, TokenType.operator, 0);
+
+    // Extract comment if present
+    const afterTilde = trimmed.substring(2);
+    const commentMatch = afterTilde.match(/^([^;]*);(.*)$/);
+    const mainPart = commentMatch ? commentMatch[1].trimEnd() : afterTilde;
+
+    // Split on double-space for period expression and description
+    const doubleSpaceIndex = mainPart.indexOf('  ');
+    let periodExpression: string;
+    let description: string | null = null;
+
+    if (doubleSpaceIndex !== -1) {
+      periodExpression = mainPart.substring(0, doubleSpaceIndex);
+      description = mainPart.substring(doubleSpaceIndex).trim();
+    } else {
+      periodExpression = mainPart;
+    }
+
+    // Tokenize period expression as string
+    if (periodExpression.trim().length > 0) {
+      const exprStart = line.indexOf(periodExpression.trim(), tildeStart + 1);
+      builder.push(lineIndex, exprStart, periodExpression.trim().length, TokenType.string, 0);
+    }
+
+    // Tokenize description as class (payee-like)
+    if (description && description.length > 0) {
+      const descStart = line.indexOf(description, tildeStart + 1 + periodExpression.length);
+      if (descStart !== -1) {
+        builder.push(lineIndex, descStart, description.length, TokenType.class, 0);
+      }
+    }
+
+    // Tokenize comment
+    if (commentMatch) {
+      const commentStart = line.indexOf(';', tildeStart + 1);
+      if (commentStart !== -1) {
+        this.tokenizeComment(line.substring(commentStart), lineIndex, builder, commentStart);
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Tokenize an auto posting header line (= ...).
+   * Returns true if the line was an auto posting header.
+   */
+  private tokenizeAutoPostingHeader(
+    line: string,
+    lineIndex: number,
+    builder: SemanticTokensBuilder
+  ): boolean {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('= ')) return false;
+
+    const equalsStart = line.indexOf('=');
+
+    // Tokenize = as operator
+    builder.push(lineIndex, equalsStart, 1, TokenType.operator, 0);
+
+    // Extract comment if present
+    const afterEquals = trimmed.substring(2);
+    const commentMatch = afterEquals.match(/^([^;]*);(.*)$/);
+    const query = commentMatch ? commentMatch[1].trim() : afterEquals;
+
+    // Tokenize query as namespace (account-like)
+    if (query.length > 0) {
+      const queryStart = line.indexOf(query, equalsStart + 1);
+      builder.push(lineIndex, queryStart, query.length, TokenType.namespace, 0);
+    }
+
+    // Tokenize comment
+    if (commentMatch) {
+      const commentStart = line.indexOf(';', equalsStart + 1);
+      if (commentStart !== -1) {
+        this.tokenizeComment(line.substring(commentStart), lineIndex, builder, commentStart);
+      }
+    }
+
+    return true;
   }
 
   /**

@@ -6,6 +6,8 @@ describe('formattingValidation', () => {
   function createMockParsedDoc(): ParsedDocument {
     return {
       transactions: [],
+      periodicTransactions: [],
+      autoPostings: [],
       accounts: new Map(),
       commodities: new Map(),
       payees: new Map(),

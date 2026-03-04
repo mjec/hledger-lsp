@@ -6,6 +6,8 @@ describe('formatAmount', () => {
     const mockParsedDocument: ParsedDocument = {
         accounts: new Map(),
         transactions: [],
+        periodicTransactions: [],
+        autoPostings: [],
         directives: [],
         commodities: new Map([
             ['USD', { name: 'USD', declared: true, format: { symbol: '$', symbolOnLeft: true, spaceBetween: false, precision: 2 } }],
@@ -49,6 +51,8 @@ describe('formatAmount', () => {
         const emptyParsedDocument: ParsedDocument = {
             accounts: new Map(),
             transactions: [],
+            periodicTransactions: [],
+            autoPostings: [],
             directives: [],
             commodities: new Map(),
             payees: new Map(),
@@ -80,6 +84,8 @@ describe('formatAmount', () => {
             const emptyParsedDocument: ParsedDocument = {
                 accounts: new Map(),
                 transactions: [],
+                periodicTransactions: [],
+                autoPostings: [],
                 directives: [],
                 commodities: new Map(),
                 payees: new Map(),

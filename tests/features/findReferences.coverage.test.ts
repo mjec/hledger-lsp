@@ -177,6 +177,8 @@ describe('FindReferencesProvider - Coverage Tests', () => {
       // Test lines 314-315: error reading file
       const parsed: ParsedDocument = {
         transactions: [],
+        periodicTransactions: [],
+        autoPostings: [],
         accounts: new Map(),
         directives: [{
           type: 'account',
@@ -233,6 +235,8 @@ describe('FindReferencesProvider - Coverage Tests', () => {
     test('should return empty when file cannot be read for payees', () => {
       const parsed: ParsedDocument = {
         transactions: [],
+        periodicTransactions: [],
+        autoPostings: [],
         accounts: new Map(),
         directives: [{
           type: 'payee',
@@ -289,6 +293,8 @@ describe('FindReferencesProvider - Coverage Tests', () => {
     test('should return empty when file cannot be read for commodities', () => {
       const parsed: ParsedDocument = {
         transactions: [],
+        periodicTransactions: [],
+        autoPostings: [],
         accounts: new Map(),
         directives: [{
           type: 'commodity',
@@ -345,6 +351,8 @@ describe('FindReferencesProvider - Coverage Tests', () => {
     test('should return empty when file cannot be read for tags', () => {
       const parsed: ParsedDocument = {
         transactions: [],
+        periodicTransactions: [],
+        autoPostings: [],
         accounts: new Map(),
         directives: [{
           type: 'tag',
