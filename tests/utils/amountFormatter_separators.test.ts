@@ -8,6 +8,8 @@ describe('formatAmount with separators', () => {
     beforeEach(() => {
         mockParsed = {
             transactions: [],
+            periodicTransactions: [],
+            autoPostings: [],
             accounts: new Map(),
             commodities: new Map(),
             payees: new Map(),

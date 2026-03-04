@@ -10,7 +10,7 @@ import { FoldingRange, FoldingRangeKind } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 import { ParsedDocument } from '../types';
-import { isTransactionHeader, isPosting, isComment } from '../utils/index';
+import { isTransactionHeader, isPosting, isComment, isPeriodicTransactionHeader, isAutoPostingHeader } from '../utils/index';
 
 
 export class FoldingRangesProvider {
@@ -23,6 +23,9 @@ export class FoldingRangesProvider {
 
     // Add folding ranges for transactions
     foldingRanges.push(...this.getTransactionFoldingRanges(document, lines, parsedDoc));
+
+    // Add folding ranges for periodic transactions and auto postings
+    foldingRanges.push(...this.getPeriodicAutoFoldingRanges(document, lines, parsedDoc));
 
     // Add folding ranges for comment blocks
     foldingRanges.push(...this.getCommentFoldingRanges(lines));
@@ -79,6 +82,66 @@ export class FoldingRangesProvider {
           endLine: endLine,
           kind: FoldingRangeKind.Region
         });
+      }
+    }
+
+    return ranges;
+  }
+
+  /**
+   * Get folding ranges for periodic transactions and auto postings
+   */
+  private getPeriodicAutoFoldingRanges(document: TextDocument, lines: string[], parsedDoc: ParsedDocument): FoldingRange[] {
+    const ranges: FoldingRange[] = [];
+    const documentUri = URI.parse(document.uri).toString();
+
+    // Periodic transactions
+    for (const periodicTx of parsedDoc.periodicTransactions) {
+      if (periodicTx.line === undefined) continue;
+      if (periodicTx.sourceUri?.toString() !== documentUri) continue;
+
+      const startLine = periodicTx.line;
+      let endLine = startLine;
+      let foundPostings = false;
+
+      for (let i = startLine + 1; i < lines.length; i++) {
+        const trimmed = lines[i].trim();
+        if (!trimmed) break;
+        if (isPosting(lines[i]) || trimmed.startsWith(';') || trimmed.startsWith('#')) {
+          endLine = i;
+          foundPostings = true;
+        } else if (isTransactionHeader(trimmed) || isPeriodicTransactionHeader(trimmed) || isAutoPostingHeader(trimmed)) {
+          break;
+        }
+      }
+
+      if (foundPostings && endLine > startLine) {
+        ranges.push({ startLine, endLine, kind: FoldingRangeKind.Region });
+      }
+    }
+
+    // Auto postings
+    for (const autoPost of parsedDoc.autoPostings) {
+      if (autoPost.line === undefined) continue;
+      if (autoPost.sourceUri?.toString() !== documentUri) continue;
+
+      const startLine = autoPost.line;
+      let endLine = startLine;
+      let foundPostings = false;
+
+      for (let i = startLine + 1; i < lines.length; i++) {
+        const trimmed = lines[i].trim();
+        if (!trimmed) break;
+        if (isPosting(lines[i]) || trimmed.startsWith(';') || trimmed.startsWith('#')) {
+          endLine = i;
+          foundPostings = true;
+        } else if (isTransactionHeader(trimmed) || isPeriodicTransactionHeader(trimmed) || isAutoPostingHeader(trimmed)) {
+          break;
+        }
+      }
+
+      if (foundPostings && endLine > startLine) {
+        ranges.push({ startLine, endLine, kind: FoldingRangeKind.Region });
       }
     }
 

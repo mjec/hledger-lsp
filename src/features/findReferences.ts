@@ -358,6 +358,40 @@ export class FindReferencesProvider {
       }
     }
 
+    // Find in periodic transaction postings
+    for (const periodicTx of parsedDoc.periodicTransactions) {
+      if (periodicTx.sourceUri?.toString() !== fileUriString) continue;
+
+      for (const posting of periodicTx.postings) {
+        if (posting.account === accountName &&
+          posting.line !== undefined &&
+          posting.line < lines.length) {
+          const line = lines[posting.line];
+          const start = line.indexOf(accountName);
+          if (start !== -1) {
+            ranges.push(Range.create(posting.line, start, posting.line, start + accountName.length));
+          }
+        }
+      }
+    }
+
+    // Find in auto posting entries
+    for (const autoPost of parsedDoc.autoPostings) {
+      if (autoPost.sourceUri?.toString() !== fileUriString) continue;
+
+      for (const entry of autoPost.postings) {
+        if (entry.account === accountName &&
+          entry.line !== undefined &&
+          entry.line < lines.length) {
+          const line = lines[entry.line];
+          const start = line.indexOf(accountName);
+          if (start !== -1) {
+            ranges.push(Range.create(entry.line, start, entry.line, start + accountName.length));
+          }
+        }
+      }
+    }
+
     return ranges;
   }
 
@@ -535,6 +569,37 @@ export class FindReferencesProvider {
                 start + commodityName.length
               ));
             }
+          }
+        }
+      }
+    }
+
+    // Find in periodic transaction postings
+    for (const periodicTx of parsedDoc.periodicTransactions) {
+      if (periodicTx.sourceUri?.toString() !== fileUriString) continue;
+      for (const posting of periodicTx.postings) {
+        if (posting.line === undefined || posting.line >= lines.length) continue;
+        const line = lines[posting.line];
+        if (posting.amount?.commodity === commodityName) {
+          const start = line.indexOf(commodityName);
+          if (start !== -1) {
+            ranges.push(Range.create(posting.line, start, posting.line, start + commodityName.length));
+          }
+        }
+      }
+    }
+
+    // Find in auto posting entries
+    for (const autoPost of parsedDoc.autoPostings) {
+      if (autoPost.sourceUri?.toString() !== fileUriString) continue;
+      for (const entry of autoPost.postings) {
+        if (entry.line === undefined || entry.line >= lines.length) continue;
+        const line = lines[entry.line];
+        const comm = entry.amount?.commodity || entry.multiplier?.commodity;
+        if (comm === commodityName) {
+          const start = line.indexOf(commodityName);
+          if (start !== -1) {
+            ranges.push(Range.create(entry.line, start, entry.line, start + commodityName.length));
           }
         }
       }

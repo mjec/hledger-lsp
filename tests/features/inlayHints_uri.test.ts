@@ -38,6 +38,8 @@ describe('InlayHintsProvider URI Encoding', () => {
                 sourceUri: decodedUri, // internal parser uses decoded/clean URI
                 line: 0
             }],
+            periodicTransactions: [],
+            autoPostings: [],
             accounts: new Map([['expenses:food', { name: 'expenses:food', declared: false }], ['assets:cash', { name: 'assets:cash', declared: false }]]),
             commodities: new Map([['$', { name: '$', declared: false }]]),
             payees: new Map([['Test', { name: 'Test', declared: false }]]),

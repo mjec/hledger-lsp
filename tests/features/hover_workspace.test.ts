@@ -23,6 +23,8 @@ describe('HoverProvider Workspace Context', () => {
     const accountName = 'Expenses:Food';
     const parsedDocLocal: ParsedDocument = {
       transactions: [], // No transactions in this view
+      periodicTransactions: [],
+      autoPostings: [],
       accounts: new Map([
         [accountName, { name: accountName, declared: false }] // Inferred from usage, not declared locally
       ]),
@@ -44,6 +46,8 @@ describe('HoverProvider Workspace Context', () => {
     const accountsUri = URI.parse('file:///home/user/accounts.journal');
     const parsedDocWorkspace: ParsedDocument = {
       transactions: [],
+      periodicTransactions: [],
+      autoPostings: [],
       accounts: new Map([
         [accountName, { name: accountName, declared: true, sourceUri: accountsUri }]
       ]),
@@ -72,6 +76,8 @@ describe('HoverProvider Workspace Context', () => {
           postings: [{ account: accountName }, { account: 'Liabilities:Credit' }]
         }
       ] as any,
+      periodicTransactions: [],
+      autoPostings: [],
       accounts: new Map([
         [accountName, { name: accountName, declared: true }]
       ]),

@@ -43,6 +43,85 @@ export class DocumentSymbolProvider {
       }
     }
 
+    // Add periodic transaction symbols
+    for (const periodicTx of parsedDoc.periodicTransactions) {
+      if (periodicTx.sourceUri && periodicTx.sourceUri.toString() !== documentUri) {
+        continue;
+      }
+
+      const line = periodicTx.line;
+      if (line !== undefined && line < lines.length) {
+        const endLine = this.findTransactionEndLine(lines, line);
+        const range = Range.create(line, 0, endLine, lines[endLine].length);
+        const selectionRange = Range.create(line, 0, line, lines[line].length);
+
+        const name = `~ ${periodicTx.periodExpression}${periodicTx.description ? '  ' + periodicTx.description : ''}`;
+
+        const children: DocumentSymbol[] = [];
+        for (const posting of periodicTx.postings) {
+          const postingLine = posting.line;
+          if (postingLine !== undefined && postingLine < lines.length) {
+            const postingRange = Range.create(postingLine, 0, postingLine, lines[postingLine].length);
+            const amountStr = posting.amount
+              ? ` ${formatAmount(posting.amount.quantity, posting.amount.commodity, parsedDoc)}`
+              : '';
+            children.push({
+              name: posting.account + amountStr,
+              kind: SymbolKind.Field,
+              range: postingRange,
+              selectionRange: postingRange
+            });
+          }
+        }
+
+        symbols.push({
+          name,
+          kind: SymbolKind.Event,
+          range,
+          selectionRange,
+          children: children.length > 0 ? children : undefined
+        });
+      }
+    }
+
+    // Add auto posting symbols
+    for (const autoPost of parsedDoc.autoPostings) {
+      if (autoPost.sourceUri && autoPost.sourceUri.toString() !== documentUri) {
+        continue;
+      }
+
+      const line = autoPost.line;
+      if (line !== undefined && line < lines.length) {
+        const endLine = this.findTransactionEndLine(lines, line);
+        const range = Range.create(line, 0, endLine, lines[endLine].length);
+        const selectionRange = Range.create(line, 0, line, lines[line].length);
+
+        const name = `= ${autoPost.query}`;
+
+        const children: DocumentSymbol[] = [];
+        for (const entry of autoPost.postings) {
+          const entryLine = entry.line;
+          if (entryLine !== undefined && entryLine < lines.length) {
+            const entryRange = Range.create(entryLine, 0, entryLine, lines[entryLine].length);
+            children.push({
+              name: entry.account,
+              kind: SymbolKind.Field,
+              range: entryRange,
+              selectionRange: entryRange
+            });
+          }
+        }
+
+        symbols.push({
+          name,
+          kind: SymbolKind.Interface,
+          range,
+          selectionRange,
+          children: children.length > 0 ? children : undefined
+        });
+      }
+    }
+
     // Add transaction symbols
     for (const transaction of parsedDoc.transactions) {
       // Only include transactions from the current document

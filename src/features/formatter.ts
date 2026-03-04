@@ -7,7 +7,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 import { ParsedDocument, Transaction } from '../types';
 import { parseTransactionHeader } from '../parser/ast';
-import { isTransactionHeader, isComment, isDirective, isPeriodicTransactionHeader } from '../utils/index';
+import { isTransactionHeader, isComment, isDirective, isPeriodicTransactionHeader, isAutoPostingHeader } from '../utils/index';
 import { getAmountLayout, AmountLayout, renderAmountLayout, AmountWidths } from '../utils/amountFormatter';
 import { FormattingOptions, DEFAULT_FORMATTING_OPTIONS, InlayHintsOptions, DEFAULT_INLAY_HINTS_OPTIONS } from '../server/settings';
 import { isSafeToFormat } from './formattingValidation';
@@ -58,8 +58,8 @@ export class FormattingProvider {
           const postingLine = lines[i];
           const postingTrimmed = postingLine.trim();
 
-          // Stop at empty line, next transaction, periodic transaction, or directive
-          if (!postingTrimmed || isTransactionHeader(postingTrimmed) || isPeriodicTransactionHeader(postingTrimmed) || isDirective(postingTrimmed)) {
+          // Stop at empty line, next transaction, periodic transaction, auto posting, or directive
+          if (!postingTrimmed || isTransactionHeader(postingTrimmed) || isPeriodicTransactionHeader(postingTrimmed) || isAutoPostingHeader(postingTrimmed) || isDirective(postingTrimmed)) {
             break;
           }
 
@@ -76,6 +76,7 @@ export class FormattingProvider {
         // Preserve periodic transaction header as-is to maintain the crucial double space
         // between period expression and description (e.g., "~ every 2 months  in 2023, we will review")
         formattedLines.push(trimmed);
+        const headerLineIndex = i;
         const transactionLines: string[] = [];
         i++;
 
@@ -83,8 +84,8 @@ export class FormattingProvider {
           const postingLine = lines[i];
           const postingTrimmed = postingLine.trim();
 
-          // Stop at empty line, next transaction, periodic transaction, or directive
-          if (!postingTrimmed || isTransactionHeader(postingTrimmed) || isPeriodicTransactionHeader(postingTrimmed) || isDirective(postingTrimmed)) {
+          // Stop at empty line, next transaction, periodic transaction, auto posting, or directive
+          if (!postingTrimmed || isTransactionHeader(postingTrimmed) || isPeriodicTransactionHeader(postingTrimmed) || isAutoPostingHeader(postingTrimmed) || isDirective(postingTrimmed)) {
             break;
           }
 
@@ -92,8 +93,55 @@ export class FormattingProvider {
           i++;
         }
 
-        // Format postings (no Transaction object available, so basic formatting only)
-        formattedLines.push(...this.formatTransactionLines(transactionLines, undefined, parsed, options, inlayHintsConfig));
+        // Look up the PeriodicTransaction and create a Transaction-shaped object for formatting
+        const periodicTx = parsed.periodicTransactions.find(t => t.line === headerLineIndex && t.sourceUri?.toString() === documentUri);
+        let tempTransaction: Transaction | undefined;
+        if (periodicTx) {
+          tempTransaction = {
+            date: '', description: periodicTx.description, payee: '', note: '',
+            postings: periodicTx.postings, line: headerLineIndex,
+          };
+        }
+        formattedLines.push(...this.formatTransactionLines(transactionLines, tempTransaction, parsed, options, inlayHintsConfig));
+
+        continue;
+      } else if (isAutoPostingHeader(trimmed)) {
+        // Preserve auto posting header as-is
+        formattedLines.push(trimmed);
+        const headerLineIndex = i;
+        const transactionLines: string[] = [];
+        i++;
+
+        while (i < lines.length) {
+          const postingLine = lines[i];
+          const postingTrimmed = postingLine.trim();
+
+          if (!postingTrimmed || isTransactionHeader(postingTrimmed) || isPeriodicTransactionHeader(postingTrimmed) || isAutoPostingHeader(postingTrimmed) || isDirective(postingTrimmed)) {
+            break;
+          }
+
+          transactionLines.push(postingLine);
+          i++;
+        }
+
+        // Look up the AutoPosting and create a Transaction-shaped object for formatting
+        const autoPost = parsed.autoPostings.find(t => t.line === headerLineIndex && t.sourceUri?.toString() === documentUri);
+        let tempTransaction: Transaction | undefined;
+        if (autoPost) {
+          // Convert AutoPostingEntries to Postings for formatting
+          const postings = autoPost.postings.map(entry => ({
+            account: entry.account,
+            amount: entry.amount,
+            comment: entry.comment,
+            tags: entry.tags,
+            line: entry.line,
+          }));
+          tempTransaction = {
+            date: '', description: '', payee: '', note: '',
+            postings, line: headerLineIndex,
+          };
+        }
+        formattedLines.push(...this.formatTransactionLines(transactionLines, tempTransaction, parsed, options, inlayHintsConfig));
 
         continue;
       } else if (isDirective(trimmed)) {

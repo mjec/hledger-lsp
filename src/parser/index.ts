@@ -13,9 +13,9 @@
  * a single file without following includes.
  */
 
-import { ParsedDocument, Transaction, Account, Directive, Payee, Commodity, Tag } from '../types';
+import { ParsedDocument, Transaction, Account, Directive, Payee, Commodity, Tag, PeriodicTransaction, AutoPosting } from '../types';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { extractTags, isTransactionHeader, isComment, isDirective } from '../utils/index';
+import { extractTags, isTransactionHeader, isComment, isDirective, isPeriodicTransactionHeader, isAutoPostingHeader } from '../utils/index';
 import * as ast from './ast';
 import { URI } from 'vscode-uri';
 
@@ -48,6 +48,8 @@ export class HledgerParser {
     const lines = text.split('\n');
 
     const transactions: Transaction[] = [];
+    const periodicTransactions: PeriodicTransaction[] = [];
+    const autoPostings: AutoPosting[] = [];
     const directives: Directive[] = [];
     const accounts = new Map<string, Account>();
     const payees = new Map<string, Payee>();
@@ -91,6 +93,70 @@ export class HledgerParser {
         continue;
       }
 
+      // Parse periodic transaction
+      if (isPeriodicTransactionHeader(line)) {
+        const startLine = i;
+        i++;
+        while (i < lines.length) {
+          const nextLine = lines[i];
+          if (!nextLine.trim() || isTransactionHeader(nextLine) || isPeriodicTransactionHeader(nextLine) || isAutoPostingHeader(nextLine) || isDirective(nextLine)) {
+            break;
+          }
+          if (isComment(nextLine) && !nextLine.startsWith("  ")) {
+            break;
+          }
+          i++;
+        }
+        const endLine = i;
+        const blockLines = lines.slice(startLine, endLine);
+        const periodicTx = ast.parsePeriodicTransaction(blockLines, startLine, commodities);
+        if (periodicTx) {
+          periodicTx.sourceUri = uri;
+          periodicTransactions.push(periodicTx);
+          // Extract entities from postings
+          ast.processPostings(periodicTx.postings, accounts, commodities, tags, uri);
+          // Extract tags from periodic transaction level
+          if (periodicTx.tags) {
+            for (const tagName of Object.keys(periodicTx.tags)) {
+              ast.addTag(tags, tagName, false, uri, startLine);
+            }
+          }
+        }
+        continue;
+      }
+
+      // Parse auto posting
+      if (isAutoPostingHeader(line)) {
+        const startLine = i;
+        i++;
+        while (i < lines.length) {
+          const nextLine = lines[i];
+          if (!nextLine.trim() || isTransactionHeader(nextLine) || isPeriodicTransactionHeader(nextLine) || isAutoPostingHeader(nextLine) || isDirective(nextLine)) {
+            break;
+          }
+          if (isComment(nextLine) && !nextLine.startsWith("  ")) {
+            break;
+          }
+          i++;
+        }
+        const endLine = i;
+        const blockLines = lines.slice(startLine, endLine);
+        const autoPost = ast.parseAutoPosting(blockLines, startLine, commodities);
+        if (autoPost) {
+          autoPost.sourceUri = uri;
+          autoPostings.push(autoPost);
+          // Extract entities from auto posting entries
+          ast.processAutoPostingEntries(autoPost.postings, accounts, commodities, tags, uri);
+          // Extract tags from auto posting level
+          if (autoPost.tags) {
+            for (const tagName of Object.keys(autoPost.tags)) {
+              ast.addTag(tags, tagName, false, uri, startLine);
+            }
+          }
+        }
+        continue;
+      }
+
       // Parse directive
       if (isDirective(line)) {
         const directive = ast.parseDirective(line);
@@ -126,8 +192,8 @@ export class HledgerParser {
         while (i < lines.length) {
           const nextLine = lines[i];
 
-          // Transaction ends at empty line, next transaction, or directive
-          if (!nextLine.trim() || isTransactionHeader(nextLine) || isDirective(nextLine)) {
+          // Transaction ends at empty line, next transaction, periodic/auto header, or directive
+          if (!nextLine.trim() || isTransactionHeader(nextLine) || isPeriodicTransactionHeader(nextLine) || isAutoPostingHeader(nextLine) || isDirective(nextLine)) {
             break;
           }
 
@@ -166,6 +232,8 @@ export class HledgerParser {
 
     return {
       transactions,
+      periodicTransactions,
+      autoPostings,
       accounts,
       directives,
       commodities,

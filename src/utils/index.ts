@@ -47,12 +47,23 @@ export function isPeriodicTransactionHeader(line: string): boolean {
 }
 
 /**
+ * Check if a line is an auto posting header
+ * Auto postings start with = followed by a query
+ * e.g., "= expenses:food", "= ^assets"
+ */
+export function isAutoPostingHeader(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith('= ');
+}
+
+/**
  * Check if a line is a directive
  */
 export function isDirective(line: string): boolean {
   const trimmed = line.trim();
   // Note: '~' is handled separately as periodic transaction headers
-  const directives = ['account', 'commodity', 'payee', 'tag', 'include', 'alias', 'end', 'comment', 'decimal-mark', '=', 'P'];
+  // Note: '=' is handled separately as auto posting headers
+  const directives = ['account', 'commodity', 'payee', 'tag', 'include', 'alias', 'end', 'comment', 'decimal-mark', 'P'];
   return directives.some(d => {
     if (d === 'end') {
       // 'end' can be standalone or followed by a space

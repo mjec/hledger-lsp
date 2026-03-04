@@ -11,7 +11,7 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { ParsedDocument, Transaction, Posting, FileReader } from '../types';
+import { ParsedDocument, Transaction, Posting, FileReader, PeriodicTransaction, AutoPosting } from '../types';
 import { resolveIncludePath, resolveIncludePaths } from '../utils/uri';
 import { ValidationOptions, SeverityOptions, defaultSettings, FormattingOptions } from '../server/settings';
 import { calculateTransactionBalance } from '../utils/balanceCalculator';
@@ -125,6 +125,46 @@ export class Validator {
         const formatIssues = this.validateFormatMismatch(transaction, document, parsedDoc, settings);
         diagnostics.push(...formatIssues);
       }
+    }
+
+    // Validate periodic transactions
+    for (const periodicTx of parsedDoc.periodicTransactions) {
+      if (periodicTx.sourceUri?.toString() !== documentUri) {
+        continue;
+      }
+
+      // Check balance (periodic transactions must balance like regular ones)
+      if (isEnabled('balance')) {
+        const balanceIssues = this.validatePeriodicTransactionBalance(periodicTx, document, parsedDoc);
+        diagnostics.push(...balanceIssues);
+      }
+
+      // Check missing amounts
+      if (isEnabled('missingAmounts')) {
+        const amountIssues = this.validatePeriodicTransactionMissingAmounts(periodicTx, document);
+        diagnostics.push(...amountIssues);
+      }
+
+      // Check empty (must have postings)
+      if (isEnabled('emptyTransactions')) {
+        if (periodicTx.postings.length === 0 && periodicTx.line !== undefined) {
+          diagnostics.push({
+            severity: DiagnosticSeverity.Warning,
+            range: this.getLineRange(periodicTx.line, document),
+            message: 'Periodic transaction has no postings',
+            source: 'hledger'
+          });
+        }
+      }
+    }
+
+    // Validate auto postings (minimal — they are partial by design)
+    for (const autoPost of parsedDoc.autoPostings) {
+      if (autoPost.sourceUri?.toString() !== documentUri) {
+        continue;
+      }
+      // No balance validation for auto postings — they are partial by design
+      // Undeclared accounts/commodities are handled by the general undeclared items check
     }
 
     // Check for undeclared items (each type can be enabled/disabled separately)
@@ -254,6 +294,84 @@ export class Validator {
   }
 
   /**
+   * Validate periodic transaction balance
+   * Periodic transactions must balance like regular transactions
+   */
+  private validatePeriodicTransactionBalance(periodicTx: PeriodicTransaction, document: TextDocument, parsedDoc: ParsedDocument): Diagnostic[] {
+    const diagnostics: Diagnostic[] = [];
+    // Reuse the same balance calculation logic
+    const tempTransaction: Transaction = {
+      date: '',
+      description: '',
+      payee: '',
+      note: '',
+      postings: periodicTx.postings,
+      line: periodicTx.line,
+    };
+    const balances = calculateTransactionBalance(tempTransaction);
+
+    const realPostings = periodicTx.postings.filter(p => p.virtual !== 'unbalanced');
+    let postingsWithExplicitAmounts = 0;
+    for (const posting of realPostings) {
+      if (posting.amount && !posting.amount.inferred) {
+        postingsWithExplicitAmounts++;
+      }
+    }
+
+    if (postingsWithExplicitAmounts === realPostings.length) {
+      for (const [commodity, balance] of balances.entries()) {
+        if (Math.abs(balance) > 0.005) {
+          const formattedBalance = commodity
+            ? formatAmount(balance, commodity, parsedDoc)
+            : balance.toFixed(2);
+          diagnostics.push({
+            severity: DiagnosticSeverity.Error,
+            range: this.getLineRange(periodicTx.line ?? 0, document),
+            message: `Periodic transaction does not balance: ${formattedBalance} off`,
+            source: 'hledger'
+          });
+        }
+      }
+    }
+
+    return diagnostics;
+  }
+
+  /**
+   * Validate missing amounts in periodic transaction
+   */
+  private validatePeriodicTransactionMissingAmounts(periodicTx: PeriodicTransaction, document: TextDocument): Diagnostic[] {
+    const diagnostics: Diagnostic[] = [];
+
+    const realPostings = periodicTx.postings.filter(p => p.virtual !== 'unbalanced');
+    const postingsWithoutAmounts = realPostings.filter(p => !p.amount);
+
+    if (postingsWithoutAmounts.length > 1) {
+      diagnostics.push({
+        severity: DiagnosticSeverity.Error,
+        range: this.getLineRange(periodicTx.line ?? 0, document),
+        message: `Periodic transaction has ${postingsWithoutAmounts.length} postings without amounts (maximum 1 allowed)`,
+        source: 'hledger'
+      });
+    }
+
+    return diagnostics;
+  }
+
+  /**
+   * Get a range for a single line
+   */
+  private getLineRange(line: number, document: TextDocument): { start: { line: number; character: number }; end: { line: number; character: number } } {
+    const text = document.getText();
+    const lines = text.split('\n');
+    const lineText = line < lines.length ? lines[line] : '';
+    return {
+      start: { line, character: 0 },
+      end: { line, character: lineText.length }
+    };
+  }
+
+  /**
    * Validate undeclared items
    * Warn when accounts, payees, commodities, or tags are used but not declared
    */
@@ -296,6 +414,35 @@ export class Validator {
         const lines = text.split('\n');
         const processedAccounts = new Set<string>();
 
+        // Helper to check postings for undeclared accounts
+        const checkPostingsForUndeclaredAccounts = (postings: Posting[]) => {
+          for (const posting of postings) {
+            const accountName = posting.account;
+            if (undeclaredAccounts.has(accountName)) {
+              if (!markAllInstances && processedAccounts.has(accountName)) continue;
+              const postingLine = posting.line;
+              if (postingLine !== undefined && postingLine < lines.length) {
+                const line = lines[postingLine];
+                const accountIndex = line.indexOf(accountName);
+                if (accountIndex !== -1) {
+                  diagnostics.push({
+                    severity: getSeverity(settings?.severity?.undeclaredAccounts),
+                    range: {
+                      start: { line: postingLine, character: accountIndex },
+                      end: { line: postingLine, character: accountIndex + accountName.length }
+                    },
+                    message: `Account "${accountName}" is used but not declared with 'account' directive`,
+                    source: 'hledger',
+                    code: 'undeclared-account',
+                    data: { accountName }
+                  });
+                  processedAccounts.add(accountName);
+                }
+              }
+            }
+          }
+        };
+
         // Iterate through transactions to find account usage locations
         for (const transaction of parsedDoc.transactions) {
           // Only process transactions from the current document
@@ -336,6 +483,42 @@ export class Validator {
                 }
               }
               postingLineOffset++;
+            }
+          }
+        }
+
+        // Also check periodic transactions
+        for (const periodicTx of parsedDoc.periodicTransactions) {
+          if (periodicTx.sourceUri && periodicTx.sourceUri.toString() !== documentUri) continue;
+          checkPostingsForUndeclaredAccounts(periodicTx.postings);
+        }
+
+        // Also check auto postings
+        for (const autoPost of parsedDoc.autoPostings) {
+          if (autoPost.sourceUri && autoPost.sourceUri.toString() !== documentUri) continue;
+          for (const entry of autoPost.postings) {
+            const accountName = entry.account;
+            if (undeclaredAccounts.has(accountName)) {
+              if (!markAllInstances && processedAccounts.has(accountName)) continue;
+              const entryLine = entry.line;
+              if (entryLine !== undefined && entryLine < lines.length) {
+                const line = lines[entryLine];
+                const accountIndex = line.indexOf(accountName);
+                if (accountIndex !== -1) {
+                  diagnostics.push({
+                    severity: getSeverity(settings?.severity?.undeclaredAccounts),
+                    range: {
+                      start: { line: entryLine, character: accountIndex },
+                      end: { line: entryLine, character: accountIndex + accountName.length }
+                    },
+                    message: `Account "${accountName}" is used but not declared with 'account' directive`,
+                    source: 'hledger',
+                    code: 'undeclared-account',
+                    data: { accountName }
+                  });
+                  processedAccounts.add(accountName);
+                }
+              }
             }
           }
         }
@@ -501,6 +684,93 @@ export class Validator {
                 }
               }
               postingLineOffset++;
+            }
+          }
+        }
+
+        // Helper to check a posting for undeclared commodities
+        const checkPostingForUndeclaredCommodity = (posting: Posting, lines: string[]) => {
+          const postingLine = posting.line;
+          if (postingLine === undefined || postingLine >= lines.length) return;
+          const line = lines[postingLine];
+
+          if (posting.amount?.commodity && undeclaredCommodities.has(posting.amount.commodity)) {
+            const commodityName = posting.amount.commodity;
+            if (!markAllInstances && processedCommodities.has(commodityName)) return;
+            const commodityIndex = line.indexOf(commodityName);
+            if (commodityIndex !== -1) {
+              diagnostics.push({
+                severity: getSeverity(settings?.severity?.undeclaredCommodities),
+                range: {
+                  start: { line: postingLine, character: commodityIndex },
+                  end: { line: postingLine, character: commodityIndex + commodityName.length }
+                },
+                message: `Commodity "${commodityName}" is used but not declared with 'commodity' directive`,
+                source: 'hledger',
+                code: 'undeclared-commodity',
+                data: { commodityName }
+              });
+              processedCommodities.add(commodityName);
+            }
+          }
+        };
+
+        // Also check periodic transactions for undeclared commodities
+        for (const periodicTx of parsedDoc.periodicTransactions) {
+          if (periodicTx.sourceUri && periodicTx.sourceUri.toString() !== documentUri) continue;
+          for (const posting of periodicTx.postings) {
+            checkPostingForUndeclaredCommodity(posting, lines);
+          }
+        }
+
+        // Also check auto postings for undeclared commodities
+        for (const autoPost of parsedDoc.autoPostings) {
+          if (autoPost.sourceUri && autoPost.sourceUri.toString() !== documentUri) continue;
+          for (const entry of autoPost.postings) {
+            const entryLine = entry.line;
+            if (entryLine === undefined || entryLine >= lines.length) continue;
+            const line = lines[entryLine];
+
+            // Check commodity in regular amount
+            if (entry.amount?.commodity && undeclaredCommodities.has(entry.amount.commodity)) {
+              const commodityName = entry.amount.commodity;
+              if (!markAllInstances && processedCommodities.has(commodityName)) continue;
+              const commodityIndex = line.indexOf(commodityName);
+              if (commodityIndex !== -1) {
+                diagnostics.push({
+                  severity: getSeverity(settings?.severity?.undeclaredCommodities),
+                  range: {
+                    start: { line: entryLine, character: commodityIndex },
+                    end: { line: entryLine, character: commodityIndex + commodityName.length }
+                  },
+                  message: `Commodity "${commodityName}" is used but not declared with 'commodity' directive`,
+                  source: 'hledger',
+                  code: 'undeclared-commodity',
+                  data: { commodityName }
+                });
+                processedCommodities.add(commodityName);
+              }
+            }
+
+            // Check commodity in multiplier amount
+            if (entry.multiplier?.commodity && undeclaredCommodities.has(entry.multiplier.commodity)) {
+              const commodityName = entry.multiplier.commodity;
+              if (!markAllInstances && processedCommodities.has(commodityName)) continue;
+              const commodityIndex = line.indexOf(commodityName);
+              if (commodityIndex !== -1) {
+                diagnostics.push({
+                  severity: getSeverity(settings?.severity?.undeclaredCommodities),
+                  range: {
+                    start: { line: entryLine, character: commodityIndex },
+                    end: { line: entryLine, character: commodityIndex + commodityName.length }
+                  },
+                  message: `Commodity "${commodityName}" is used but not declared with 'commodity' directive`,
+                  source: 'hledger',
+                  code: 'undeclared-commodity',
+                  data: { commodityName }
+                });
+                processedCommodities.add(commodityName);
+              }
             }
           }
         }

@@ -74,6 +74,8 @@ describe('HoverProvider - Coverage Tests', () => {
       // Create empty parsed doc to simulate account not being found
       const emptyParsed: ParsedDocument = {
         transactions: [],
+        periodicTransactions: [],
+        autoPostings: [],
         accounts: new Map(),
         directives: [],
         commodities: new Map(),

@@ -11,6 +11,8 @@ describe('Split Posting Code Actions', () => {
     codeActionProvider = new CodeActionProvider();
     parsedDoc = {
       transactions: [],
+      periodicTransactions: [],
+      autoPostings: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map(),

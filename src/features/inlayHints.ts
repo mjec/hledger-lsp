@@ -41,7 +41,12 @@ export class InlayHintsProvider {
       ? calculateRunningBalances(parsed)
       : emptyRunninBalanceMap;
 
-    return this.processTransactions(parsed, document, range, config, formattingOptions, runningBalances);
+    const hints = this.processTransactions(parsed, document, range, config, formattingOptions, runningBalances);
+
+    // Also process periodic transactions for inferred amounts
+    hints.push(...this.processPeriodicTransactions(parsed, document, range, config, formattingOptions));
+
+    return hints;
   }
 
   private processTransactions(
@@ -137,6 +142,57 @@ export class InlayHintsProvider {
         postingIndex++;
       }
     }
+    return hints;
+  }
+
+  private processPeriodicTransactions(
+    parsed: ParsedDocument,
+    document: TextDocument,
+    range: Range,
+    config: InlayHintsOptions,
+    formattingOptions: FormattingOptions,
+  ): InlayHint[] {
+    if (!config.showInferredAmounts) return [];
+
+    const hints: InlayHint[] = [];
+    const documentUri = URI.parse(document.uri).toString();
+
+    for (const periodicTx of parsed.periodicTransactions) {
+      if (periodicTx.sourceUri?.toString() !== documentUri) continue;
+      const txLine = periodicTx.line ?? 0;
+      if (txLine < range.start.line || txLine > range.end.line) continue;
+
+      // Create a temp Transaction-shaped object for width calculation
+      const tempTransaction = {
+        date: '', description: periodicTx.description, payee: '', note: '',
+        postings: periodicTx.postings, line: txLine,
+      };
+      const widths = formattingProvider.calculateTransactionWidths(tempTransaction, parsed, formattingOptions, config);
+
+      let postingIndex = 0;
+      for (const posting of periodicTx.postings) {
+        const lineNum = posting.line ?? (txLine + 1 + postingIndex);
+        const line = document.getText({
+          start: { line: lineNum, character: 0 },
+          end: { line: lineNum, character: Number.MAX_SAFE_INTEGER }
+        });
+
+        const commentMatch = line.match(/[;#]/);
+        const contentEndIndex = commentMatch?.index ?? line.length;
+        const virtualColumn = contentEndIndex;
+
+        if (posting.amount?.inferred) {
+          const hint = this.getInferredAmountHint(
+            document, posting, lineNum, contentEndIndex, virtualColumn,
+            widths, formattingOptions, parsed
+          );
+          if (hint) hints.push(hint);
+        }
+
+        postingIndex++;
+      }
+    }
+
     return hints;
   }
 

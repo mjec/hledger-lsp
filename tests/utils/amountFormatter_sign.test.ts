@@ -6,6 +6,8 @@ import { HledgerSettings } from '../../src/server/settings';
 describe('formatAmount with signPosition', () => {
     const mockParsed: ParsedDocument = {
         transactions: [],
+        periodicTransactions: [],
+        autoPostings: [],
         accounts: new Map(),
         commodities: new Map([
             ['$', { name: '$', declared: true, format: { decimalMark: '.', thousandsSeparator: ',', precision: 2, symbolOnLeft: true, spaceBetween: false } }],
