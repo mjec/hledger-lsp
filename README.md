@@ -1,8 +1,12 @@
 # hledger Language Server
 
-A Language Server Protocol (LSP) implementation for
-[hledger](https://hledger.org/), a plain text accounting tool. With
-plugins for [vscode](https://marketplace.visualstudio.com/items?itemName=patrickt.hledger-lsp-vscode) and [nvim](https://github.com/ptimoney/hledger-nvim)
+A [Language Server Protocol](https://microsoft.github.io/language-server-protocol/) implementation for [hledger](https://hledger.org/) plain text accounting;
+bringing IDE-grade tooling to your journal files.
+
+Completion, validation, formatting, navigation, semantic highlighting, inlay
+hints, and more &mdash; in any editor that supports LSP.
+
+**Editor plugins**: [VS Code](https://marketplace.visualstudio.com/items?itemName=patrickt.hledger-lsp-vscode) &middot; [Neovim](https://github.com/ptimoney/hledger-nvim) &middot; [Any LSP client](#other-editors)
 
 <!--toc:start-->
 - [hledger Language Server](#hledger-language-server)
@@ -12,8 +16,6 @@ plugins for [vscode](https://marketplace.visualstudio.com/items?itemName=patrick
     - [Standalone Formatter](#standalone-formatter)
     - [Other Options](#other-options)
   - [IDE Integration](#ide-integration)
-    - [VS Code](#vs-code)
-    - [Neovim](#neovim)
     - [Other Editors](#other-editors)
   - [Features](#features)
     - [Code Completion](#code-completion)
@@ -43,8 +45,8 @@ plugins for [vscode](https://marketplace.visualstudio.com/items?itemName=patrick
     - [Project Structure](#project-structure)
     - [Development Commands](#development-commands)
   - [Contributing](#contributing)
+  - [Related Projects](#related-projects)
   - [License](#license)
-  - [Links](#links)
 <!--toc:end-->
 
 ## Installation
@@ -88,6 +90,7 @@ hledger-lsp --format myfile.journal -o myfile.journal
 ```
 
 The formatter applies default formatting settings:
+
 - 4-space indentation for postings
 - Decimal point alignment at column 52
 - Normalized transaction header spacing
@@ -101,22 +104,17 @@ hledger-lsp --version   # Show version
 
 ## IDE Integration
 
-This language server can be used with any LSP-compatible editor. Currently available extensions:
+This language server works with any LSP-compatible editor. First-party plugins
+are available for VS Code and Neovim:
 
-### VS Code
+| Editor  | Plugin         | Install                          |
+|---------|----------------|----------------------------------|
+| **VS Code** | [hledger-vscode](https://github.com/ptimoney/hledger-vscode) | [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=patrickt.hledger-lsp-vscode)              |
+| **Neovim**  | [hledger-nvim](https://github.com/ptimoney/hledger-nvim)   | Plugin manager (lazy.nvim, etc.) |
 
-**Extension**: [hledger-vscode](https://marketplace.visualstudio.com/items?itemName=patrickt.hledger-lsp-vscode)
-
-**GitHub**: [hledger-vscode](https://github.com/ptimoney/hledger-vscode)
-
-Install from the VS Code Marketplace or Extensions view. The extension provides
-all LSP features with zero configuration.
-
-### Neovim
-
-**Plugin**: [hledger-nvim](https://github.com/ptimoney/hledger-nvim)
-
-Provides automatic LSP configuration, filetype detection, and workspace visualization.
+Both plugins provide all LSP features with zero configuration. The VS Code
+extension also includes a workspace graph tree view; the Neovim plugin includes
+a workspace graph floating window.
 
 ### Other Editors
 
@@ -133,8 +131,8 @@ The server can be used with any LSP client. Example configuration:
 
 ## Features
 
-This language server provides comprehensive IDE support for hledger journal
-files:
+Comprehensive IDE support for hledger journal files, including regular
+transactions, periodic transactions (`~`), and auto posting rules (`=`):
 
 ### Code Completion
 
@@ -173,6 +171,10 @@ and tags
 - **Empty descriptions** - Warn about transactions with no description
 - **Include files** - Detect missing include files
 - **Circular includes** - Detect circular include dependencies
+- **Periodic transactions** - Balance and missing-amount checks for `~` periodic
+transaction rules (same rules as regular transactions)
+- **Auto postings** - Undeclared account/commodity checks for `=` auto posting
+rules (balance checks are skipped since auto postings are partial by design)
 
 ### Include Directive Support
 
@@ -190,8 +192,8 @@ special characters (e.g., "Cloud Storage", "My Documents (2025)")
 
 ### Navigation
 
-- **Document symbols** - Outline view showing directives and transactions with
-postings
+- **Document symbols** - Outline view showing directives, transactions, periodic
+transactions (`~`), and auto posting rules (`=`) with their postings
 - **Workspace symbols** - Project-wide search across all accounts, payees,
 commodities, tags, and transactions
 - **Go to definition** - Jump to declarations for accounts, payees, commodities,
@@ -242,11 +244,13 @@ definitions) and readonly items (dates, amounts)
 their hierarchical nature
 - **Tag detection** - Automatic highlighting of tags within comments (key:value
 pairs)
+- **Periodic & auto postings** - `~` and `=` operators, period expressions,
+queries, and their postings are all semantically highlighted
 
 ### Inlay Hints
 
 - **Inferred amounts** - Show calculated amounts for postings without explicit
-amounts
+amounts (including periodic transaction postings)
 - **Running balances** - Display running balances per account and commodity
 after each posting
 - **Cost conversions** - Show total cost in target commodity for postings with
@@ -266,8 +270,8 @@ involved in on transaction headers
 
 ### Editor Integration
 
-- **Folding ranges** - Collapse/expand transactions to hide postings, fold
-multi-line comment blocks
+- **Folding ranges** - Collapse/expand transactions, periodic transactions,
+and auto posting rules to hide postings; fold multi-line comment blocks
 - **Document links** - Clickable include paths that open the referenced file
 (supports relative and absolute paths)
 - **Selection range** - Smart text selection expansion: Word → Account → Posting
@@ -294,7 +298,8 @@ problems to report per file
 
 Most validation settings default to `true` and can be individually disabled:
 
-- `validation.balance` (default: true): Verify transactions balance to zero per commodity
+- `validation.balance` (default: true): Verify transactions balance to zero per
+commodity
 - `validation.requireExplicitCosts` (default: **false**): Require explicit `@` or
 `@@` cost notation for multi-commodity transactions. When disabled (default), the
 LSP auto-infers costs like hledger's `autobalanced` mode. When enabled, mirrors
@@ -400,7 +405,8 @@ configuration override settings from the config file.
 
 **Performance Tips:**
 
-- For large workspaces (>100 files), use `exclude` patterns to skip unnecessary files
+- For large workspaces (>100 files), use `exclude` patterns to skip unnecessary
+files
 - Disable `eagerParsing` if initialization is slow
 - Check LSP server logs for performance warnings and metrics
 
@@ -441,8 +447,8 @@ for aligning decimal points in amounts
 position for aligning decimal points in balance assertions
 - `formatting.signPosition` (string, default: "after-symbol"): Where to place the
 negative sign for prefix commodities. Options: `"after-symbol"` (e.g., `$-100.00`)
-or `"before-symbol"` (e.g., `-$100.00`). This affects how amounts are displayed in
-hover information, inlay hints, and other LSP features. Does not affect postfix
+or `"before-symbol"` (e.g., `-$100.00`). This affects how amounts are displayed
+in hover information, inlay hints, and other LSP features. Does not affect postfix
 commodities (e.g., `-100.00 EUR`), which always show the sign before the number.
 - `formatting.showPositivesSign` (boolean, default: false): Whether to show a `+`
 sign for positive amounts
@@ -466,12 +472,6 @@ for future features):
 
 - `codeLens.showTransactionCounts` (boolean, default: false): Show transaction
 counts for each account on transaction headers
-
-## Known Limitations
-
-- Auto postings and periodic transactions are broadly unsupported. Though we try
-to avoid breaking them. Please report any breaking issues, and consider suggestions
-or contributions for any deeper integration
 
 ## Development
 
@@ -507,7 +507,7 @@ hledger-lsp/
 │   ├── features/           # LSP feature implementations
 │   ├── server/             # Server infrastructure
 │   └── utils/              # Utility functions
-├── tests/                  # Test suite (515+ test cases)
+├── tests/                  # Test suite (1380+ test cases)
 ├── out/                    # Compiled JavaScript output
 └── package.json
 ```
@@ -545,11 +545,14 @@ npx jest --testNamePattern="balance"
 
 ### Developing with the VS Code extension
 
-When working on the language server and the VS Code extension together you have two convenient workflows:
+When working on the language server and the VS Code extension together you have
+two convenient workflows:
 
 - Preferred: sibling local build
 
-  If you have the `hledger-vscode` extension checked out next to this repo (as siblings), the extension will prefer a local built server at `../hledger-lsp/out/server.js`.
+  If you have the `hledger-vscode` extension checked out next to this repo (as
+  siblings), the extension will prefer a local built server at
+  `../hledger-lsp/out/server.js`.
 
   Steps:
 
@@ -565,11 +568,14 @@ When working on the language server and the VS Code extension together you have 
   npm run compile
   ```
 
-  Then open the `hledger-vscode` folder in VS Code and press F5 to launch the Extension Development Host. The extension will detect the local `out/server.js` and use it when starting the language client.
+  Then open the `hledger-vscode` folder in VS Code and press F5 to launch the
+  Extension Development Host. The extension will detect the local
+  `out/server.js` and use it when starting the language client.
 
 - Alternative: `npm link`
 
-  If you prefer to keep the projects separate or want the extension to pick up a locally-installed (linked) package, use `npm link`:
+  If you prefer to keep the projects separate or want the extension to pick up a
+  locally-installed (linked) package, use `npm link`:
 
   ```bash
   # In language server repo
@@ -583,34 +589,44 @@ When working on the language server and the VS Code extension together you have 
   npm run compile
   ```
 
-  This makes `require.resolve('hledger-lsp/out/server.js')` resolve to your local linked package.
+  This makes `require.resolve('hledger-lsp/out/server.js')` resolve to your
+  local linked package.
 
 Notes and tips
 
-- After building the server and extension, use **Developer: Reload Window** in the extension host or the `hledgerLanguageServer.reload` command (provided by the extension) to restart the language client so changes propagate.
-- The server now logs the semantic token legend on initialize. Open **View → Output** and select the `hledger Language Server` output channel to see messages such as:
+- After building the server and extension, use **Developer: Reload Window** in
+the extension host or the `hledgerLanguageServer.reload` command (provided by
+the extension) to restart the language client so changes propagate.
+- The server now logs the semantic token legend on initialize. Open
+**View → Output** and select the `hledger Language Server` output channel to
+see messages such as:
 
   Semantic tokens legend: {"tokenTypes":["namespace","keyword","class","variable","property","type","number","string","comment","operator"],"tokenModifiers":["declaration","readonly","deprecated"]}
 
 - Running tests:
   - Server tests (in `hledger-lsp`): `npm test` (or `npx jest <path>`)
-  - Extension tests (in `hledger-vscode`): `npm test` — these use mocked `vscode` and `vscode-languageclient` modules so they don't require a real server binary.
+  - Extension tests (in `hledger-vscode`): `npm test` — these use mocked
+  `vscode` and `vscode-languageclient` modules so they don't require a real
+  server binary.
 
-If you want an explicit server path override, set up a quick environment variable in your debug launch configuration or use `npm link` as described above.
-
+If you want an explicit server path override, set up a quick environment
+variable in your debug launch configuration or use `npm link` as described above.
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+For bug reports and feature requests, [open an issue](https://github.com/ptimoney/hledger-lsp/issues).
+
+## Related Projects
+
+| Project | Description |
+|---------|-------------|
+| [hledger-vscode](https://github.com/ptimoney/hledger-vscode) | VS Code extension &mdash; install from the [Marketplace](https://marketplace.visualstudio.com/items?itemName=patrickt.hledger-lsp-vscode) |
+| [hledger-nvim](https://github.com/ptimoney/hledger-nvim) | Neovim plugin with LSP integration and workspace graph |
+| [hledger](https://hledger.org/) | The plain text accounting tool this server supports |
+| [LSP Specification](https://microsoft.github.io/language-server-protocol/) | The protocol this server implements |
+
 ## License
 
 MIT
-
-## Links
-
-- **VS Code Extension**: [hledger-vscode](https://github.com/ptimoney/hledger-vscode)
-- **Neovim Plugin**: [hledger-nvim](https://github.com/ptimoney/hledger-nvim)
-- **Report Issues**: [GitHub Issues](https://github.com/ptimoney/hledger-lsp/issues)
-- **hledger**: [Official Documentation](https://hledger.org/)
-- **LSP Specification**: [Language Server Protocol](https://microsoft.github.io/language-server-protocol/)
