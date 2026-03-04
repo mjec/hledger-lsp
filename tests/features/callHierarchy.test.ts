@@ -1,3 +1,4 @@
+import * as path from 'path';
 import { CallHierarchyProvider } from '../../src/features/callHierarchy';
 import { createTestWorkspace, IncludePathResolver } from '../helpers/workspaceTestHelper';
 import { HledgerParser } from '../../src/parser/index';
@@ -357,8 +358,8 @@ describe('CallHierarchyProvider', () => {
           ];
         }
         // Default: resolve relative to base
-        const baseFileDir = baseUri.fsPath.substring(0, baseUri.fsPath.lastIndexOf('/'));
-        return [toFileUri(`${baseFileDir}/${includePath}`)];
+        const baseFileDir = path.dirname(baseUri.fsPath);
+        return [toFileUri(path.join(baseFileDir, includePath))];
       };
 
       const workspace = await createTestWorkspace({

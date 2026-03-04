@@ -3,6 +3,7 @@
  * This replaces the old pattern of passing fileReader to the parser.
  */
 
+import * as path from 'path';
 import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { WorkspaceManager, IncludePathResolver } from '../../src/server/workspace';
@@ -146,20 +147,21 @@ export async function createTestWorkspace(options: TestWorkspaceOptions): Promis
     const result: URI[] = [];
 
     // Get the base path for the including file
-    const baseFilePath = baseUri.fsPath;
-    const baseFileDir = baseFilePath.substring(0, baseFilePath.lastIndexOf('/'));
+    const baseFileDir = path.dirname(baseUri.fsPath);
 
     // Handle relative paths
     let resolvedPath: string;
-    if (includePath.startsWith('/')) {
+    if (path.isAbsolute(includePath)) {
       resolvedPath = includePath;
     } else {
-      resolvedPath = `${baseFileDir}/${includePath}`;
+      resolvedPath = path.join(baseFileDir, includePath);
     }
 
     // Check if this matches any of our test files
     const resolvedUri = toFileUri(resolvedPath);
-    if (documents.has(resolvedPath.replace(`${baseDir}/`, ''))) {
+    const baseDirNormalized = path.normalize(baseDir);
+    const relativePath = path.relative(baseDirNormalized, path.normalize(resolvedPath));
+    if (documents.has(relativePath)) {
       result.push(resolvedUri);
     }
 
