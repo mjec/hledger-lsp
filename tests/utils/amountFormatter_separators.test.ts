@@ -10,6 +10,7 @@ describe('formatAmount with separators', () => {
             transactions: [],
             periodicTransactions: [],
             autoPostings: [],
+            priceDirectives: [],
             accounts: new Map(),
             commodities: new Map(),
             payees: new Map(),

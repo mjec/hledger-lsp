@@ -40,6 +40,7 @@ describe('InlayHintsProvider URI Encoding', () => {
             }],
             periodicTransactions: [],
             autoPostings: [],
+            priceDirectives: [],
             accounts: new Map([['expenses:food', { name: 'expenses:food', declared: false }], ['assets:cash', { name: 'assets:cash', declared: false }]]),
             commodities: new Map([['$', { name: '$', declared: false }]]),
             payees: new Map([['Test', { name: 'Test', declared: false }]]),

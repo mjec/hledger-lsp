@@ -25,6 +25,7 @@ describe('HoverProvider Workspace Context', () => {
       transactions: [], // No transactions in this view
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map([
         [accountName, { name: accountName, declared: false }] // Inferred from usage, not declared locally
       ]),
@@ -48,6 +49,7 @@ describe('HoverProvider Workspace Context', () => {
       transactions: [],
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map([
         [accountName, { name: accountName, declared: true, sourceUri: accountsUri }]
       ]),
@@ -78,6 +80,7 @@ describe('HoverProvider Workspace Context', () => {
       ] as any,
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map([
         [accountName, { name: accountName, declared: true }]
       ]),

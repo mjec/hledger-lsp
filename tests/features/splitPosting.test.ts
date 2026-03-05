@@ -13,6 +13,7 @@ describe('Split Posting Code Actions', () => {
       transactions: [],
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map(),

@@ -115,6 +115,11 @@ export class CompletionProvider {
       return this.getAccountCompletions(settings, range);
     }
 
+    // Price directive - suggest commodities after date and/or first commodity
+    if (/^P\s+/.test(line) && !commentMatch) {
+      return this.getCommodityCompletions(settings);
+    }
+
     // Transaction header - suggest payees
     if (/^\d{4}[-/]\d{2}[-/]\d{2}/.test(line) && !commentMatch) {
       return this.getPayeeCompletions(settings);
@@ -167,7 +172,8 @@ export class CompletionProvider {
       { label: 'payee', detail: 'Declare a payee' },
       { label: 'tag', detail: 'Declare a tag' },
       { label: 'include', detail: 'Include another file' },
-      { label: 'alias', detail: 'Define an account alias' }
+      { label: 'alias', detail: 'Define an account alias' },
+      { label: 'P', detail: 'Declare a market price' }
     ];
 
     return directives.map(d => ({

@@ -27,67 +27,70 @@ payee Uber
 payee PG&E
 payee ACME Corp
 
+P 2024.01.05 $ 100 EUR
+
+
 ; Regular grocery shopping at Whole Foods
 2024-01-05 * Whole Foods
-    Expenses:Food:Groceries                     $125.50     @@ 125,50 EUR
+    Expenses:Food:Groceries                    $ 125.50     @@ 125,50 EUR
     Assets:Checking                             -125,50 EUR
 
 2024-01-12 * Whole Foods
-    Expenses:Food:Groceries                      $98.75
-    Assets:Checking                             -$98.75
+    Expenses:Food:Groceries                     $ 98.75
+    Assets:Checking                             $-98.75
 
 2024-01-19 * Whole Foods
-    Expenses:Food:Groceries                     $142.30
-    Assets:Checking                            -$142.30
+    Expenses:Food:Groceries                    $ 142.30
+    Assets:Checking                            $-142.30
 
 2024-01-26 * Whole Foods
-    Expenses:Food:Groceries                     $115.20
-    Assets:Checking                            -$115.20
+    Expenses:Food:Groceries                    $ 115.20
+    Assets:Checking                            $-115.20
 
 ; Occasional shopping at Safeway
 2024-01-08 * Safeway
-    Expenses:Food:Groceries                      $45.60
-    Assets:Checking                             -$45.60
+    Expenses:Food:Groceries                     $ 45.60
+    Assets:Checking                             $-45.60
 
 2024-01-22 * Safeway
-    Expenses:Food:Groceries                      $52.30
-    Assets:Checking                             -$52.30
+    Expenses:Food:Groceries                     $ 52.30
+    Assets:Checking                             $-52.30
 
 ; Gas station visits
 2024-01-06 * Shell Gas Station
-    Expenses:Transport:Gas                       $65.00
-    Assets:Checking                             -$65.00
+    Expenses:Transport:Gas                      $ 65.00
+    Assets:Checking                             $-65.00
 
 2024-01-14 * Shell Gas Station
-    Expenses:Transport:Gas                       $58.50
-    Assets:Checking                             -$58.50
+    Expenses:Transport:Gas                      $ 58.50
+    Assets:Checking                             $-58.50
 
 2024-01-21 * Shell Gas Station
-    Expenses:Transport:Gas                       $62.75
-    Assets:Checking                             -$62.75
+    Expenses:Transport:Gas                      $ 62.75
+    Assets:Checking                             $-62.75
 
 2024-01-28 * Shell Gas Station
-    Expenses:Transport:Gas                       $70.00
-    Assets:Checking                             -$70.00
+    Expenses:Transport:Gas                      $ 70.00
+    Assets:Checking                             $-70.00
 
 ; Uber rides
 2024-01-10 * Uber
-    Expenses:Transport:Transit                   $18.50
-    Assets:Checking                             -$18.50
+    Expenses:Transport:Transit                  $ 18.50
+    Assets:Checking                             $-18.50
 
 2024-01-17 * Uber
-    Expenses:Transport:Transit                   $22.00
-    Assets:Checking                             -$22.00
+    Expenses:Transport:Transit                  $ 22.00
+    Assets:Checking                             $-22.00
 
 ; Utilities
 2024-01-15 * PG&E
-    Expenses:Utilities:Electric                  $85.40
-    Assets:Checking                             -$85.40
+    Expenses:Utilities:Electric                 $ 85.40
+    Assets:Checking                             $-85.40
 
 ; Salary
 2024-01-31 * ACME Corp
-    Assets:Checking                           $5,000.00
-    Income:Salary                            -$5,000.00
+    Assets:Checking                          $ 5,000.00
+    Income:Salary                            $-5,000.00
 
 ; Include additional transactions
 include monthly/february.journal

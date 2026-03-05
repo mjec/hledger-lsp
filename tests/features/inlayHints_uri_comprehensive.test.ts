@@ -38,6 +38,7 @@ describe('InlayHintsProvider URI Encoding - Comprehensive Tests', () => {
             }],
             periodicTransactions: [],
             autoPostings: [],
+            priceDirectives: [],
             accounts: new Map([
                 ['expenses:food', { name: 'expenses:food', declared: false }],
                 ['assets:cash', { name: 'assets:cash', declared: false }]
@@ -93,6 +94,7 @@ describe('InlayHintsProvider URI Encoding - Comprehensive Tests', () => {
             }],
             periodicTransactions: [],
             autoPostings: [],
+            priceDirectives: [],
             accounts: new Map([
                 ['assets:checking', { name: 'assets:checking', declared: false }],
                 ['assets:savings', { name: 'assets:savings', declared: false }]
@@ -148,6 +150,7 @@ describe('InlayHintsProvider URI Encoding - Comprehensive Tests', () => {
             }],
             periodicTransactions: [],
             autoPostings: [],
+            priceDirectives: [],
             accounts: new Map([
                 ['expenses:food', { name: 'expenses:food', declared: false }],
                 ['assets:cash', { name: 'assets:cash', declared: false }]
@@ -223,6 +226,7 @@ describe('InlayHintsProvider URI Encoding - Comprehensive Tests', () => {
             ],
             periodicTransactions: [],
             autoPostings: [],
+            priceDirectives: [],
             accounts: new Map([
                 ['assets:a', { name: 'assets:a', declared: false }],
                 ['assets:b', { name: 'assets:b', declared: false }],

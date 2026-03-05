@@ -8,6 +8,7 @@ describe('formattingValidation', () => {
       transactions: [],
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map(),
       commodities: new Map(),
       payees: new Map(),

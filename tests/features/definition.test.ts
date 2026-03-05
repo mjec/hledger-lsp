@@ -14,6 +14,7 @@ describe('definition provider', () => {
       transactions: [],
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map([['Assets:Bank', { name: 'Assets:Bank', declared: true, sourceUri: uri, line: 0 }]]),
       directives: [],
       commodities: new Map(),
@@ -39,6 +40,7 @@ describe('definition provider', () => {
       transactions: [],
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map(),
@@ -61,6 +63,7 @@ describe('definition provider', () => {
       transactions: [],
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map(),
@@ -82,6 +85,7 @@ describe('definition provider', () => {
       transactions: [],
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map(),
@@ -108,6 +112,7 @@ describe('definition provider', () => {
       transactions: [],
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map([
@@ -132,6 +137,7 @@ describe('definition provider', () => {
       transactions: [],
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map([
@@ -157,6 +163,7 @@ describe('definition provider', () => {
       transactions: [],
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map(),
@@ -181,6 +188,7 @@ describe('definition provider', () => {
       transactions: [],
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map(),
       directives: [],
       commodities: new Map(),
@@ -201,6 +209,7 @@ describe('definition provider', () => {
       transactions: [],
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map([
         // Account exists but is not declared (no sourceUri)
         ['Expenses:Unknown', { name: 'Expenses:Unknown', declared: false }]

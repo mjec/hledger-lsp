@@ -37,6 +37,7 @@ describe('Validator URI Encoding', () => {
       transactions: [transaction],
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map([['Expenses:Food', { name: 'Expenses:Food', declared: false, sourceUri: decodedUri } as any]]),
       commodities: new Map(),
       payees: new Map(),

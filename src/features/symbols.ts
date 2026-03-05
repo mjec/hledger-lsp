@@ -122,6 +122,30 @@ export class DocumentSymbolProvider {
       }
     }
 
+    // Add price directive symbols
+    for (const priceDir of parsedDoc.priceDirectives) {
+      if (priceDir.sourceUri && priceDir.sourceUri.toString() !== documentUri) {
+        continue;
+      }
+
+      const line = priceDir.line;
+      if (line !== undefined && line < lines.length) {
+        const range = Range.create(line, 0, line, lines[line].length);
+
+        const amountStr = priceDir.amount.commodity
+          ? `${priceDir.amount.quantity} ${priceDir.amount.commodity}`
+          : `${priceDir.amount.quantity}`;
+
+        symbols.push({
+          name: `P ${priceDir.date} ${priceDir.commodity} ${amountStr}`,
+          detail: priceDir.comment || undefined,
+          kind: SymbolKind.Constant,
+          range,
+          selectionRange: range
+        });
+      }
+    }
+
     // Add transaction symbols
     for (const transaction of parsedDoc.transactions) {
       // Only include transactions from the current document

@@ -157,10 +157,20 @@ export interface MultiplierAmount {
   format?: Format;
 }
 
+export interface PriceDirective {
+  date: string;        // "2024-01-01"
+  commodity: string;   // base commodity being priced
+  amount: Amount;      // price (quantity + target commodity)
+  comment?: string;
+  sourceUri?: URI;
+  line?: number;
+}
+
 export interface ParsedDocument {
   transactions: Transaction[];
   periodicTransactions: PeriodicTransaction[];
   autoPostings: AutoPosting[];
+  priceDirectives: PriceDirective[];
   accounts: Map<string, Account>;
   directives: Directive[];
   commodities: Map<string, Commodity>;

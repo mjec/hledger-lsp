@@ -127,6 +127,11 @@ export class SemanticTokensProvider {
       return;
     }
 
+    // Handle price directives (P ...)
+    if (this.tokenizePriceDirective(line, lineIndex, builder)) {
+      return;
+    }
+
     // Handle directives
     if (this.tokenizeDirective(line, lineIndex, builder)) {
       return;
@@ -242,6 +247,46 @@ export class SemanticTokensProvider {
   }
 
   /**
+   * Tokenize a price directive line (P DATE COMMODITY AMOUNT).
+   * Returns true if the line was a price directive.
+   */
+  private tokenizePriceDirective(
+    line: string,
+    lineIndex: number,
+    builder: SemanticTokensBuilder
+  ): boolean {
+    const match = line.match(/^(P)\s+(\d{4}[-/.]\d{2}[-/.]\d{2})\s+(\S+)\s+(.+?)(\s*;.*)?$/);
+    if (!match) return false;
+
+    const [, keyword, date, commodity, amountStr, commentPart] = match;
+
+    // P keyword
+    builder.push(lineIndex, 0, keyword.length, TokenType.keyword, 0);
+
+    // Date
+    const dateStart = line.indexOf(date);
+    builder.push(lineIndex, dateStart, date.length, TokenType.keyword, encodeModifiers([TokenModifier.readonly]));
+
+    // Base commodity
+    const commodityStart = line.indexOf(commodity, dateStart + date.length);
+    builder.push(lineIndex, commodityStart, commodity.length, TokenType.variable, 0);
+
+    // Price amount
+    const amountStart = line.indexOf(amountStr.trim(), commodityStart + commodity.length);
+    this.tokenizeSingleAmount(amountStr.trim(), lineIndex, amountStart, builder);
+
+    // Comment
+    if (commentPart) {
+      const commentStart = line.indexOf(';', amountStart);
+      if (commentStart !== -1) {
+        this.tokenizeComment(line.substring(commentStart), lineIndex, builder, commentStart);
+      }
+    }
+
+    return true;
+  }
+
+  /**
    * Tokenize a comment line.
    * @param line The line or substring containing the comment
    * @param lineIndex The line number in the document
@@ -330,7 +375,7 @@ export class SemanticTokensProvider {
   ): boolean {
     const directiveKeywords = [
       'account', 'commodity', 'payee', 'tag',
-      'include', 'alias', 'end', 'apply', 'Y', 'P', 'D'
+      'include', 'alias', 'end', 'apply', 'Y', 'D'
     ];
 
     for (const keyword of directiveKeywords) {

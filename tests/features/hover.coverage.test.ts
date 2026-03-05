@@ -76,6 +76,7 @@ describe('HoverProvider - Coverage Tests', () => {
         transactions: [],
         periodicTransactions: [],
         autoPostings: [],
+        priceDirectives: [],
         accounts: new Map(),
         directives: [],
         commodities: new Map(),

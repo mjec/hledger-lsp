@@ -102,7 +102,7 @@ export class HoverProvider {
     // Check for commodity
     const commodity = parsed.commodities.get(token);
     if (commodity) {
-      return this.provideCommodityHover(commodity);
+      return this.provideCommodityHover(commodity, parsed);
     }
 
     // Check for payee - only if token is part of payee name
@@ -233,7 +233,7 @@ export class HoverProvider {
   /**
    * Provide hover for commodities
    */
-  private provideCommodityHover(commodity: any): Hover {
+  private provideCommodityHover(commodity: any, parsedDoc?: ParsedDocument): Hover {
     const parts: string[] = [`**Commodity**\n\n\`${commodity.name}\``];
 
     // Add declaration status
@@ -281,6 +281,23 @@ export class HoverProvider {
 
       if (formatParts.length > 1) {
         parts.push(formatParts.join('\n'));
+      }
+    }
+
+    // Add price history if available
+    if (parsedDoc) {
+      const prices = parsedDoc.priceDirectives.filter(p => p.commodity === commodity.name);
+      if (prices.length > 0) {
+        const dates = prices.map(p => p.date).sort();
+        const latest = prices.sort((a, b) => b.date.localeCompare(a.date))[0];
+        const latestAmountStr = latest.amount.commodity
+          ? `${latest.amount.quantity} ${latest.amount.commodity}`
+          : `${latest.amount.quantity}`;
+        if (prices.length === 1) {
+          parts.push(`**Prices:** 1 entry (${dates[0]}), latest: ${latestAmountStr}`);
+        } else {
+          parts.push(`**Prices:** ${prices.length} entries (${dates[0]} to ${dates[dates.length - 1]}), latest: ${latestAmountStr}`);
+        }
       }
     }
 

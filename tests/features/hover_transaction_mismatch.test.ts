@@ -45,6 +45,7 @@ describe('HoverProvider Transaction Header Mismatch', () => {
       ],
       periodicTransactions: [],
       autoPostings: [],
+      priceDirectives: [],
       accounts: new Map(),
       commodities: new Map(),
       payees: new Map(),

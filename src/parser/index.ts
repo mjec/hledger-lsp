@@ -13,7 +13,7 @@
  * a single file without following includes.
  */
 
-import { ParsedDocument, Transaction, Account, Directive, Payee, Commodity, Tag, PeriodicTransaction, AutoPosting } from '../types';
+import { ParsedDocument, Transaction, Account, Directive, Payee, Commodity, Tag, PeriodicTransaction, AutoPosting, PriceDirective } from '../types';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { extractTags, isTransactionHeader, isComment, isDirective, isPeriodicTransactionHeader, isAutoPostingHeader } from '../utils/index';
 import * as ast from './ast';
@@ -50,6 +50,7 @@ export class HledgerParser {
     const transactions: Transaction[] = [];
     const periodicTransactions: PeriodicTransaction[] = [];
     const autoPostings: AutoPosting[] = [];
+    const priceDirectives: PriceDirective[] = [];
     const directives: Directive[] = [];
     const accounts = new Map<string, Account>();
     const payees = new Map<string, Payee>();
@@ -157,6 +158,13 @@ export class HledgerParser {
         continue;
       }
 
+      // Parse price directive (before generic directive handling)
+      if (isDirective(line) && trimmedLine.startsWith('P ')) {
+        ast.processPriceDirective(line, priceDirectives, commodities, uri, i);
+        i++;
+        continue;
+      }
+
       // Parse directive
       if (isDirective(line)) {
         const directive = ast.parseDirective(line);
@@ -234,6 +242,7 @@ export class HledgerParser {
       transactions,
       periodicTransactions,
       autoPostings,
+      priceDirectives,
       accounts,
       directives,
       commodities,

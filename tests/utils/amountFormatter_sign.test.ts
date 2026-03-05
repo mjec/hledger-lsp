@@ -8,6 +8,7 @@ describe('formatAmount with signPosition', () => {
         transactions: [],
         periodicTransactions: [],
         autoPostings: [],
+        priceDirectives: [],
         accounts: new Map(),
         commodities: new Map([
             ['$', { name: '$', declared: true, format: { decimalMark: '.', thousandsSeparator: ',', precision: 2, symbolOnLeft: true, spaceBetween: false } }],

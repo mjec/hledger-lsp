@@ -8,6 +8,7 @@ describe('formatAmount', () => {
         transactions: [],
         periodicTransactions: [],
         autoPostings: [],
+        priceDirectives: [],
         directives: [],
         commodities: new Map([
             ['USD', { name: 'USD', declared: true, format: { symbol: '$', symbolOnLeft: true, spaceBetween: false, precision: 2 } }],
@@ -53,6 +54,7 @@ describe('formatAmount', () => {
             transactions: [],
             periodicTransactions: [],
             autoPostings: [],
+            priceDirectives: [],
             directives: [],
             commodities: new Map(),
             payees: new Map(),
@@ -86,6 +88,7 @@ describe('formatAmount', () => {
                 transactions: [],
                 periodicTransactions: [],
                 autoPostings: [],
+                priceDirectives: [],
                 directives: [],
                 commodities: new Map(),
                 payees: new Map(),

@@ -605,6 +605,29 @@ export class FindReferencesProvider {
       }
     }
 
+    // Find in price directives
+    for (const priceDir of parsedDoc.priceDirectives) {
+      if (priceDir.sourceUri?.toString() !== fileUriString) continue;
+      if (priceDir.line === undefined || priceDir.line >= lines.length) continue;
+      const line = lines[priceDir.line];
+
+      if (priceDir.commodity === commodityName) {
+        const start = line.indexOf(commodityName);
+        if (start !== -1) {
+          ranges.push(Range.create(priceDir.line, start, priceDir.line, start + commodityName.length));
+        }
+      }
+      if (priceDir.amount.commodity === commodityName) {
+        // Find the commodity in the amount part (after the base commodity)
+        const baseStart = line.indexOf(priceDir.commodity);
+        const searchStart = baseStart !== -1 ? baseStart + priceDir.commodity.length : 0;
+        const start = line.indexOf(commodityName, searchStart);
+        if (start !== -1) {
+          ranges.push(Range.create(priceDir.line, start, priceDir.line, start + commodityName.length));
+        }
+      }
+    }
+
     return ranges;
   }
 

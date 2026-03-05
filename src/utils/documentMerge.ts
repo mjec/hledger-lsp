@@ -3,7 +3,7 @@
  * Used by WorkspaceManager for graph-based merging of multi-file workspaces.
  */
 
-import { ParsedDocument, Account, Payee, Commodity, Tag, PeriodicTransaction, AutoPosting } from '../types';
+import { ParsedDocument, Account, Payee, Commodity, Tag, PeriodicTransaction, AutoPosting, PriceDirective } from '../types';
 
 /**
  * Create an empty ParsedDocument as a base for merging.
@@ -13,6 +13,7 @@ export function createEmptyParsedDocument(): ParsedDocument {
     transactions: [],
     periodicTransactions: [],
     autoPostings: [],
+    priceDirectives: [],
     accounts: new Map<string, Account>(),
     directives: [],
     commodities: new Map<string, Commodity>(),
@@ -35,6 +36,7 @@ export function mergeParsedDocuments(base: ParsedDocument, included: ParsedDocum
   const transactions = [...base.transactions, ...included.transactions];
   const periodicTransactions = [...base.periodicTransactions, ...included.periodicTransactions];
   const autoPostings = [...base.autoPostings, ...included.autoPostings];
+  const priceDirectives = [...base.priceDirectives, ...included.priceDirectives];
   const directives = [...base.directives, ...included.directives];
 
   const accountMap = new Map<string, Account>(base.accounts);
@@ -81,6 +83,7 @@ export function mergeParsedDocuments(base: ParsedDocument, included: ParsedDocum
     transactions,
     periodicTransactions,
     autoPostings,
+    priceDirectives,
     accounts: accountMap,
     directives,
     commodities: commodityMap,

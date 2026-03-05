@@ -179,6 +179,7 @@ describe('FindReferencesProvider - Coverage Tests', () => {
         transactions: [],
         periodicTransactions: [],
         autoPostings: [],
+        priceDirectives: [],
         accounts: new Map(),
         directives: [{
           type: 'account',
@@ -237,6 +238,7 @@ describe('FindReferencesProvider - Coverage Tests', () => {
         transactions: [],
         periodicTransactions: [],
         autoPostings: [],
+        priceDirectives: [],
         accounts: new Map(),
         directives: [{
           type: 'payee',
@@ -295,6 +297,7 @@ describe('FindReferencesProvider - Coverage Tests', () => {
         transactions: [],
         periodicTransactions: [],
         autoPostings: [],
+        priceDirectives: [],
         accounts: new Map(),
         directives: [{
           type: 'commodity',
@@ -353,6 +356,7 @@ describe('FindReferencesProvider - Coverage Tests', () => {
         transactions: [],
         periodicTransactions: [],
         autoPostings: [],
+        priceDirectives: [],
         accounts: new Map(),
         directives: [{
           type: 'tag',

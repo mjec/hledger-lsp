@@ -352,6 +352,58 @@ export function validateUndeclaredItems(
                 }
             }
 
+            // Also check price directives for undeclared commodities
+            for (const priceDir of parsedDoc.priceDirectives) {
+                if (priceDir.sourceUri && priceDir.sourceUri.toString() !== documentUri) continue;
+                if (priceDir.line === undefined || priceDir.line >= lines.length) continue;
+                const priceLine = lines[priceDir.line];
+
+                // Check base commodity
+                if (undeclaredCommodities.has(priceDir.commodity)) {
+                    const commodityName = priceDir.commodity;
+                    if (!markAllInstances && processedCommodities.has(commodityName)) continue;
+                    const commodityIndex = priceLine.indexOf(commodityName);
+                    if (commodityIndex !== -1) {
+                        diagnostics.push({
+                            severity: getSeverity(settings?.severity?.undeclaredCommodities),
+                            range: {
+                                start: { line: priceDir.line, character: commodityIndex },
+                                end: { line: priceDir.line, character: commodityIndex + commodityName.length }
+                            },
+                            message: `Commodity "${commodityName}" is used but not declared with 'commodity' directive`,
+                            source: 'hledger',
+                            code: 'undeclared-commodity',
+                            data: { commodityName }
+                        });
+                        processedCommodities.add(commodityName);
+                    }
+                }
+
+                // Check price commodity
+                if (priceDir.amount.commodity && undeclaredCommodities.has(priceDir.amount.commodity)) {
+                    const commodityName = priceDir.amount.commodity;
+                    if (!markAllInstances && processedCommodities.has(commodityName)) continue;
+                    // Find after base commodity to avoid matching the wrong one
+                    const baseStart = priceLine.indexOf(priceDir.commodity);
+                    const searchStart = baseStart !== -1 ? baseStart + priceDir.commodity.length : 0;
+                    const commodityIndex = priceLine.indexOf(commodityName, searchStart);
+                    if (commodityIndex !== -1) {
+                        diagnostics.push({
+                            severity: getSeverity(settings?.severity?.undeclaredCommodities),
+                            range: {
+                                start: { line: priceDir.line, character: commodityIndex },
+                                end: { line: priceDir.line, character: commodityIndex + commodityName.length }
+                            },
+                            message: `Commodity "${commodityName}" is used but not declared with 'commodity' directive`,
+                            source: 'hledger',
+                            code: 'undeclared-commodity',
+                            data: { commodityName }
+                        });
+                        processedCommodities.add(commodityName);
+                    }
+                }
+            }
+
             // Also check auto postings for undeclared commodities
             for (const autoPost of parsedDoc.autoPostings) {
                 if (autoPost.sourceUri && autoPost.sourceUri.toString() !== documentUri) continue;

@@ -1,5 +1,5 @@
 import { URI } from 'vscode-uri';
-import { Transaction, Posting, Amount, Account, Payee, Commodity, Tag, Directive, DecimalMark, ThousandsSeparator, Format, PeriodicTransaction, AutoPosting, AutoPostingEntry, MultiplierAmount } from '../types';
+import { Transaction, Posting, Amount, Account, Payee, Commodity, Tag, Directive, DecimalMark, ThousandsSeparator, Format, PeriodicTransaction, AutoPosting, AutoPostingEntry, MultiplierAmount, PriceDirective } from '../types';
 import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment, stripQuotes } from '../utils/index';
 
 /**
@@ -558,6 +558,42 @@ export function processAutoPostingEntries(entries: AutoPostingEntry[], accountMa
       for (const tagName of Object.keys(entry.tags)) {
         addTag(tagMap, tagName, false, sourceUri);
       }
+    }
+  }
+}
+
+// Parse Price Directive
+export function parsePriceDirective(line: string, commodities?: Map<string, Commodity>): PriceDirective | null {
+  const match = line.match(/^P\s+(\d{4}[-/.]\d{2}[-/.]\d{2})\s+(\S+)\s+(.+?)(\s*;.*)?$/);
+  if (!match) return null;
+
+  const [, date, commodity, amountStr, commentPart] = match;
+  const amount = parseAmount(amountStr.trim(), undefined, commodities);
+  if (!amount) return null;
+
+  const result: PriceDirective = { date, commodity, amount };
+  if (commentPart) {
+    result.comment = commentPart.trim().substring(1).trim();
+  }
+  return result;
+}
+
+export function processPriceDirective(
+  line: string,
+  priceDirectives: PriceDirective[],
+  commodityMap: Map<string, Commodity>,
+  sourceUri?: URI,
+  lineNumber?: number
+): void {
+  const priceDir = parsePriceDirective(line, commodityMap);
+  if (priceDir) {
+    priceDir.sourceUri = sourceUri;
+    priceDir.line = lineNumber;
+    priceDirectives.push(priceDir);
+    // Register both commodities
+    addCommodity(commodityMap, priceDir.commodity, false, undefined, sourceUri, lineNumber);
+    if (priceDir.amount.commodity && priceDir.amount.commodity !== '') {
+      addCommodity(commodityMap, priceDir.amount.commodity, false, priceDir.amount.format, sourceUri, lineNumber);
     }
   }
 }
