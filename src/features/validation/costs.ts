@@ -1,9 +1,8 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
-import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Transaction } from '../../types';
 import { getTransactionRange } from './utils';
 
-export function validateExplicitCosts(transaction: Transaction, document: TextDocument): Diagnostic[] {
+export function validateExplicitCosts(transaction: Transaction, lines: string[]): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
     // Check if any posting has an inferred cost (set by inferCosts during parsing)
@@ -19,7 +18,7 @@ export function validateExplicitCosts(transaction: Transaction, document: TextDo
 
         diagnostics.push({
             severity: DiagnosticSeverity.Error,
-            range: getTransactionRange(transaction, document),
+            range: getTransactionRange(transaction, lines),
             message: `Multi-commodity transaction requires explicit cost notation (@ or @@). Commodities: ${[...commodities].join(', ')}`,
             source: 'hledger'
         });

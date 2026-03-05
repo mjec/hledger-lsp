@@ -1,12 +1,11 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
-import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction } from '../../types';
 import { getFormatUnsafeReason } from '../formattingValidation';
 import { ValidationOptions, SeverityOptions, FormattingOptions, defaultSettings } from '../../server/settings';
 
 export function validateFormatMismatch(
     transaction: Transaction,
-    document: TextDocument,
+    lines: string[],
     parsedDoc: ParsedDocument,
     settings?: { validation?: Partial<ValidationOptions>; severity?: Partial<SeverityOptions>; formatting?: Partial<FormattingOptions> }
 ): Diagnostic[] {
@@ -15,9 +14,6 @@ export function validateFormatMismatch(
     if (transaction.line === undefined) {
         return diagnostics; // Can't create diagnostics without line numbers
     }
-
-    const text = document.getText();
-    const lines = text.split('\n');
 
     // Check each posting's amount for format mismatches
     let postingLineOffset = 1;

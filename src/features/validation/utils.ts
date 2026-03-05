@@ -1,9 +1,6 @@
-import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Transaction } from '../../types';
 
-export function getLineRange(line: number, document: TextDocument): { start: { line: number; character: number }; end: { line: number; character: number } } {
-    const text = document.getText();
-    const lines = text.split('\n');
+export function getLineRange(line: number, lines: string[]): { start: { line: number; character: number }; end: { line: number; character: number } } {
     const lineText = line < lines.length ? lines[line] : '';
     return {
         start: { line, character: 0 },
@@ -11,11 +8,9 @@ export function getLineRange(line: number, document: TextDocument): { start: { l
     };
 }
 
-export function getTransactionRange(transaction: Transaction, document: TextDocument): { start: { line: number; character: number }; end: { line: number; character: number } } {
+export function getTransactionRange(transaction: Transaction, lines: string[]): { start: { line: number; character: number }; end: { line: number; character: number } } {
     // Use the transaction's stored line number directly
     if (transaction.line !== undefined) {
-        const text = document.getText();
-        const lines = text.split('\n');
         const line = lines[transaction.line] || '';
         return {
             start: { line: transaction.line, character: 0 },
@@ -30,10 +25,7 @@ export function getTransactionRange(transaction: Transaction, document: TextDocu
     };
 }
 
-export function findFirstOccurrence(document: TextDocument, searchStr: string): { start: { line: number; character: number }; end: { line: number; character: number } } | null {
-    const text = document.getText();
-    const lines = text.split('\n');
-
+export function findFirstOccurrence(lines: string[], searchStr: string): { start: { line: number; character: number }; end: { line: number; character: number } } | null {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const index = line.indexOf(searchStr);

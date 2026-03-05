@@ -47,13 +47,15 @@ export function validateIncludeDirectives(
     parsedDoc: ParsedDocument,
     options: ValidatorOptions,
     checkMissingFiles: boolean = true,
-    checkCircularIncludes: boolean = true
+    checkCircularIncludes: boolean = true,
+    lines?: string[]
 ): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
     const visited = new Set<string>();
     const baseUri = options.baseUri || URI.parse(document.uri);
     const fileReader = options.fileReader!;
     const documentUri = URI.parse(document.uri);
+    const docLines = lines || document.getText().split('\n');
 
     // Find all include directives in the document
     const includeDirectives = parsedDoc.directives.filter(d => d.type === 'include');
@@ -70,7 +72,7 @@ export function validateIncludeDirectives(
 
             // Check if glob matched any files (if enabled)
             if (resolvedPaths.length === 0 && checkMissingFiles) {
-                const range = findFirstOccurrence(document, includePath);
+                const range = findFirstOccurrence(docLines, includePath);
                 if (range) {
                     diagnostics.push({
                         severity: DiagnosticSeverity.Error,
@@ -88,7 +90,7 @@ export function validateIncludeDirectives(
                     if (includeDoc) {
                         const circularCheck = checkCircularInclude(documentUri, includeDoc, fileReader, new Set([baseUri.toString(), resolvedPath.toString()]));
                         if (circularCheck) {
-                            const range = findFirstOccurrence(document, includePath);
+                            const range = findFirstOccurrence(docLines, includePath);
                             if (range) {
                                 diagnostics.push({
                                     severity: DiagnosticSeverity.Error,
@@ -108,7 +110,7 @@ export function validateIncludeDirectives(
 
             // Check for duplicate includes in the same document
             if (visited.has(resolvedPath.toString())) {
-                const range = findFirstOccurrence(document, includePath);
+                const range = findFirstOccurrence(docLines, includePath);
                 if (range) {
                     diagnostics.push({
                         severity: DiagnosticSeverity.Warning,
@@ -127,7 +129,7 @@ export function validateIncludeDirectives(
 
             if (!includeDoc && checkMissingFiles) {
                 // File doesn't exist
-                const range = findFirstOccurrence(document, includePath);
+                const range = findFirstOccurrence(docLines, includePath);
                 if (range) {
                     diagnostics.push({
                         severity: DiagnosticSeverity.Error,
@@ -142,7 +144,7 @@ export function validateIncludeDirectives(
             if (includeDoc && checkCircularIncludes) {
                 const circularCheck = checkCircularInclude(documentUri, includeDoc, fileReader, new Set([baseUri.toString(), resolvedPath.toString()]));
                 if (circularCheck) {
-                    const range = findFirstOccurrence(document, includePath);
+                    const range = findFirstOccurrence(docLines, includePath);
                     if (range) {
                         diagnostics.push({
                             severity: DiagnosticSeverity.Error,

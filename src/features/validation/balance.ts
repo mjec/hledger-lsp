@@ -1,11 +1,10 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
-import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction, PeriodicTransaction } from '../../types';
 import { calculateTransactionBalance } from '../../utils/balanceCalculator';
 import { formatAmount } from '../../utils/amountFormatter';
 import { getLineRange, getTransactionRange } from './utils';
 
-export function validateBalance(transaction: Transaction, document: TextDocument, parsedDoc: ParsedDocument): Diagnostic[] {
+export function validateBalance(transaction: Transaction, lines: string[], parsedDoc: ParsedDocument): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
     // Calculate transaction balance by commodity
@@ -31,7 +30,7 @@ export function validateBalance(transaction: Transaction, document: TextDocument
                     : balance.toFixed(2);
                 diagnostics.push({
                     severity: DiagnosticSeverity.Error,
-                    range: getTransactionRange(transaction, document),
+                    range: getTransactionRange(transaction, lines),
                     message: `Transaction does not balance: ${formattedBalance} off`,
                     source: 'hledger'
                 });
@@ -42,7 +41,7 @@ export function validateBalance(transaction: Transaction, document: TextDocument
     return diagnostics;
 }
 
-export function validatePeriodicTransactionBalance(periodicTx: PeriodicTransaction, document: TextDocument, parsedDoc: ParsedDocument): Diagnostic[] {
+export function validatePeriodicTransactionBalance(periodicTx: PeriodicTransaction, lines: string[], parsedDoc: ParsedDocument): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
     // Reuse the same balance calculation logic
     const tempTransaction: Transaction = {
@@ -71,7 +70,7 @@ export function validatePeriodicTransactionBalance(periodicTx: PeriodicTransacti
                     : balance.toFixed(2);
                 diagnostics.push({
                     severity: DiagnosticSeverity.Error,
-                    range: getLineRange(periodicTx.line ?? 0, document),
+                    range: getLineRange(periodicTx.line ?? 0, lines),
                     message: `Periodic transaction does not balance: ${formattedBalance} off`,
                     source: 'hledger'
                 });

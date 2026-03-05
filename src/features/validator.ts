@@ -42,6 +42,9 @@ export class Validator {
     const diagnostics: Diagnostic[] = [];
     const settings = options?.settings;
 
+    // Split document text once for all validation functions
+    const lines = document.getText().split('\n');
+
     // Normalize document URI to ensure proper encoding (e.g., @ -> %40)
     // This fixes issues where clients (like Neovim) send partially-encoded URIs
     const documentUri = URI.parse(document.uri).toString();
@@ -68,49 +71,49 @@ export class Validator {
 
       // Check balance
       if (isEnabled('balance')) {
-        const balanceIssues = validateBalance(transaction, document, parsedDoc);
+        const balanceIssues = validateBalance(transaction, lines, parsedDoc);
         diagnostics.push(...balanceIssues);
       }
 
       // Check for implicit cost inference (strict "balanced" mode)
       if (isEnabled('requireExplicitCosts')) {
-        const costIssues = validateExplicitCosts(transaction, document);
+        const costIssues = validateExplicitCosts(transaction, lines);
         diagnostics.push(...costIssues);
       }
 
       // Check missing amounts
       if (isEnabled('missingAmounts')) {
-        const amountIssues = validateMissingAmounts(transaction, document);
+        const amountIssues = validateMissingAmounts(transaction, lines);
         diagnostics.push(...amountIssues);
       }
 
       // Check empty transactions
       if (isEnabled('emptyTransactions')) {
-        const emptyTxnIssues = validateEmptyTransaction(transaction, document);
+        const emptyTxnIssues = validateEmptyTransaction(transaction, lines);
         diagnostics.push(...emptyTxnIssues);
       }
 
       // Check invalid date formats
       if (isEnabled('invalidDates')) {
-        const invalidDateIssues = validateDateFormat(transaction, document);
+        const invalidDateIssues = validateDateFormat(transaction, lines);
         diagnostics.push(...invalidDateIssues);
       }
 
       // Check future dates
       if (isEnabled('futureDates')) {
-        const futureDateIssues = validateFutureDate(transaction, document);
+        const futureDateIssues = validateFutureDate(transaction, lines);
         diagnostics.push(...futureDateIssues);
       }
 
       // Check empty descriptions
       if (isEnabled('emptyDescriptions')) {
-        const emptyDescIssues = validateEmptyDescription(transaction, document);
+        const emptyDescIssues = validateEmptyDescription(transaction, lines);
         diagnostics.push(...emptyDescIssues);
       }
 
       // Check format mismatches
       if (isEnabled('formatMismatch')) {
-        const formatIssues = validateFormatMismatch(transaction, document, parsedDoc, settings);
+        const formatIssues = validateFormatMismatch(transaction, lines, parsedDoc, settings);
         diagnostics.push(...formatIssues);
       }
     }
@@ -123,13 +126,13 @@ export class Validator {
 
       // Check balance (periodic transactions must balance like regular ones)
       if (isEnabled('balance')) {
-        const balanceIssues = validatePeriodicTransactionBalance(periodicTx, document, parsedDoc);
+        const balanceIssues = validatePeriodicTransactionBalance(periodicTx, lines, parsedDoc);
         diagnostics.push(...balanceIssues);
       }
 
       // Check missing amounts
       if (isEnabled('missingAmounts')) {
-        const amountIssues = validatePeriodicTransactionMissingAmounts(periodicTx, document);
+        const amountIssues = validatePeriodicTransactionMissingAmounts(periodicTx, lines);
         diagnostics.push(...amountIssues);
       }
 
@@ -138,7 +141,7 @@ export class Validator {
         if (periodicTx.postings.length === 0 && periodicTx.line !== undefined) {
           diagnostics.push({
             severity: DiagnosticSeverity.Warning,
-            range: getLineRange(periodicTx.line, document),
+            range: getLineRange(periodicTx.line, lines),
             message: 'Periodic transaction has no postings',
             source: 'hledger'
           });
@@ -146,20 +149,12 @@ export class Validator {
       }
     }
 
-    // Validate auto postings (minimal — they are partial by design)
-    for (const autoPost of parsedDoc.autoPostings) {
-      if (autoPost.sourceUri?.toString() !== documentUri) {
-        continue;
-      }
-      // No balance validation for auto postings — they are partial by design
-      // Undeclared accounts/commodities are handled by the general undeclared items check
-    }
-
     // Check for undeclared items (each type can be enabled/disabled separately)
     const undeclaredIssues = validateUndeclaredItems(
-      document,
+      lines,
       parsedDoc,
       settings,
+      documentUri,
       isEnabled('undeclaredAccounts'),
       isEnabled('undeclaredPayees'),
       isEnabled('undeclaredCommodities'),
@@ -169,19 +164,19 @@ export class Validator {
 
     // Check date ordering
     if (isEnabled('dateOrdering')) {
-      const dateOrderIssues = validateDateOrdering(parsedDoc.transactions, document);
+      const dateOrderIssues = validateDateOrdering(parsedDoc.transactions, lines, documentUri);
       diagnostics.push(...dateOrderIssues);
     }
 
     // Check balance assertions
     if (isEnabled('balanceAssertions')) {
-      const assertionIssues = validateBalanceAssertions(parsedDoc.transactions, document, parsedDoc);
+      const assertionIssues = validateBalanceAssertions(parsedDoc.transactions, lines, parsedDoc, documentUri, document);
       diagnostics.push(...assertionIssues);
     }
 
     // Check include directives
     if (options?.fileReader && (isEnabled('includeFiles') || isEnabled('circularIncludes'))) {
-      const includeIssues = validateIncludeDirectives(document, parsedDoc, options, isEnabled('includeFiles'), isEnabled('circularIncludes'));
+      const includeIssues = validateIncludeDirectives(document, parsedDoc, options, isEnabled('includeFiles'), isEnabled('circularIncludes'), lines);
       diagnostics.push(...includeIssues);
     }
 

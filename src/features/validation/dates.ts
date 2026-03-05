@@ -1,6 +1,4 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
-import { URI } from 'vscode-uri';
-import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Transaction } from '../../types';
 import { getTransactionRange } from './utils';
 
@@ -11,11 +9,8 @@ export function parseDate(dateStr: string): Date | null {
     return isNaN(date.getTime()) ? null : date;
 }
 
-export function validateDateOrdering(transactions: Transaction[], document: TextDocument): Diagnostic[] {
+export function validateDateOrdering(transactions: Transaction[], lines: string[], documentUri: string): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
-
-    // Normalize document URI to ensure proper encoding
-    const documentUri = URI.parse(document.uri).toString();
 
     // Only validate transactions in the current document
     const documentTransactions = transactions.filter(t => t.sourceUri?.toString() === documentUri);
@@ -25,7 +20,7 @@ export function validateDateOrdering(transactions: Transaction[], document: Text
         const currDate = parseDate(documentTransactions[i].date);
 
         if (prevDate && currDate && currDate < prevDate) {
-            const range = getTransactionRange(documentTransactions[i], document);
+            const range = getTransactionRange(documentTransactions[i], lines);
             diagnostics.push({
                 severity: DiagnosticSeverity.Warning,
                 range,
@@ -38,14 +33,14 @@ export function validateDateOrdering(transactions: Transaction[], document: Text
     return diagnostics;
 }
 
-export function validateDateFormat(transaction: Transaction, document: TextDocument): Diagnostic[] {
+export function validateDateFormat(transaction: Transaction, lines: string[]): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
     const normalized = transaction.date.replace(/\//g, '-');
     const parts = normalized.split('-');
 
     if (parts.length !== 3) {
-        const range = getTransactionRange(transaction, document);
+        const range = getTransactionRange(transaction, lines);
         diagnostics.push({
             severity: DiagnosticSeverity.Error,
             range,
@@ -61,7 +56,7 @@ export function validateDateFormat(transaction: Transaction, document: TextDocum
 
     // Check if values are in valid ranges
     if (month < 1 || month > 12) {
-        const range = getTransactionRange(transaction, document);
+        const range = getTransactionRange(transaction, lines);
         diagnostics.push({
             severity: DiagnosticSeverity.Error,
             range,
@@ -72,7 +67,7 @@ export function validateDateFormat(transaction: Transaction, document: TextDocum
     }
 
     if (day < 1 || day > 31) {
-        const range = getTransactionRange(transaction, document);
+        const range = getTransactionRange(transaction, lines);
         diagnostics.push({
             severity: DiagnosticSeverity.Error,
             range,
@@ -86,7 +81,7 @@ export function validateDateFormat(transaction: Transaction, document: TextDocum
     const parsedDate = parseDate(transaction.date);
 
     if (!parsedDate) {
-        const range = getTransactionRange(transaction, document);
+        const range = getTransactionRange(transaction, lines);
         diagnostics.push({
             severity: DiagnosticSeverity.Error,
             range,
@@ -103,7 +98,7 @@ export function validateDateFormat(transaction: Transaction, document: TextDocum
     if (parsedDate.getUTCFullYear() !== year ||
         parsedDate.getUTCMonth() + 1 !== month ||
         parsedDate.getUTCDate() !== day) {
-        const range = getTransactionRange(transaction, document);
+        const range = getTransactionRange(transaction, lines);
         diagnostics.push({
             severity: DiagnosticSeverity.Error,
             range,
@@ -115,7 +110,7 @@ export function validateDateFormat(transaction: Transaction, document: TextDocum
     return diagnostics;
 }
 
-export function validateFutureDate(transaction: Transaction, document: TextDocument): Diagnostic[] {
+export function validateFutureDate(transaction: Transaction, lines: string[]): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
     const parsedDate = parseDate(transaction.date);
@@ -128,7 +123,7 @@ export function validateFutureDate(transaction: Transaction, document: TextDocum
     today.setUTCHours(0, 0, 0, 0); // Reset time portion for date-only comparison
 
     if (parsedDate > today) {
-        const range = getTransactionRange(transaction, document);
+        const range = getTransactionRange(transaction, lines);
         diagnostics.push({
             severity: DiagnosticSeverity.Warning,
             range,

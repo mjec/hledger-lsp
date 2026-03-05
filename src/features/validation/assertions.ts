@@ -7,11 +7,8 @@ import { resolveIncludePath } from '../../utils/uri';
 import { getEffectiveDate } from '../../utils/index';
 import { getTransactionRange } from './utils';
 
-export function findPostingRange(transaction: Transaction, posting: Posting, document: TextDocument): { start: { line: number; character: number }; end: { line: number; character: number } } {
+export function findPostingRange(transaction: Transaction, posting: Posting, lines: string[]): { start: { line: number; character: number }; end: { line: number; character: number } } {
     if (transaction.line !== undefined) {
-        const text = document.getText();
-        const lines = text.split('\n');
-
         // Search for the posting within the transaction's lines
         for (let i = transaction.line + 1; i < lines.length; i++) {
             const line = lines[i];
@@ -31,18 +28,18 @@ export function findPostingRange(transaction: Transaction, posting: Posting, doc
     }
 
     // Fallback to transaction range
-    return getTransactionRange(transaction, document);
+    return getTransactionRange(transaction, lines);
 }
 
 export function validateBalanceAssertions(
     transactions: Transaction[],
-    document: TextDocument,
-    parsedDoc: ParsedDocument
+    lines: string[],
+    parsedDoc: ParsedDocument,
+    documentUri: string,
+    document: TextDocument
 ): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
-    // Normalize document URI to ensure proper encoding
-    const documentUri = URI.parse(document.uri).toString();
     const baseUri = URI.parse(document.uri);
 
     // Build a map from included file URI to the include directive's line number
@@ -133,7 +130,7 @@ export function validateBalanceAssertions(
 
             // Allow for small floating point errors
             if (Math.abs(actualBalance - assertedAmount) > 0.005) {
-                const range = findPostingRange(transaction, posting, document);
+                const range = findPostingRange(transaction, posting, lines);
                 const expectedFormatted = formatAmount(assertedAmount, assertedCommodity, parsedDoc);
                 const actualFormatted = formatAmount(actualBalance, assertedCommodity, parsedDoc);
 
