@@ -12,11 +12,12 @@ import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument } from '../types';
+import { isFromDocument } from '../utils/index';
 import { ValidationOptions, defaultSettings } from '../server/settings';
 import { ValidatorOptions, ValidationResult } from './validation/types';
 import { getLineRange } from './validation/utils';
 import {
-  validateBalance,
+  validateNonPeriodicBalance,
   validatePeriodicTransactionBalance,
   validateExplicitCosts,
   validateMissingAmounts,
@@ -65,13 +66,13 @@ export class Validator {
     for (const transaction of parsedDoc.transactions) {
       // Only validate transactions in the current document
       // (workspace parsing may include transactions from other files)
-      if (transaction.sourceUri?.toString() !== documentUri) {
+      if (!isFromDocument(transaction, documentUri)) {
         continue;
       }
 
       // Check balance
       if (isEnabled('balance')) {
-        const balanceIssues = validateBalance(transaction, lines, parsedDoc);
+        const balanceIssues = validateNonPeriodicBalance(transaction, lines, parsedDoc);
         diagnostics.push(...balanceIssues);
       }
 
@@ -120,7 +121,7 @@ export class Validator {
 
     // Validate periodic transactions
     for (const periodicTx of parsedDoc.periodicTransactions) {
-      if (periodicTx.sourceUri?.toString() !== documentUri) {
+      if (!isFromDocument(periodicTx, documentUri)) {
         continue;
       }
 

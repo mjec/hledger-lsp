@@ -8,9 +8,10 @@
 import { Location, Position, Range } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, FileReader } from '../types';
+import { HledgerParser } from '../parser/index';
 import { URI } from 'vscode-uri';
-import { toFilePath } from '../utils/uri';
-import * as fs from 'fs';
+import { isFromDocument } from '../utils/index';
+import { readDocument, readDocumentLines } from '../utils/fileReader';
 
 export class FindReferencesProvider {
   /**
@@ -58,7 +59,7 @@ export class FindReferencesProvider {
     position: Position,
     parsed: ParsedDocument,
     fileUris: URI[],
-    parser: any, // HledgerParser
+    parser: HledgerParser,
     fileReader?: FileReader
   ): Location[] | null {
     // Get the item at cursor
@@ -72,24 +73,10 @@ export class FindReferencesProvider {
     const parsedDocs = new Map<string, ParsedDocument>();
     for (const fileUri of fileUris) {
       try {
-        // Get the TextDocument for this URI
-        let doc: TextDocument | null = null;
-        if (fileReader) {
-          doc = fileReader(fileUri);
-        }
-
-        if (!doc) {
-          // Fallback to reading from disk
-          const fs = require('fs');
-          const { toFilePath } = require('../utils/uri');
-          const filePath = toFilePath(fileUri);
-          const content = fs.readFileSync(filePath, 'utf8');
-          doc = TextDocument.create(fileUri.toString(), 'hledger', 1, content);
-        }
-
+        let doc = readDocument(fileUri, fileReader);
         // Parse in document mode - we're iterating through all workspace files,
         // so we don't need recursive include resolution
-        const parsedFile = parser.parse(doc, { baseUri: fileUri, parseMode: 'document' });
+        const parsedFile = parser.parse(doc);
         parsedDocs.set(fileUri.toString(), parsedFile);
       } catch (error) {
         // Skip files that can't be parsed
@@ -129,9 +116,6 @@ export class FindReferencesProvider {
     return locations;
   }
 
-  /**
-   * Get the item (account, payee, commodity, tag) at the cursor position
-   */
   /**
    * Get the item (account, payee, commodity, tag) at the cursor position
    */
@@ -298,29 +282,16 @@ export class FindReferencesProvider {
     const fileUriString = fileUri.toString();
 
     // Get file lines for finding character positions
-    let lines: string[] | null = null;
-    if (fileReader) {
-      const doc = fileReader(fileUri);
-      if (doc) {
-        lines = doc.getText().split('\n');
-      }
-    }
+    const lines = readDocumentLines(fileUri, fileReader)
     if (!lines) {
-      // Fallback to reading from disk
-      try {
-        const filePath = toFilePath(fileUri);
-        const content = fs.readFileSync(filePath, 'utf8');
-        lines = content.split('\n');
-      } catch (error) {
-        return ranges; // Can't read file, return empty
-      }
+      return ranges;
     }
 
     // Find in directives
     for (const directive of parsedDoc.directives) {
       if (directive.type === 'account' &&
         directive.value === accountName &&
-        directive.sourceUri?.toString() === fileUriString &&
+        isFromDocument(directive, fileUriString) &&
         directive.line !== undefined &&
         directive.line < lines.length) {
         const line = lines[directive.line];
@@ -338,7 +309,7 @@ export class FindReferencesProvider {
 
     // Find in postings
     for (const transaction of parsedDoc.transactions) {
-      if (transaction.sourceUri?.toString() !== fileUriString) continue;
+      if (!isFromDocument(transaction, fileUriString)) continue;
 
       for (const posting of transaction.postings) {
         if (posting.account === accountName &&
@@ -360,7 +331,7 @@ export class FindReferencesProvider {
 
     // Find in periodic transaction postings
     for (const periodicTx of parsedDoc.periodicTransactions) {
-      if (periodicTx.sourceUri?.toString() !== fileUriString) continue;
+      if (!isFromDocument(periodicTx, fileUriString)) continue;
 
       for (const posting of periodicTx.postings) {
         if (posting.account === accountName &&
@@ -377,7 +348,7 @@ export class FindReferencesProvider {
 
     // Find in auto posting entries
     for (const autoPost of parsedDoc.autoPostings) {
-      if (autoPost.sourceUri?.toString() !== fileUriString) continue;
+      if (!isFromDocument(autoPost, fileUriString)) continue;
 
       for (const entry of autoPost.postings) {
         if (entry.account === accountName &&
@@ -408,28 +379,16 @@ export class FindReferencesProvider {
     const fileUriString = fileUri.toString();
 
     // Get file lines for finding character positions
-    let lines: string[] | null = null;
-    if (fileReader) {
-      const doc = fileReader(fileUri);
-      if (doc) {
-        lines = doc.getText().split('\n');
-      }
-    }
+    const lines = readDocumentLines(fileUri, fileReader)
     if (!lines) {
-      try {
-        const filePath = toFilePath(fileUri);
-        const content = fs.readFileSync(filePath, 'utf8');
-        lines = content.split('\n');
-      } catch (error) {
-        return ranges;
-      }
+      return ranges;
     }
 
     // Find in directives
     for (const directive of parsedDoc.directives) {
       if (directive.type === 'payee' &&
         directive.value === payeeName &&
-        directive.sourceUri?.toString() === fileUriString &&
+        isFromDocument(directive, fileUriString) &&
         directive.line !== undefined &&
         directive.line < lines.length) {
         const line = lines[directive.line];
@@ -447,7 +406,7 @@ export class FindReferencesProvider {
 
     // Find in transactions
     for (const transaction of parsedDoc.transactions) {
-      if (transaction.sourceUri?.toString() !== fileUriString) continue;
+      if (!isFromDocument(transaction, fileUriString)) continue;
 
       if (transaction.payee === payeeName &&
         transaction.line !== undefined &&
@@ -481,28 +440,16 @@ export class FindReferencesProvider {
     const fileUriString = fileUri.toString();
 
     // Get file lines for finding character positions
-    let lines: string[] | null = null;
-    if (fileReader) {
-      const doc = fileReader(fileUri);
-      if (doc) {
-        lines = doc.getText().split('\n');
-      }
-    }
+    const lines = readDocumentLines(fileUri, fileReader)
     if (!lines) {
-      try {
-        const filePath = toFilePath(fileUri);
-        const content = fs.readFileSync(filePath, 'utf8');
-        lines = content.split('\n');
-      } catch (error) {
-        return ranges;
-      }
+      return ranges;
     }
 
     // Find in directives
     for (const directive of parsedDoc.directives) {
       if (directive.type === 'commodity' &&
         directive.value.startsWith(commodityName) &&
-        directive.sourceUri?.toString() === fileUriString &&
+        isFromDocument(directive, fileUriString) &&
         directive.line !== undefined &&
         directive.line < lines.length) {
         const line = lines[directive.line];
@@ -520,7 +467,7 @@ export class FindReferencesProvider {
 
     // Find in posting amounts
     for (const transaction of parsedDoc.transactions) {
-      if (transaction.sourceUri?.toString() !== fileUriString) continue;
+      if (!isFromDocument(transaction, fileUriString)) continue;
 
       for (const posting of transaction.postings) {
         if (posting.line === undefined || posting.line >= lines.length) continue;
@@ -576,7 +523,7 @@ export class FindReferencesProvider {
 
     // Find in periodic transaction postings
     for (const periodicTx of parsedDoc.periodicTransactions) {
-      if (periodicTx.sourceUri?.toString() !== fileUriString) continue;
+      if (!isFromDocument(periodicTx, fileUriString)) continue;
       for (const posting of periodicTx.postings) {
         if (posting.line === undefined || posting.line >= lines.length) continue;
         const line = lines[posting.line];
@@ -591,7 +538,7 @@ export class FindReferencesProvider {
 
     // Find in auto posting entries
     for (const autoPost of parsedDoc.autoPostings) {
-      if (autoPost.sourceUri?.toString() !== fileUriString) continue;
+      if (!isFromDocument(autoPost, fileUriString)) continue;
       for (const entry of autoPost.postings) {
         if (entry.line === undefined || entry.line >= lines.length) continue;
         const line = lines[entry.line];
@@ -607,7 +554,7 @@ export class FindReferencesProvider {
 
     // Find in price directives
     for (const priceDir of parsedDoc.priceDirectives) {
-      if (priceDir.sourceUri?.toString() !== fileUriString) continue;
+      if (!isFromDocument(priceDir, fileUriString)) continue;
       if (priceDir.line === undefined || priceDir.line >= lines.length) continue;
       const line = lines[priceDir.line];
 
@@ -644,28 +591,16 @@ export class FindReferencesProvider {
     const fileUriString = fileUri.toString();
 
     // Get file lines for finding character positions
-    let lines: string[] | null = null;
-    if (fileReader) {
-      const doc = fileReader(fileUri);
-      if (doc) {
-        lines = doc.getText().split('\n');
-      }
-    }
+    const lines = readDocumentLines(fileUri, fileReader)
     if (!lines) {
-      try {
-        const filePath = toFilePath(fileUri);
-        const content = fs.readFileSync(filePath, 'utf8');
-        lines = content.split('\n');
-      } catch (error) {
-        return ranges;
-      }
+      return ranges;
     }
 
     // Find in directives
     for (const directive of parsedDoc.directives) {
       if (directive.type === 'tag' &&
         directive.value === tagName &&
-        directive.sourceUri?.toString() === fileUriString &&
+        isFromDocument(directive, fileUriString) &&
         directive.line !== undefined &&
         directive.line < lines.length) {
         const line = lines[directive.line];
@@ -683,7 +618,7 @@ export class FindReferencesProvider {
 
     // Find in transaction tags
     for (const transaction of parsedDoc.transactions) {
-      if (transaction.sourceUri?.toString() !== fileUriString) continue;
+      if (!isFromDocument(transaction, fileUriString)) continue;
 
       if (transaction.tags && tagName in transaction.tags &&
         transaction.line !== undefined &&

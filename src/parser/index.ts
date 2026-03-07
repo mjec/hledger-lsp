@@ -19,25 +19,33 @@ import { extractTags, isTransactionHeader, isComment, isDirective, isPeriodicTra
 import * as ast from './ast';
 import { URI } from 'vscode-uri';
 
-/**
- * Options for parsing hledger documents
- */
-export interface ParseOptions {
-  /**
-   * Base URI for the document being parsed.
-   * Used to set sourceUri on parsed entities.
-   */
-  baseUri?: URI;
-
-  /**
-   * Parse mode hint (for logging/debugging).
-   * The parser always parses single documents; include resolution
-   * is handled by WorkspaceManager.
-   */
-  parseMode?: 'document' | 'workspace';
-}
-
 export class HledgerParser {
+
+  private scanBlockLines(lines: string[], startIndex: number): number {
+    let i = startIndex;
+
+    // Skip past the transaction lines to find where it ends
+    i++;
+    while (i < lines.length) {
+      const nextLine = lines[i];
+
+      // Transaction ends at empty line, next transaction, periodic/auto header, or directive
+      if (!nextLine.trim() || isTransactionHeader(nextLine) || isPeriodicTransactionHeader(nextLine) || isAutoPostingHeader(nextLine) || isDirective(nextLine)) {
+        break;
+      }
+
+      //Transaction ends at non indented comment line
+      if (isComment(nextLine) && !nextLine.startsWith("  ")) {
+        break;
+      }
+
+      i++;
+    }
+
+    const endLine = i;
+    return endLine
+
+  }
 
   /**
    * Parse a complete hledger document
@@ -97,17 +105,7 @@ export class HledgerParser {
       // Parse periodic transaction
       if (isPeriodicTransactionHeader(line)) {
         const startLine = i;
-        i++;
-        while (i < lines.length) {
-          const nextLine = lines[i];
-          if (!nextLine.trim() || isTransactionHeader(nextLine) || isPeriodicTransactionHeader(nextLine) || isAutoPostingHeader(nextLine) || isDirective(nextLine)) {
-            break;
-          }
-          if (isComment(nextLine) && !nextLine.startsWith("  ")) {
-            break;
-          }
-          i++;
-        }
+        i = this.scanBlockLines(lines, startLine);
         const endLine = i;
         const blockLines = lines.slice(startLine, endLine);
         const periodicTx = ast.parsePeriodicTransaction(blockLines, startLine, commodities);
@@ -129,17 +127,7 @@ export class HledgerParser {
       // Parse auto posting
       if (isAutoPostingHeader(line)) {
         const startLine = i;
-        i++;
-        while (i < lines.length) {
-          const nextLine = lines[i];
-          if (!nextLine.trim() || isTransactionHeader(nextLine) || isPeriodicTransactionHeader(nextLine) || isAutoPostingHeader(nextLine) || isDirective(nextLine)) {
-            break;
-          }
-          if (isComment(nextLine) && !nextLine.startsWith("  ")) {
-            break;
-          }
-          i++;
-        }
+        i = this.scanBlockLines(lines, startLine);
         const endLine = i;
         const blockLines = lines.slice(startLine, endLine);
         const autoPost = ast.parseAutoPosting(blockLines, startLine, commodities);
@@ -174,15 +162,15 @@ export class HledgerParser {
           directives.push(directive);
 
           // Process the directive to extract metadata
-          if (directive.type == "account") {
+          if (directive.type === "account") {
             ast.processAccountDirective(line, accounts, uri, i);
-          } else if (directive.type == "payee") {
+          } else if (directive.type === "payee") {
             ast.processPayeeDirective(line, payees, uri, i);
-          } else if (directive.type == "commodity") {
+          } else if (directive.type === "commodity") {
             // Commodity directives can be multi-line, so we need to handle that
             const lastLine = ast.processCommodityDirective(lines, i, commodities, uri);
             i = lastLine; // Skip past any subdirectives we processed
-          } else if (directive.type == "tag") {
+          } else if (directive.type === "tag") {
             ast.processTagDirective(line, tags, uri, i);
           }
         }
@@ -194,25 +182,7 @@ export class HledgerParser {
       if (isTransactionHeader(line)) {
 
         const startLine = i;
-
-        // Skip past the transaction lines to find where it ends
-        i++;
-        while (i < lines.length) {
-          const nextLine = lines[i];
-
-          // Transaction ends at empty line, next transaction, periodic/auto header, or directive
-          if (!nextLine.trim() || isTransactionHeader(nextLine) || isPeriodicTransactionHeader(nextLine) || isAutoPostingHeader(nextLine) || isDirective(nextLine)) {
-            break;
-          }
-
-          //Transaction ends at non indented comment line
-          if (isComment(nextLine) && !nextLine.startsWith("  ")) {
-            break;
-          }
-
-          i++;
-        }
-
+        i = this.scanBlockLines(lines, startLine);
         const endLine = i;
         const transactionLines = lines.slice(startLine, endLine);
 

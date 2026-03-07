@@ -13,11 +13,12 @@ import {
 } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, FileReader } from '../types';
+import { isFromDocument } from '../utils/index';
+import { HledgerParser } from '../parser/index';
 import { formatAmount } from '../utils/amountFormatter';
-import { toFilePath } from '../utils/uri';
 import { URI } from 'vscode-uri';
-import * as fs from 'fs';
 import { findReferencesProvider } from './findReferences';
+import { readDocument } from '../utils/fileReader';
 
 export class CodeActionProvider {
   /**
@@ -37,7 +38,7 @@ export class CodeActionProvider {
       if (diagnostic.code === 'undeclared-account') {
         const data = diagnostic.data as { accountName: string } | undefined;
         if (data?.accountName) {
-          actions.push(this.createAddAccountDeclarationAction(document, data.accountName, diagnostic, parsedDoc));
+          actions.push(this.createAddResourceDeclarationAction(document, data.accountName, 'account', diagnostic, parsedDoc));
         }
       }
 
@@ -45,7 +46,7 @@ export class CodeActionProvider {
       if (diagnostic.code === 'undeclared-payee') {
         const data = diagnostic.data as { payeeName: string } | undefined;
         if (data?.payeeName) {
-          actions.push(this.createAddPayeeDeclarationAction(document, data.payeeName, diagnostic, parsedDoc));
+          actions.push(this.createAddResourceDeclarationAction(document, data.payeeName, 'payee', diagnostic, parsedDoc));
         }
       }
 
@@ -53,7 +54,7 @@ export class CodeActionProvider {
       if (diagnostic.code === 'undeclared-commodity') {
         const data = diagnostic.data as { commodityName: string } | undefined;
         if (data?.commodityName) {
-          actions.push(this.createAddCommodityDeclarationAction(document, data.commodityName, diagnostic, parsedDoc));
+          actions.push(this.createAddResourceDeclarationAction(document, data.commodityName, 'commodity', diagnostic, parsedDoc));
         }
       }
 
@@ -61,7 +62,7 @@ export class CodeActionProvider {
       if (diagnostic.code === 'undeclared-tag') {
         const data = diagnostic.data as { tagName: string } | undefined;
         if (data?.tagName) {
-          actions.push(this.createAddTagDeclarationAction(document, data.tagName, diagnostic, parsedDoc));
+          actions.push(this.createAddResourceDeclarationAction(document, data.tagName, 'tag', diagnostic, parsedDoc));
         }
       }
     }
@@ -78,116 +79,31 @@ export class CodeActionProvider {
     return actions;
   }
 
-  /**
-   * Create a code action to add an account declaration
-   */
-  private createAddAccountDeclarationAction(
+  private createAddResourceDeclarationAction(
     document: TextDocument,
-    accountName: string,
+    resourceName: string,
+    resourceType: string,
     diagnostic: Diagnostic,
-    parsedDoc: ParsedDocument
+    parsedDoc: ParsedDocument,
   ): CodeAction {
-    const insertPosition = this.findInsertPositionForDirective(document, parsedDoc, 'account');
+    const insertPosition = this.findInsertPositionForDirective(document, parsedDoc, resourceType);
     const edit: WorkspaceEdit = {
       changes: {
         [document.uri]: [
-          TextEdit.insert(insertPosition, `account ${accountName}\n`)
+          TextEdit.insert(insertPosition, `${resourceType} ${resourceName}\n`)
         ]
       }
     };
 
     const action: CodeAction = {
-      title: `Add declaration for account '${accountName}'`,
+      title: `Add declaration for ${resourceType} '${resourceName}'`,
       kind: CodeActionKind.QuickFix,
       diagnostics: [diagnostic],
       edit
     };
 
     return action;
-  }
 
-  /**
-   * Create a code action to add a payee declaration
-   */
-  private createAddPayeeDeclarationAction(
-    document: TextDocument,
-    payeeName: string,
-    diagnostic: Diagnostic,
-    parsedDoc: ParsedDocument
-  ): CodeAction {
-    const insertPosition = this.findInsertPositionForDirective(document, parsedDoc, 'payee');
-    const edit: WorkspaceEdit = {
-      changes: {
-        [document.uri]: [
-          TextEdit.insert(insertPosition, `payee ${payeeName}\n`)
-        ]
-      }
-    };
-
-    const action: CodeAction = {
-      title: `Add declaration for payee '${payeeName}'`,
-      kind: CodeActionKind.QuickFix,
-      diagnostics: [diagnostic],
-      edit
-    };
-
-    return action;
-  }
-
-  /**
-   * Create a code action to add a commodity declaration
-   */
-  private createAddCommodityDeclarationAction(
-    document: TextDocument,
-    commodityName: string,
-    diagnostic: Diagnostic,
-    parsedDoc: ParsedDocument
-  ): CodeAction {
-    const insertPosition = this.findInsertPositionForDirective(document, parsedDoc, 'commodity');
-    const edit: WorkspaceEdit = {
-      changes: {
-        [document.uri]: [
-          TextEdit.insert(insertPosition, `commodity ${commodityName}\n`)
-        ]
-      }
-    };
-
-    const action: CodeAction = {
-      title: `Add declaration for commodity '${commodityName}'`,
-      kind: CodeActionKind.QuickFix,
-      diagnostics: [diagnostic],
-      edit
-    };
-
-    return action;
-  }
-
-  /**
-   * Create a code action to add a tag declaration
-   */
-  private createAddTagDeclarationAction(
-    document: TextDocument,
-    tagName: string,
-    diagnostic: Diagnostic,
-    parsedDoc: ParsedDocument
-  ): CodeAction {
-    const insertPosition = this.findInsertPositionForDirective(document, parsedDoc, 'tag');
-    const edit: WorkspaceEdit = {
-      changes: {
-        [document.uri]: [
-          TextEdit.insert(insertPosition, `tag ${tagName}\n`)
-        ]
-      }
-    };
-
-    const action: CodeAction = {
-      title: `Add declaration for tag '${tagName}'`,
-      kind: CodeActionKind.QuickFix,
-      diagnostics: [diagnostic],
-      edit
-    };
-
-    return action;
   }
 
   /**
@@ -204,7 +120,7 @@ export class CodeActionProvider {
     const documentUri = URI.parse(document.uri).toString();
 
     const directivesOfType = parsedDoc.directives
-      .filter(d => d.type === directiveType && d.sourceUri?.toString() === documentUri);
+      .filter(d => d.type === directiveType && isFromDocument(d, documentUri));
 
     if (directivesOfType.length > 0) {
       // Insert after the last directive of the same type
@@ -218,7 +134,7 @@ export class CodeActionProvider {
 
     // Find the last directive of any type
     const allDirectives = parsedDoc.directives
-      .filter(d => d.sourceUri?.toString() === documentUri);
+      .filter(d => isFromDocument(d, documentUri));
 
     if (allDirectives.length > 0) {
       // Insert after the last directive
@@ -282,7 +198,7 @@ export class CodeActionProvider {
     item: { type: 'account' | 'payee' | 'commodity' | 'tag'; name: string },
     newName: string,
     fileUris: URI[],
-    parser: any, // HledgerParser
+    parser: HledgerParser,
     fileReader?: FileReader
   ): WorkspaceEdit {
     const changes: { [uri: string]: TextEdit[] } = {};
@@ -291,22 +207,11 @@ export class CodeActionProvider {
     const parsedDocs = new Map<string, ParsedDocument>();
     for (const fileUri of fileUris) {
       try {
-        // Get the TextDocument for this URI
-        let doc: TextDocument | null = null;
-        if (fileReader) {
-          doc = fileReader(fileUri);
-        }
 
-        if (!doc) {
-          // Fallback to reading from disk
-          const filePath = toFilePath(fileUri);
-          const content = fs.readFileSync(filePath, 'utf8');
-          doc = TextDocument.create(fileUri.toString(), 'hledger', 1, content);
-        }
-
+        const doc = readDocument(fileUri, fileReader);
         // Parse in document mode - we're iterating through all workspace files,
         // so we don't need recursive include resolution
-        const parsed = parser.parse(doc, { baseUri: fileUri, parseMode: 'document' });
+        const parsed = parser.parse(doc);
         parsedDocs.set(fileUri.toString(), parsed);
       } catch (error) {
         // Skip files that can't be parsed

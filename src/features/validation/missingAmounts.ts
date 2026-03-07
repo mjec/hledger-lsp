@@ -1,40 +1,38 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
-import { Transaction, PeriodicTransaction } from '../../types';
+import { Posting, Transaction, PeriodicTransaction } from '../../types';
 import { getLineRange, getTransactionRange } from './utils';
 
-export function validateMissingAmounts(transaction: Transaction, lines: string[]): Diagnostic[] {
-    const diagnostics: Diagnostic[] = [];
-
-    // Exclude unbalanced virtual postings — they don't participate in balancing
-    const realPostings = transaction.postings.filter(p => p.virtual !== 'unbalanced');
+function validateMissingAmountsImpl(
+    postings: Posting[],
+    lines: string[],
+    label: string,
+    getRange: (lines: string[]) => { start: { line: number; character: number }; end: { line: number; character: number } }
+): Diagnostic[] {
+    const realPostings = postings.filter(p => p.virtual !== 'unbalanced');
     const postingsWithoutAmounts = realPostings.filter(p => !p.amount);
 
     if (postingsWithoutAmounts.length > 1) {
-        diagnostics.push({
+        return [{
             severity: DiagnosticSeverity.Error,
-            range: getTransactionRange(transaction, lines),
-            message: `Transaction has ${postingsWithoutAmounts.length} postings without amounts (maximum 1 allowed)`,
+            range: getRange(lines),
+            message: `${label} has ${postingsWithoutAmounts.length} postings without amounts (maximum 1 allowed)`,
             source: 'hledger'
-        });
+        }];
     }
 
-    return diagnostics;
+    return [];
+}
+
+export function validateMissingAmounts(transaction: Transaction, lines: string[]): Diagnostic[] {
+    return validateMissingAmountsImpl(
+        transaction.postings, lines,
+        'Transaction', (ls) => getTransactionRange(transaction, ls)
+    );
 }
 
 export function validatePeriodicTransactionMissingAmounts(periodicTx: PeriodicTransaction, lines: string[]): Diagnostic[] {
-    const diagnostics: Diagnostic[] = [];
-
-    const realPostings = periodicTx.postings.filter(p => p.virtual !== 'unbalanced');
-    const postingsWithoutAmounts = realPostings.filter(p => !p.amount);
-
-    if (postingsWithoutAmounts.length > 1) {
-        diagnostics.push({
-            severity: DiagnosticSeverity.Error,
-            range: getLineRange(periodicTx.line ?? 0, lines),
-            message: `Periodic transaction has ${postingsWithoutAmounts.length} postings without amounts (maximum 1 allowed)`,
-            source: 'hledger'
-        });
-    }
-
-    return diagnostics;
+    return validateMissingAmountsImpl(
+        periodicTx.postings, lines,
+        'Periodic transaction', (ls) => getLineRange(periodicTx.line ?? 0, ls)
+    );
 }

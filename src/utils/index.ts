@@ -2,8 +2,9 @@
  * Utility functions for the hledger language server
  */
 
+import type { URI } from 'vscode-uri';
 import type { Posting, Transaction } from '../types';
-
+const directives = ['account', 'commodity', 'payee', 'tag', 'include', 'alias', 'end', 'comment', 'decimal-mark', 'P'];
 /**
  * Check if a line is a transaction header
  * Transaction headers start with a date in YYYY-MM-DD, YYYY/MM/DD, or short M/D format
@@ -63,7 +64,6 @@ export function isDirective(line: string): boolean {
   const trimmed = line.trim();
   // Note: '~' is handled separately as periodic transaction headers
   // Note: '=' is handled separately as auto posting headers
-  const directives = ['account', 'commodity', 'payee', 'tag', 'include', 'alias', 'end', 'comment', 'decimal-mark', 'P'];
   return directives.some(d => {
     if (d === 'end') {
       // 'end' can be standalone or followed by a space
@@ -141,4 +141,15 @@ export function getEffectiveDate(posting: Posting, transaction: Transaction): st
   return normalizeDate(date);
 }
 
-export const stripQuotes = (s: string) => { const t = s.trim(); if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) return t.substring(1, t.length - 1); return t; };
+/**
+ * Check if an entity originated from the given document URI.
+ */
+export function isFromDocument(entity: { sourceUri?: URI }, documentUri: string): boolean {
+  return entity.sourceUri?.toString() === documentUri;
+}
+
+export function stripQuotes(s: string): string {
+  const t = s.trim();
+  if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) return t.substring(1, t.length - 1);
+  return t;
+};

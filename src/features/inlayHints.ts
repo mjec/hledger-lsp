@@ -10,7 +10,8 @@
 import { InlayHint, InlayHintKind, Position, Range } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
-import { ParsedDocument } from '../types';
+import { ParsedDocument, Posting, Transaction } from '../types';
+import { isFromDocument } from '../utils/index';
 import { formatAmount } from '../utils/amountFormatter';
 import { calculateRunningBalances, RunningBalanceMap } from '../utils/runningBalanceCalculator';
 import {
@@ -20,7 +21,7 @@ import {
   type InlayHintsOptions,
   type HledgerSettings
 } from '../server/settings';
-import { formattingProvider } from './formatter';
+import { formattingProvider, TransactionColumnWidths } from './formatter';
 
 export class InlayHintsProvider {
   /**
@@ -61,7 +62,7 @@ export class InlayHintsProvider {
     const documentUri = URI.parse(document.uri).toString();
 
     for (const transaction of parsed.transactions) {
-      if (transaction.sourceUri?.toString() !== documentUri) continue;
+      if (!isFromDocument(transaction, documentUri)) continue;
       const txLine = transaction.line ?? 0;
       if (txLine < range.start.line || txLine > range.end.line) continue;
 
@@ -158,7 +159,7 @@ export class InlayHintsProvider {
     const documentUri = URI.parse(document.uri).toString();
 
     for (const periodicTx of parsed.periodicTransactions) {
-      if (periodicTx.sourceUri?.toString() !== documentUri) continue;
+      if (!isFromDocument(periodicTx, documentUri)) continue;
       const txLine = periodicTx.line ?? 0;
       if (txLine < range.start.line || txLine > range.end.line) continue;
 
@@ -198,18 +199,18 @@ export class InlayHintsProvider {
 
   private getInferredAmountHint(
     document: TextDocument,
-    posting: any,
+    posting: Posting,
     lineNum: number,
     contentEndIndex: number,
     virtualColumn: number,
-    widths: any,
+    widths: TransactionColumnWidths,
     formattingOptions: FormattingOptions,
     parsed: ParsedDocument
   ): InlayHint | null {
     const hasExplicitCost = posting.cost && !posting.cost.inferred;
     const hasExplicitAssertion = posting.assertion;
 
-    if (hasExplicitCost || hasExplicitAssertion) {
+    if (hasExplicitCost || hasExplicitAssertion || !posting.amount) {
       return null;
     }
 
@@ -241,14 +242,14 @@ export class InlayHintsProvider {
 
   private getInferredCostHint(
     document: TextDocument,
-    posting: any,
+    posting: Posting,
     lineNum: number,
     contentEndIndex: number,
     formattingOptions: FormattingOptions,
     parsed: ParsedDocument
   ): InlayHint | null {
     const hasExplicitAssertion = posting.assertion;
-    if (hasExplicitAssertion) {
+    if (hasExplicitAssertion || !posting.cost) {
       return null;
     }
 
@@ -278,11 +279,11 @@ export class InlayHintsProvider {
     lineNum: number,
     contentEndIndex: number,
     virtualColumn: number,
-    transaction: any,
+    transaction: Transaction,
     postingIndex: number,
     parsed: ParsedDocument,
     runningBalances: Map<number, Map<number, Map<string, number>>>,
-    widths: any,
+    widths: TransactionColumnWidths,
     formattingOptions: FormattingOptions
   ): InlayHint | null {
     const txIndex = parsed.transactions.indexOf(transaction);

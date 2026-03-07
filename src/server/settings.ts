@@ -154,8 +154,8 @@ export const DEFAULT_INLAY_HINTS_OPTIONS = defaultSettings.inlayHints;
 export const DEFAULT_CODE_LENS_OPTIONS = defaultSettings.codeLens;
 export const DEFAULT_WORKSPACE_OPTIONS = defaultSettings.workspace;
 
-// Cache the settings of all open documents
-const documentSettings: Map<URI, Thenable<HledgerSettings>> = new Map();
+// Cache the settings of all open documents, keyed by URI string
+const documentSettings: Map<string, Thenable<HledgerSettings>> = new Map();
 
 /**
  * Deep merge two objects, with values from 'source' overriding 'target'
@@ -189,26 +189,25 @@ export function getDocumentSettings(connection: Connection, resource: URI, hasCo
   if (!hasConfigurationCapability) {
     return Promise.resolve(defaultSettings);
   }
-  let result = documentSettings.get(resource);
+  const key = resource.toString();
+  let result = documentSettings.get(key);
   if (!result) {
     result = connection.workspace.getConfiguration({
-      scopeUri: resource.toString(),
+      scopeUri: key,
       section: 'hledgerLanguageServer'
     }).then((userSettings) => {
       // Merge user settings with defaults so unspecified settings use default values
       const merged = deepMerge(defaultSettings, userSettings || {});
 
-      // connection.console.log(`Loaded hledgerLanguageServer settings for ${resource.toString()}`);
-
       return merged;
     });
-    documentSettings.set(resource, result);
+    documentSettings.set(key, result);
   }
   return result;
 }
 
 export function clearDocumentSettings(resource: URI): void {
-  documentSettings.delete(resource);
+  documentSettings.delete(resource.toString());
 }
 
 export function clearAllDocumentSettings(): void {

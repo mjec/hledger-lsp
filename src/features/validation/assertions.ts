@@ -4,7 +4,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction, Posting } from '../../types';
 import { formatAmount } from '../../utils/amountFormatter';
 import { resolveIncludePath } from '../../utils/uri';
-import { getEffectiveDate } from '../../utils/index';
+import { getEffectiveDate, isFromDocument } from '../../utils/index';
 import { getTransactionRange } from './utils';
 
 export function findPostingRange(transaction: Transaction, posting: Posting, lines: string[]): { start: { line: number; character: number }; end: { line: number; character: number } } {
@@ -123,7 +123,7 @@ export function validateBalanceAssertions(
         }
 
         // Check assertion (only for current document)
-        if (posting.assertion && transaction.sourceUri?.toString() === documentUri) {
+        if (posting.assertion && isFromDocument(transaction, documentUri)) {
             const assertedCommodity = posting.assertion.commodity || '';
             const assertedAmount = posting.assertion.quantity;
             const actualBalance = runningBalances.get(account)?.get(assertedCommodity) || 0;

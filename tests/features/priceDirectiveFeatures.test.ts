@@ -6,7 +6,7 @@ import { DocumentSymbolProvider } from '../../src/features/symbols';
 import { FindReferencesProvider } from '../../src/features/findReferences';
 import { HoverProvider } from '../../src/features/hover';
 import { CompletionProvider } from '../../src/features/completion';
-import { Range, SymbolKind } from 'vscode-languageserver';
+import { SymbolKind } from 'vscode-languageserver';
 
 function parseDoc(content: string) {
   const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);

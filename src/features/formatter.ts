@@ -7,7 +7,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 import { ParsedDocument, Transaction } from '../types';
 import { parseTransactionHeader } from '../parser/ast';
-import { isTransactionHeader, isComment, isDirective, isPeriodicTransactionHeader, isAutoPostingHeader } from '../utils/index';
+import { isTransactionHeader, isComment, isDirective, isPeriodicTransactionHeader, isAutoPostingHeader, isFromDocument } from '../utils/index';
 import { getAmountLayout, AmountLayout, renderAmountLayout, AmountWidths } from '../utils/amountFormatter';
 import { FormattingOptions, DEFAULT_FORMATTING_OPTIONS, InlayHintsOptions, DEFAULT_INLAY_HINTS_OPTIONS } from '../server/settings';
 import { isSafeToFormat } from './formattingValidation';
@@ -39,6 +39,26 @@ export class FormattingProvider {
     const text = document.getText();
     const lines = text.split('\n');
 
+    // Build lookup maps for O(1) access by line number
+    const txByLine = new Map<number, Transaction>();
+    for (const t of parsed.transactions) {
+      if (isFromDocument(t, documentUri) && t.line !== undefined) {
+        txByLine.set(t.line, t);
+      }
+    }
+    const periodicTxByLine = new Map<number, typeof parsed.periodicTransactions[0]>();
+    for (const t of parsed.periodicTransactions) {
+      if (isFromDocument(t, documentUri) && t.line !== undefined) {
+        periodicTxByLine.set(t.line, t);
+      }
+    }
+    const autoPostByLine = new Map<number, typeof parsed.autoPostings[0]>();
+    for (const t of parsed.autoPostings) {
+      if (isFromDocument(t, documentUri) && t.line !== undefined) {
+        autoPostByLine.set(t.line, t);
+      }
+    }
+
     // Format line by line, tracking transactions
     const formattedLines: string[] = [];
     let i = 0;
@@ -50,7 +70,7 @@ export class FormattingProvider {
       if (isTransactionHeader(trimmed)) {
         // Format the transaction header
         formattedLines.push(this.formatTransactionHeader(trimmed));
-        const transaction = parsed.transactions.find(t => (t.line === i && t.sourceUri?.toString() === documentUri));
+        const transaction = txByLine.get(i);
         const transactionLines: string[] = [];
         i++;
 
@@ -94,7 +114,7 @@ export class FormattingProvider {
         }
 
         // Look up the PeriodicTransaction and create a Transaction-shaped object for formatting
-        const periodicTx = parsed.periodicTransactions.find(t => t.line === headerLineIndex && t.sourceUri?.toString() === documentUri);
+        const periodicTx = periodicTxByLine.get(headerLineIndex);
         let tempTransaction: Transaction | undefined;
         if (periodicTx) {
           tempTransaction = {
@@ -125,7 +145,7 @@ export class FormattingProvider {
         }
 
         // Look up the AutoPosting and create a Transaction-shaped object for formatting
-        const autoPost = parsed.autoPostings.find(t => t.line === headerLineIndex && t.sourceUri?.toString() === documentUri);
+        const autoPost = autoPostByLine.get(headerLineIndex);
         let tempTransaction: Transaction | undefined;
         if (autoPost) {
           // Convert AutoPostingEntries to Postings for formatting
@@ -455,8 +475,7 @@ export class FormattingProvider {
       assertion: this.emptyAmountWidths()
     };
 
-    for (const posting of transaction.
-      postings) {
+    for (const posting of transaction.postings) {
       widths.account = Math.max(widths.account, posting.account.length);
 
       if (posting.amount && !posting.amount.inferred) {

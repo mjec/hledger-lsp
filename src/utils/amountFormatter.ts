@@ -12,7 +12,7 @@ export interface AmountLayout {
   negativeSignBeforeCommodity: boolean;
   amountIntegerString: string;
   amountDecimalString: string;
-  demicalMark: string;
+  decimalMark: string;
   commodityAfter: string;
   spaceBetweenCommodityAndAmount: boolean;
 }
@@ -161,7 +161,7 @@ export function getAmountLayout(amount: Amount, parsed: ParsedDocument, options:
     negativeSignBeforeCommodity: negativeSignBefore,
     amountIntegerString,
     amountDecimalString,
-    demicalMark: (targetPrecision !== undefined && targetPrecision > 0) || amountDecimalString.length > 0 ? (format.decimalMark || '.') : '',
+    decimalMark: (targetPrecision !== undefined && targetPrecision > 0) || amountDecimalString.length > 0 ? (format.decimalMark || '.') : '',
     spaceBetweenCommodityAndAmount,
     commodityAfter: !symbolOnLeft ? format?.symbol || amount.commodity || '' : ''
   };
@@ -179,7 +179,7 @@ export function renderAmountLayout(layout: AmountLayout, widths?: AmountWidths):
     spaceBetweenCommodityBeforeAndAmount: (layout.spaceBetweenCommodityAndAmount && layout.commodityBefore) ? 1 : 0,
     negPosSign: layout.negPosSign.length,
     integerPart: layout.amountIntegerString.length,
-    decimalMark: layout.demicalMark.length,
+    decimalMark: layout.decimalMark.length,
     decimalPart: layout.amountDecimalString.length,
     spaceBetweenAmountAndCommodityAfter: (layout.spaceBetweenCommodityAndAmount && layout.commodityAfter) ? 1 : 0,
     commodityAfter: layout.commodityAfter.length
@@ -199,8 +199,8 @@ export function renderAmountLayout(layout: AmountLayout, widths?: AmountWidths):
   result += ' '.repeat(effectiveWidths.spaceBetweenCommodityBeforeAndAmount);
   result += layout.amountIntegerString.padStart(effectiveWidths.integerPart, ' ');
 
-  if (layout.demicalMark) {
-    result += layout.demicalMark.padEnd(effectiveWidths.decimalMark, ' ');
+  if (layout.decimalMark) {
+    result += layout.decimalMark.padEnd(effectiveWidths.decimalMark, ' ');
     result += layout.amountDecimalString.padEnd(effectiveWidths.decimalPart, ' ');
   } else {
     // If there is no decimal mark in this specific amount, we still need to respect
