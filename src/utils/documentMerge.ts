@@ -22,6 +22,22 @@ export function createEmptyParsedDocument(): ParsedDocument {
   };
 }
 
+function mergeMaps<T extends { declared: boolean }>(
+  base: Map<string, T>,
+  included: Map<string, T>
+): Map<string, T> {
+  const result = new Map<string, T>(base);
+  for (const [name, item] of included) {
+    const existing = result.get(name);
+    if (existing) {
+      result.set(name, { ...existing, declared: existing.declared || item.declared });
+    } else {
+      result.set(name, item);
+    }
+  }
+  return result;
+}
+
 /**
  * Merge two ParsedDocuments together.
  * The included document's contents are added to the base document.
@@ -33,61 +49,15 @@ export function createEmptyParsedDocument(): ParsedDocument {
  * @returns A new merged ParsedDocument
  */
 export function mergeParsedDocuments(base: ParsedDocument, included: ParsedDocument): ParsedDocument {
-  const transactions = [...base.transactions, ...included.transactions];
-  const periodicTransactions = [...base.periodicTransactions, ...included.periodicTransactions];
-  const autoPostings = [...base.autoPostings, ...included.autoPostings];
-  const priceDirectives = [...base.priceDirectives, ...included.priceDirectives];
-  const directives = [...base.directives, ...included.directives];
-
-  const accountMap = new Map<string, Account>(base.accounts);
-  for (const [name, a] of included.accounts) {
-    const existing = accountMap.get(name);
-    if (existing) {
-      accountMap.set(name, { ...existing, declared: existing.declared || a.declared });
-    } else {
-      accountMap.set(name, a);
-    }
-  }
-
-  const payeeMap = new Map<string, Payee>(base.payees);
-  for (const [name, p] of included.payees) {
-    const existing = payeeMap.get(name);
-    if (existing) {
-      payeeMap.set(name, { ...existing, declared: existing.declared || p.declared });
-    } else {
-      payeeMap.set(name, p);
-    }
-  }
-
-  const commodityMap = new Map<string, Commodity>(base.commodities);
-  for (const [name, c] of included.commodities) {
-    const existing = commodityMap.get(name);
-    if (existing) {
-      commodityMap.set(name, { ...existing, declared: existing.declared || c.declared });
-    } else {
-      commodityMap.set(name, c);
-    }
-  }
-
-  const tagMap = new Map<string, Tag>(base.tags);
-  for (const [name, t] of included.tags) {
-    const existing = tagMap.get(name);
-    if (existing) {
-      tagMap.set(name, { ...existing, declared: existing.declared || t.declared });
-    } else {
-      tagMap.set(name, t);
-    }
-  }
-
   return {
-    transactions,
-    periodicTransactions,
-    autoPostings,
-    priceDirectives,
-    accounts: accountMap,
-    directives,
-    commodities: commodityMap,
-    payees: payeeMap,
-    tags: tagMap
+    transactions: [...base.transactions, ...included.transactions],
+    periodicTransactions: [...base.periodicTransactions, ...included.periodicTransactions],
+    autoPostings: [...base.autoPostings, ...included.autoPostings],
+    priceDirectives: [...base.priceDirectives, ...included.priceDirectives],
+    directives: [...base.directives, ...included.directives],
+    accounts: mergeMaps(base.accounts, included.accounts),
+    payees: mergeMaps(base.payees, included.payees),
+    commodities: mergeMaps(base.commodities, included.commodities),
+    tags: mergeMaps(base.tags, included.tags),
   };
 }

@@ -2,6 +2,12 @@ import { URI } from 'vscode-uri';
 import { Transaction, Posting, Amount, Account, Payee, Commodity, Tag, Directive, DecimalMark, ThousandsSeparator, Format, PeriodicTransaction, AutoPosting, AutoPostingEntry, MultiplierAmount, PriceDirective } from '../types';
 import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment, stripQuotes } from '../utils/index';
 
+function splitComment(line: string): { content: string; comment: string } | null {
+  const match = line.match(/^([^;]*);(.*)$/);
+  if (!match) return null;
+  return { content: match[1], comment: match[2] };
+}
+
 /**
  * Parse a transaction starting at startLine within lines array.
  * This is a pure helper extracted from HledgerParser.
@@ -39,8 +45,8 @@ export function parseTransaction(lines: string[], startLine: number, commodities
         posting.line = startLine + currentLine;
         postings.push(posting);
       }
-      currentLine++
-      continue
+      currentLine++;
+      continue;
     }
 
     currentLine++;
@@ -56,7 +62,7 @@ export function parseTransaction(lines: string[], startLine: number, commodities
   };
 
   if (header.effectiveDate) transaction.effectiveDate = header.effectiveDate;
-  if (header.status) transaction.status = header.status as any;
+  if (header.status) transaction.status = header.status;
   if (header.code) transaction.code = header.code;
   if (header.comment || transactionComment) transaction.comment = header.comment || transactionComment;
   if (Object.keys(transactionTags).length > 0 || header.tags) transaction.tags = { ...transactionTags, ...header.tags };
@@ -65,7 +71,7 @@ export function parseTransaction(lines: string[], startLine: number, commodities
   inferCosts(transaction);
 
   // Infer amounts for postings without explicit amounts
-  inferAmounts(transaction);
+  inferAmountsForPostings(transaction.postings);
 
   return transaction;
 }
@@ -137,103 +143,6 @@ export function inferCosts(transaction: Transaction): void {
 }
 
 /**
- * Infer amounts for postings without explicit amounts.
- *
- * According to hledger rules:
- * - At most one posting may omit an amount
- * - The inferred amount is whatever makes the transaction balance to zero
- * - Cost conversions are considered when calculating the balance
- */
-export function inferAmounts(transaction: Transaction): void {
-  // Find real (non-unbalanced-virtual) postings without amounts
-  const postingsWithoutAmounts: number[] = [];
-  for (let i = 0; i < transaction.postings.length; i++) {
-    const p = transaction.postings[i];
-    if (p.virtual === 'unbalanced') continue; // Virtual postings don't participate
-    if (!p.amount) {
-      postingsWithoutAmounts.push(i);
-    }
-  }
-
-  // Can only infer if exactly one real posting is missing an amount
-  if (postingsWithoutAmounts.length !== 1) {
-    return;
-  }
-
-  const targetIndex = postingsWithoutAmounts[0];
-
-  // Calculate balance from all explicit amounts (excluding unbalanced virtual)
-  const balances = new Map<string, number>();
-
-  for (let i = 0; i < transaction.postings.length; i++) {
-    if (i === targetIndex) continue; // Skip the posting we're inferring
-
-    const posting = transaction.postings[i];
-    if (posting.virtual === 'unbalanced') continue; // Virtual postings don't participate
-    if (!posting.amount) continue;
-
-    // If posting has a cost, use the cost commodity for balance calculation
-    if (posting.cost) {
-      const costCommodity = posting.cost.amount.commodity || '';
-      let costValue: number;
-
-      if (posting.cost.type === 'unit') {
-        // @ unitPrice: total cost = quantity * unitPrice
-        costValue = posting.amount.quantity * posting.cost.amount.quantity;
-      } else {
-        if (posting.cost.inferred) {
-          // @@ totalPrice (inferred): sign is already correct from inferCosts()
-          costValue = posting.cost.amount.quantity;
-        } else {
-          // @@ totalPrice (explicit): sign comes from the posting amount
-          // e.g. -10 FUND @@ 1000 USD → -1000 USD, -10 FUND @@ -1000 USD → +1000 USD
-          costValue = Math.sign(posting.amount.quantity) * posting.cost.amount.quantity;
-        }
-      }
-
-      const current = balances.get(costCommodity) || 0;
-      balances.set(costCommodity, current + costValue);
-    } else {
-      // No cost notation, use the posting's commodity
-      const commodity = posting.amount.commodity || '';
-      const current = balances.get(commodity) || 0;
-      balances.set(commodity, current + posting.amount.quantity);
-    }
-  }
-
-  // The inferred amount is the negation of the sum (to make transaction balance to zero)
-  // For multi-commodity transactions, we can only store one commodity in the amount field
-  // For proper validation, we need a different approach, but for now we'll store the first commodity
-  // and let the validator handle multi-commodity balance checking
-  if (balances.size === 1) {
-    // Single commodity - straightforward inference
-    const entry = balances.entries().next().value;
-    if (entry) {
-      const [commodity, balance] = entry;
-      transaction.postings[targetIndex].amount = {
-        quantity: -balance,
-        commodity: commodity,
-        inferred: true
-      };
-    }
-  } else if (balances.size > 1) {
-    // Multi-commodity - store first commodity for now
-    // Note: Real hledger would require explicit amounts for all commodities
-    // or use balance assertions. This is a simplification.
-    const entry = balances.entries().next().value;
-    if (entry) {
-      const [commodity, balance] = entry;
-      transaction.postings[targetIndex].amount = {
-        quantity: -balance,
-        commodity: commodity,
-        inferred: true
-      };
-    }
-  }
-}
-
-
-/**
  * Parse a periodic transaction starting at startLine within lines array.
  * Periodic transactions start with ~ followed by a period expression.
  * e.g., "~ monthly", "~ every 2 weeks from 2024-01"
@@ -252,10 +161,10 @@ export function parsePeriodicTransaction(lines: string[], startLine: number, com
   let mainPart = afterTilde;
   let headerComment: string | undefined;
   let headerTags: Record<string, string> | undefined;
-  const commentMatch = afterTilde.match(/^([^;]*);(.*)$/);
-  if (commentMatch) {
-    mainPart = commentMatch[1].trimEnd();
-    headerComment = commentMatch[2].trim();
+  const split = splitComment(afterTilde);
+  if (split) {
+    mainPart = split.content.trimEnd();
+    headerComment = split.comment.trim();
     const extracted = extractTags(headerComment);
     if (Object.keys(extracted).length > 0) headerTags = extracted;
   }
@@ -335,10 +244,10 @@ export function parseAutoPosting(lines: string[], startLine: number, commodities
   let query = afterEquals;
   let headerComment: string | undefined;
   let headerTags: Record<string, string> | undefined;
-  const commentMatch = afterEquals.match(/^([^;]*);(.*)$/);
-  if (commentMatch) {
-    query = commentMatch[1].trim();
-    headerComment = commentMatch[2].trim();
+  const headerSplit = splitComment(afterEquals);
+  if (headerSplit) {
+    query = headerSplit.content.trim();
+    headerComment = headerSplit.comment.trim();
     const extracted = extractTags(headerComment);
     if (Object.keys(extracted).length > 0) headerTags = extracted;
   }
@@ -399,12 +308,12 @@ function parseAutoPostingEntry(line: string, commodities?: Map<string, Commodity
   const entry: AutoPostingEntry = { account };
 
   // Extract comment
-  const commentMatch = line.match(/^([^;]*);(.*)$/);
+  const entrySplit = splitComment(line);
   let mainPart = line;
-  if (commentMatch) {
-    mainPart = commentMatch[1];
-    entry.comment = commentMatch[2].trim();
-    const tags = extractTags(commentMatch[2]);
+  if (entrySplit) {
+    mainPart = entrySplit.content;
+    entry.comment = entrySplit.comment.trim();
+    const tags = extractTags(entrySplit.comment);
     if (Object.keys(tags).length > 0) entry.tags = tags;
   }
 
@@ -491,17 +400,14 @@ function inferAmountsForPostings(postings: Posting[]): void {
     }
   }
 
-  if (balances.size === 1) {
-    const entry = balances.entries().next().value;
-    if (entry) {
-      const [commodity, balance] = entry;
-      postings[targetIndex].amount = {
-        quantity: -balance,
-        commodity: commodity,
-        inferred: true
-      };
-    }
-  } else if (balances.size > 1) {
+  // The inferred amount is the negation of the sum (to make transaction balance to zero)
+  // For multi-commodity transactions, we can only store one commodity in the amount field
+  // For proper validation, we need a different approach, but for now we'll store the first commodity
+  // and let the validator handle multi-commodity balance checking
+  // Infer from first commodity. For multi-commodity transactions this is a
+  // simplification — real hledger would require explicit amounts for all
+  // commodities or use balance assertions.
+  if (balances.size >= 1) {
     const entry = balances.entries().next().value;
     if (entry) {
       const [commodity, balance] = entry;
@@ -695,10 +601,10 @@ function parseDescription(line: string): { description: string, comment?: string
   let comment: string | undefined;
   let tags: Record<string, string> | undefined;
 
-  const match = line.match(/^([^;]*);(.*)$/);
-  if (match) {
-    description = match[1].trim();
-    comment = match[2].trim();
+  const descSplit = splitComment(line);
+  if (descSplit) {
+    description = descSplit.content.trim();
+    comment = descSplit.comment.trim();
     const extracted = extractTags(comment);
     if (Object.keys(extracted).length > 0) tags = extracted;
   } else {
@@ -747,12 +653,12 @@ export function parsePosting(line: string, transactionDate?: string, commodities
     posting.virtual = 'balanced';
   }
 
-  const commentMatch = line.match(/^([^;]*);(.*)$/);
+  const postingSplit = splitComment(line);
   let mainPart = line;
   let commentPart = '';
-  if (commentMatch) {
-    mainPart = commentMatch[1];
-    commentPart = commentMatch[2];
+  if (postingSplit) {
+    mainPart = postingSplit.content;
+    commentPart = postingSplit.comment;
     posting.comment = commentPart.trim();
     const tags = extractTags(commentPart);
     if (Object.keys(tags).length > 0) posting.tags = tags;
@@ -853,7 +759,7 @@ function parseCost(text: string, commodities?: Map<string, Commodity>): { amount
 }
 
 
-// Parse amount and Helpers
+// Parse Agount and Helpers
 export function parseAmount(amountStr: string, decimalMark?: DecimalMark, commodities?: Map<string, Commodity>): Amount | null {
   const trimmed = amountStr.trim();
   if (!trimmed) return null;
@@ -1095,16 +1001,19 @@ export function parseFormat(sample: string): { name: string; format?: Format } |
   if (!sample) return null;
   const s = sample.trim();
 
-  const stripQuotes = (s: string) => { const t = s.trim(); if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) return t.substring(1, t.length - 1); return t; };
+  // const stripQuotes = (s: string) => { const t = s.trim(); if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) return t.substring(1, t.length - 1); return t; };
 
   const firstDigit = s.search(/\d/);
   if (firstDigit === -1) {
     return { name: stripQuotes(s) };
   }
   const allowed = /[0-9.,\u00A0\s]/;
-  let start = firstDigit; let end = start;
+  let start = firstDigit;
+  let end = start;
   while (end < s.length && allowed.test(s[end])) end++;
-  const leftRaw = s.substring(0, start).trim(); const numberRaw = s.substring(start, end).trim(); const rightRaw = s.substring(end).trim();
+  const leftRaw = s.substring(0, start).trim();
+  const numberRaw = s.substring(start, end).trim();
+  const rightRaw = s.substring(end).trim();
   if (!numberRaw) return null;
 
   const { decimalMark, thousandsSeparator } = detectNumberFormat(numberRaw);
@@ -1117,11 +1026,15 @@ export function parseFormat(sample: string): { name: string; format?: Format } |
   const fractionalPart = decimalIndex >= 0 ? numberRaw.substring(decimalIndex + 1) : '';
   const precision = decimalIndex >= 0 ? (fractionalPart.length > 0 ? fractionalPart.length : 0) : null;
 
-  let rawSymbol = leftRaw || rightRaw || ''; rawSymbol = stripQuotes(rawSymbol);
+  let rawSymbol = leftRaw || rightRaw || '';
+  rawSymbol = stripQuotes(rawSymbol);
   const symbolOnLeft = Boolean(leftRaw);
   let spaceBetween = false;
   if (symbolOnLeft) { const between = s.substring(0, firstDigit); spaceBetween = /\s/.test(between.replace(stripQuotes(leftRaw), '')) || /\s/.test(leftRaw.slice(-1)); }
-  else { const after = s.substring(end); spaceBetween = /\s/.test(after.replace(stripQuotes(rightRaw), '')) || /\s/.test(s[end - 1]); }
+  else {
+    const after = s.substring(end);
+    spaceBetween = /\s/.test(after.replace(stripQuotes(rightRaw), '')) || /\s/.test(s[end - 1]);
+  }
   const format: Format = { symbol: rawSymbol, symbolOnLeft, spaceBetween, decimalMark, thousandsSeparator, precision };
   let name = rawSymbol;
   if (rightRaw) {
@@ -1133,14 +1046,14 @@ export function parseFormat(sample: string): { name: string; format?: Format } |
 }
 
 
-//Process Directives
+// Process Directives
 export function parseDirective(line: string): Directive | null {
   const trimmed = line.trim();
 
   // Extract comment if present
-  const commentMatch = trimmed.match(/^([^;]*);(.*)$/);
-  const mainPart = commentMatch ? commentMatch[1].trim() : trimmed;
-  const comment = commentMatch ? commentMatch[2].trim() : undefined;
+  const dirSplit = splitComment(trimmed);
+  const mainPart = dirSplit ? dirSplit.content.trim() : trimmed;
+  const comment = dirSplit ? dirSplit.comment.trim() : undefined;
 
   // Parse directive type and value
   const directives: Array<Directive['type']> = ['account', 'commodity', 'payee', 'tag', 'include', 'alias'];
@@ -1183,39 +1096,8 @@ export function processTagDirective(line: string, tagMap: Map<string, Tag>, sour
 }
 
 export function processTransaction(transaction: Transaction, accountMap: Map<string, Account>, commodityMap: Map<string, Commodity>, tagMap: Map<string, Tag>, sourceUri?: URI): void {
-  // Extract payee is handled separately since it's in the transaction header
+  processPostings(transaction.postings, accountMap, commodityMap, tagMap, sourceUri);
 
-  // Extract accounts and commodities from postings
-  for (const posting of transaction.postings) {
-    // Add account
-    if (posting.account) {
-      addAccount(accountMap, posting.account, false, sourceUri);
-    }
-
-    // Add commodity from amount
-    if (posting.amount?.commodity && posting.amount.commodity !== '') {
-      addCommodity(commodityMap, posting.amount.commodity, false, posting.amount.format, sourceUri);
-    }
-
-    // Add commodity from cost
-    if (posting.cost?.amount?.commodity && posting.cost.amount.commodity !== '') {
-      addCommodity(commodityMap, posting.cost.amount.commodity, false, posting.cost.amount.format, sourceUri);
-    }
-
-    // Add commodity from balance assertion
-    if (posting.assertion?.commodity && posting.assertion.commodity !== '') {
-      addCommodity(commodityMap, posting.assertion.commodity, false, posting.assertion.format, sourceUri);
-    }
-
-    // Extract tags from posting comments
-    if (posting.tags) {
-      for (const tagName of Object.keys(posting.tags)) {
-        addTag(tagMap, tagName, false, sourceUri);
-      }
-    }
-  }
-
-  // Extract tags from transaction-level tags
   if (transaction.tags) {
     for (const tagName of Object.keys(transaction.tags)) {
       addTag(tagMap, tagName, false, sourceUri);

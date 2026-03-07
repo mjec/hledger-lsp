@@ -10,7 +10,7 @@ import { FoldingRange, FoldingRangeKind } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 import { ParsedDocument } from '../types';
-import { isTransactionHeader, isPosting, isComment, isPeriodicTransactionHeader, isAutoPostingHeader } from '../utils/index';
+import { isTransactionHeader, isPosting, isComment, isPeriodicTransactionHeader, isAutoPostingHeader, isFromDocument } from '../utils/index';
 
 
 export class FoldingRangesProvider {
@@ -46,7 +46,7 @@ export class FoldingRangesProvider {
       if (transaction.line === undefined) continue;
 
       // Only fold transactions from the current document (skip if from workspace parsing)
-      if (transaction.sourceUri?.toString() !== documentUri) {
+      if (!isFromDocument(transaction, documentUri)) {
         continue;
       }
 
@@ -98,7 +98,7 @@ export class FoldingRangesProvider {
     // Periodic transactions
     for (const periodicTx of parsedDoc.periodicTransactions) {
       if (periodicTx.line === undefined) continue;
-      if (periodicTx.sourceUri?.toString() !== documentUri) continue;
+      if (!isFromDocument(periodicTx, documentUri)) continue;
 
       const startLine = periodicTx.line;
       let endLine = startLine;
@@ -123,7 +123,7 @@ export class FoldingRangesProvider {
     // Auto postings
     for (const autoPost of parsedDoc.autoPostings) {
       if (autoPost.line === undefined) continue;
-      if (autoPost.sourceUri?.toString() !== documentUri) continue;
+      if (!isFromDocument(autoPost, documentUri)) continue;
 
       const startLine = autoPost.line;
       let endLine = startLine;

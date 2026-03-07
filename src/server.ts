@@ -7,8 +7,6 @@ import {
   InitializeParams,
   TextDocumentSyncKind,
   InitializeResult,
-  CompletionItem,
-  TextDocumentPositionParams,
   DidChangeConfigurationNotification,
 } from 'vscode-languageserver/node';
 
@@ -243,11 +241,6 @@ async function initializeWorkspaceManager(folders: URI[], forceReinit: boolean =
       // Re-validate with full workspace context
       await validateTextDocument(doc);
     }
-
-    // Refresh inlay hints for all open documents
-    // if (hasInlayHintRefreshSupport) {
-    //   connection.languages.inlayHint.refresh();
-    // }
 
     connection.console.log(`Refreshed ${openDocuments.length} open document(s) with workspace context`);
   } catch (error) {

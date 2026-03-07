@@ -1,5 +1,6 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import { Transaction } from '../../types';
+import { isFromDocument } from '../../utils/index';
 import { getTransactionRange } from './utils';
 
 export function parseDate(dateStr: string): Date | null {
@@ -13,7 +14,7 @@ export function validateDateOrdering(transactions: Transaction[], lines: string[
     const diagnostics: Diagnostic[] = [];
 
     // Only validate transactions in the current document
-    const documentTransactions = transactions.filter(t => t.sourceUri?.toString() === documentUri);
+    const documentTransactions = transactions.filter(t => isFromDocument(t, documentUri));
 
     for (let i = 1; i < documentTransactions.length; i++) {
         const prevDate = parseDate(documentTransactions[i - 1].date);

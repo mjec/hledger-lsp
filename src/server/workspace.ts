@@ -2,10 +2,9 @@ import { Connection } from 'vscode-languageserver/node';
 import { URI } from 'vscode-uri';
 import fg from 'fast-glob';
 import * as path from 'path';
-import * as os from 'os';
 import { HledgerParser } from '../parser/index';
 import { ParsedDocument, Directive, FileReader } from '../types';
-import { toFilePath, toFileUri } from '../utils/uri';
+import { toFilePath, toFileUri, resolveIncludePaths } from '../utils/uri';
 import { createEmptyParsedDocument, mergeParsedDocuments } from '../utils/documentMerge';
 import { HledgerLspConfig, discoverConfigFile, loadConfigFile, resolveRootFile, mergeConfig } from './configFile';
 
@@ -156,80 +155,6 @@ export class WorkspaceManager {
   }
 
   /**
-   * Default implementation of include path resolution.
-   * Handles glob patterns, absolute paths, relative paths, and tilde expansion.
-   *
-   * @param includePath - The include path from the directive
-   * @param baseUri - The URI of the file containing the include directive
-   * @returns Array of resolved URIs
-   */
-  private defaultResolveIncludePaths(includePath: string, baseUri: URI): URI[] {
-    const baseDir = path.dirname(toFilePath(baseUri));
-    const resolvedPaths: URI[] = [];
-
-    if (includePath.includes('*') || includePath.includes('?')) {
-      // Glob pattern - find matching files
-      // IMPORTANT: Do not join baseDir into the pattern string. If the base
-      // directory contains characters that are special in glob syntax (e.g.
-      // parentheses, brackets), fast-glob/picomatch will misinterpret them.
-      // Instead, pass the include path as a relative pattern and let fast-glob
-      // resolve it against the cwd option, which is treated as a plain path.
-      let cwd: string;
-      let pattern: string;
-
-      if (path.isAbsolute(includePath)) {
-        // For absolute glob paths, split into directory (cwd) and pattern parts
-        // so that special characters in the directory are not treated as glob syntax
-        const normalizedPath = path.normalize(includePath);
-        const dir = path.dirname(normalizedPath);
-        const base = path.basename(normalizedPath);
-
-        if (/[*?]/.test(base)) {
-          // Glob characters in the basename — use parent dir as cwd
-          cwd = dir;
-          pattern = base;
-        } else {
-          // Glob characters in directory parts — use filesystem root as cwd
-          cwd = path.parse(normalizedPath).root;
-          pattern = path.relative(cwd, normalizedPath);
-        }
-      } else if (includePath.startsWith('~/')) {
-        cwd = os.homedir();
-        pattern = includePath.slice(2);
-      } else {
-        cwd = baseDir;
-        pattern = includePath;
-      }
-
-      try {
-        const matches = fg.sync(pattern, {
-          cwd,
-          absolute: true,
-          onlyFiles: true
-        });
-        for (const match of matches) {
-          resolvedPaths.push(toFileUri(match));
-        }
-      } catch (err) {
-        this.connection.console.warn(`[WorkspaceManager] Failed to resolve glob pattern ${includePath}: ${err}`);
-      }
-    } else {
-      // Regular file path
-      let resolvedPath: string;
-      if (path.isAbsolute(includePath)) {
-        resolvedPath = includePath;
-      } else if (includePath.startsWith('~/')) {
-        resolvedPath = path.join(os.homedir(), includePath.slice(2));
-      } else {
-        resolvedPath = path.join(baseDir, includePath);
-      }
-      resolvedPaths.push(toFileUri(resolvedPath));
-    }
-
-    return resolvedPaths;
-  }
-
-  /**
    * Discover and load configuration from .hledger-lsp.json
    */
   private async loadConfig(runtimeConfig?: Partial<HledgerLspConfig>): Promise<void> {
@@ -241,7 +166,7 @@ export class WorkspaceManager {
     // Try to find config file starting from first workspace folder
     const workspaceRoot = this.workspaceFolders[0];
     this.configPath = discoverConfigFile(workspaceRoot, workspaceRoot);
-    this.connection.console.debug(`Conifg path is ${this.configPath}`)
+    this.connection.console.debug(`Config path is ${this.configPath}`)
 
     if (this.configPath) {
       try {
@@ -340,7 +265,7 @@ export class WorkspaceManager {
         const includePath = directive.value;
 
         // Use injected resolver if available, otherwise default implementation
-        const resolver = this.includePathResolver ?? this.defaultResolveIncludePaths.bind(this);
+        const resolver = this.includePathResolver ?? resolveIncludePaths;
         const resolvedPaths = resolver(includePath, fileUri);
 
         // Add all resolved paths to included files (filter to known workspace files)
@@ -359,7 +284,7 @@ export class WorkspaceManager {
       }
 
       // Update reverse graph
-      for (const [includedString, includedUri] of includedFiles) {
+      for (const [includedString, _includedUri] of includedFiles) {
         let parents = this.reverseGraph.get(includedString);
         if (!parents) {
           parents = new Map<string, URI>();
@@ -839,7 +764,7 @@ export class WorkspaceManager {
     const result: Array<{ directive: Directive; targets: URI[] }> = [];
 
     for (const directive of includeDirectives) {
-      const resolver = this.includePathResolver ?? this.defaultResolveIncludePaths.bind(this);
+      const resolver = this.includePathResolver ?? resolveIncludePaths;
       const resolvedPaths = resolver(directive.value, fileUri);
 
       // Filter to known workspace files
@@ -1063,12 +988,6 @@ export class WorkspaceManager {
 
       const childPath = toFilePath(child);
       let displayPath = path.relative(parentDir, childPath);
-
-      // Ensure it looks like a file path
-      if (!displayPath.startsWith('.') && !displayPath.startsWith('/')) {
-        // It's in the same directory or a subdirectory, keep it as is
-        // (path.relative returns just filename for same dir)
-      }
 
       lines.push(`${prefix}${marker}${displayPath}`);
 

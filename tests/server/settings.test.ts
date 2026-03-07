@@ -284,6 +284,58 @@ describe('Settings', () => {
     });
   });
 
+  // These tests demonstrate that the settings cache must work when callers
+  // use different URI.parse() instances for the same URI string, matching
+  // real usage in server.ts and featureRegistry.ts.
+  describe('URI identity: cache lookups with separately parsed URIs', () => {
+    test('should use cached settings when looked up with a different URI.parse() instance', async () => {
+      const mockConnection = {
+        workspace: {
+          getConfiguration: jest.fn().mockResolvedValue({ validation: { balance: false } })
+        },
+        console: {
+          log: jest.fn(),
+          debug: jest.fn()
+        }
+      } as any;
+
+      const uri = 'file:///home/user/ledger/main.journal';
+
+      // First call populates cache with one URI.parse() instance
+      await getDocumentSettings(mockConnection, URI.parse(uri), true);
+
+      // Second call with a fresh URI.parse() instance should hit cache
+      await getDocumentSettings(mockConnection, URI.parse(uri), true);
+
+      expect(mockConnection.workspace.getConfiguration).toHaveBeenCalledTimes(1);
+    });
+
+    test('clearDocumentSettings with a fresh URI.parse() should clear cached entry', async () => {
+      const mockConnection = {
+        workspace: {
+          getConfiguration: jest.fn().mockResolvedValue({})
+        },
+        console: {
+          log: jest.fn(),
+          debug: jest.fn()
+        }
+      } as any;
+
+      const uri = 'file:///home/user/ledger/main.journal';
+
+      // Populate cache
+      await getDocumentSettings(mockConnection, URI.parse(uri), true);
+      expect(mockConnection.workspace.getConfiguration).toHaveBeenCalledTimes(1);
+
+      // Clear with a fresh URI.parse() instance
+      clearDocumentSettings(URI.parse(uri));
+
+      // Should fetch again because cache was cleared
+      await getDocumentSettings(mockConnection, URI.parse(uri), true);
+      expect(mockConnection.workspace.getConfiguration).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('clearAllDocumentSettings', () => {
     test('should clear all document settings', async () => {
       const mockConnection = {

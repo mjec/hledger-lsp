@@ -11,7 +11,8 @@
 import { CodeLens, Position, Range } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
-import { ParsedDocument } from '../types';
+import { ParsedDocument, Transaction } from '../types';
+import { isFromDocument } from '../utils/index';
 import { DEFAULT_CODE_LENS_OPTIONS, type CodeLensOptions } from '../server/settings';
 
 export class CodeLensProvider {
@@ -28,16 +29,13 @@ export class CodeLensProvider {
       return a.date.localeCompare(b.date);
     });
 
-    // Create a map from sorted index to original index
-    const sortedToOriginalIndex = new Map<number, number>();
-    sortedTransactions.forEach((tx, sortedIdx) => {
-      const originalIdx = parsed.transactions.indexOf(tx);
-      sortedToOriginalIndex.set(sortedIdx, originalIdx);
-    });
+    // Create a map from transaction to original index for O(1) lookup
+    const originalIndexMap = new Map<Transaction, number>();
+    parsed.transactions.forEach((tx, idx) => originalIndexMap.set(tx, idx));
 
     for (let sortedIdx = 0; sortedIdx < sortedTransactions.length; sortedIdx++) {
       const transaction = sortedTransactions[sortedIdx];
-      const txIndex = sortedToOriginalIndex.get(sortedIdx)!;
+      const txIndex = originalIndexMap.get(transaction)!;
       const accountsInTransaction = new Set<string>();
 
       // Count each account once per transaction
@@ -83,7 +81,7 @@ export class CodeLensProvider {
       const transaction = parsed.transactions[txIndex];
 
       // Only show code lenses for transactions in the current document
-      if (transaction.sourceUri?.toString() !== documentUri) {
+      if (!isFromDocument(transaction, documentUri)) {
         continue;
       }
 

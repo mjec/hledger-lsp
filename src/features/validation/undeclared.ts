@@ -2,6 +2,37 @@ import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import { ParsedDocument, Posting } from '../../types';
 import { ValidationOptions, SeverityOptions, defaultSettings } from '../../server/settings';
 
+type UndeclaredType = 'Account' | 'Payee' | 'Commodity' | 'Tag';
+
+function getSeverity(severityStr?: string): DiagnosticSeverity {
+    switch (severityStr) {
+        case 'error': return DiagnosticSeverity.Error;
+        case 'warning': return DiagnosticSeverity.Warning;
+        case 'information': return DiagnosticSeverity.Information;
+        case 'hint': return DiagnosticSeverity.Hint;
+        default: return DiagnosticSeverity.Warning;
+    }
+}
+
+function createUndeclaredDiagnostic(
+    severity: DiagnosticSeverity,
+    line: number, start: number, length: number,
+    name: string, type: UndeclaredType
+): Diagnostic {
+    const typeLower = type.toLowerCase();
+    return {
+        severity,
+        range: {
+            start: { line, character: start },
+            end: { line, character: start + length }
+        },
+        message: `${type} "${name}" is used but not declared with '${typeLower}' directive`,
+        source: 'hledger',
+        code: `undeclared-${typeLower}`,
+        data: { [`${typeLower}Name`]: name }
+    };
+}
+
 export function validateUndeclaredItems(
     lines: string[],
     parsedDoc: ParsedDocument,
@@ -14,18 +45,6 @@ export function validateUndeclaredItems(
 ): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
-    // Helper to convert severity string to DiagnosticSeverity
-    const getSeverity = (severityStr?: string): DiagnosticSeverity => {
-        switch (severityStr) {
-            case 'error': return DiagnosticSeverity.Error;
-            case 'warning': return DiagnosticSeverity.Warning;
-            case 'information': return DiagnosticSeverity.Information;
-            case 'hint': return DiagnosticSeverity.Hint;
-            default: return DiagnosticSeverity.Warning; // default
-        }
-    };
-
-    // Check if we should mark all instances or just the first one
     const markAllInstances = settings?.validation?.markAllUndeclaredInstances ?? defaultSettings.validation.markAllUndeclaredInstances;
 
     // Build undeclared sets upfront (only for enabled checks)
@@ -58,116 +77,76 @@ export function validateUndeclaredItems(
     const processedCommodities = new Set<string>();
     const processedTags = new Set<string>();
 
+    const commoditySeverity = getSeverity(settings?.severity?.undeclaredCommodities);
+    const accountSeverity = getSeverity(settings?.severity?.undeclaredAccounts);
+    const tagSeverity = getSeverity(settings?.severity?.undeclaredTags || 'information');
+    const payeeSeverity = getSeverity(settings?.severity?.undeclaredPayees);
+
+    // Helper: try to report an undeclared item, respecting markAllInstances.
+    // For tags, searches for "name:" but reports just "name" in the diagnostic message/data,
+    // with range covering "name:" (length = name.length + 1).
+    function tryReport(
+        name: string, processed: Set<string>, severity: DiagnosticSeverity,
+        lineNum: number, lineText: string, type: UndeclaredType,
+        searchFrom?: number
+    ): void {
+        if (!markAllInstances && processed.has(name)) return;
+        const searchStr = type === 'Tag' ? name + ':' : name;
+        const idx = lineText.indexOf(searchStr, searchFrom);
+        if (idx !== -1) {
+            const rangeLength = type === 'Tag' ? name.length + 1 : name.length;
+            diagnostics.push(createUndeclaredDiagnostic(severity, lineNum, idx, rangeLength, name, type));
+            processed.add(name);
+        }
+    }
+
     // Helper: check a posting for undeclared commodities (amount, cost, assertion)
-    const checkPostingCommodities = (postingLine: number, posting: Posting) => {
+    function checkPostingCommodities(postingLine: number, posting: Posting): void {
         if (!hasUndeclaredCommodities) return;
         if (postingLine >= lines.length) return;
         const line = lines[postingLine];
 
-        // Check commodity in posting amount
         if (posting.amount?.commodity && undeclaredCommodities!.has(posting.amount.commodity)) {
-            const commodityName = posting.amount.commodity;
-            if (!markAllInstances && processedCommodities.has(commodityName)) return;
-            const commodityIndex = line.indexOf(commodityName);
-            if (commodityIndex !== -1) {
-                diagnostics.push({
-                    severity: getSeverity(settings?.severity?.undeclaredCommodities),
-                    range: {
-                        start: { line: postingLine, character: commodityIndex },
-                        end: { line: postingLine, character: commodityIndex + commodityName.length }
-                    },
-                    message: `Commodity "${commodityName}" is used but not declared with 'commodity' directive`,
-                    source: 'hledger',
-                    code: 'undeclared-commodity',
-                    data: { commodityName }
-                });
-                processedCommodities.add(commodityName);
-            }
+            tryReport(posting.amount.commodity, processedCommodities, commoditySeverity, postingLine, line, 'Commodity');
         }
 
-        // Check commodity in cost notation
         if (posting.cost?.amount?.commodity && undeclaredCommodities!.has(posting.cost.amount.commodity)) {
-            const commodityName = posting.cost.amount.commodity;
-            if (!markAllInstances && processedCommodities.has(commodityName)) return;
             const atIndex = line.indexOf('@');
             if (atIndex !== -1) {
-                const afterAt = line.substring(atIndex);
-                const commodityIndex = afterAt.indexOf(commodityName);
-                if (commodityIndex !== -1) {
-                    const absoluteIndex = atIndex + commodityIndex;
-                    diagnostics.push({
-                        severity: getSeverity(settings?.severity?.undeclaredCommodities),
-                        range: {
-                            start: { line: postingLine, character: absoluteIndex },
-                            end: { line: postingLine, character: absoluteIndex + commodityName.length }
-                        },
-                        message: `Commodity "${commodityName}" is used but not declared with 'commodity' directive`,
-                        source: 'hledger',
-                        code: 'undeclared-commodity',
-                        data: { commodityName }
-                    });
-                    processedCommodities.add(commodityName);
-                }
+                tryReport(posting.cost.amount.commodity, processedCommodities, commoditySeverity, postingLine, line, 'Commodity', atIndex);
             }
         }
 
-        // Check commodity in balance assertion
         if (posting.assertion?.commodity && undeclaredCommodities!.has(posting.assertion.commodity)) {
-            const commodityName = posting.assertion.commodity;
-            if (!markAllInstances && processedCommodities.has(commodityName)) return;
             const equalsIndex = line.indexOf('=');
             if (equalsIndex !== -1) {
-                const afterEquals = line.substring(equalsIndex);
-                const commodityIndex = afterEquals.indexOf(commodityName);
-                if (commodityIndex !== -1) {
-                    const absoluteIndex = equalsIndex + commodityIndex;
-                    diagnostics.push({
-                        severity: getSeverity(settings?.severity?.undeclaredCommodities),
-                        range: {
-                            start: { line: postingLine, character: absoluteIndex },
-                            end: { line: postingLine, character: absoluteIndex + commodityName.length }
-                        },
-                        message: `Commodity "${commodityName}" is used but not declared with 'commodity' directive`,
-                        source: 'hledger',
-                        code: 'undeclared-commodity',
-                        data: { commodityName }
-                    });
-                    processedCommodities.add(commodityName);
-                }
+                tryReport(posting.assertion.commodity, processedCommodities, commoditySeverity, postingLine, line, 'Commodity', equalsIndex);
             }
         }
-    };
+    }
 
     // Helper: check a posting for undeclared tags
-    const checkPostingTags = (postingLine: number, posting: Posting) => {
+    function checkPostingTags(postingLine: number, posting: Posting): void {
         if (!hasUndeclaredTags || !posting.tags) return;
         if (postingLine >= lines.length) return;
         const line = lines[postingLine];
+        const commentIndex = line.indexOf(';');
+        if (commentIndex === -1) return;
 
         for (const tagName of Object.keys(posting.tags)) {
             if (undeclaredTags!.has(tagName)) {
-                if (!markAllInstances && processedTags.has(tagName)) continue;
-                const commentIndex = line.indexOf(';');
-                if (commentIndex !== -1) {
-                    const tagIndex = line.indexOf(tagName + ':', commentIndex);
-                    if (tagIndex !== -1) {
-                        diagnostics.push({
-                            severity: getSeverity(settings?.severity?.undeclaredTags || 'information'),
-                            range: {
-                                start: { line: postingLine, character: tagIndex },
-                                end: { line: postingLine, character: tagIndex + tagName.length + 1 }
-                            },
-                            message: `Tag "${tagName}" is used but not declared with 'tag' directive`,
-                            source: 'hledger',
-                            code: 'undeclared-tag',
-                            data: { tagName }
-                        });
-                        processedTags.add(tagName);
-                    }
-                }
+                tryReport(tagName, processedTags, tagSeverity, postingLine, line, 'Tag', commentIndex);
             }
         }
-    };
+    }
+
+    // Helper: check undeclared account on a posting line
+    function checkPostingAccount(postingLine: number, accountName: string): void {
+        if (!hasUndeclaredAccounts) return;
+        if (!undeclaredAccounts!.has(accountName)) return;
+        if (postingLine >= lines.length) return;
+        tryReport(accountName, processedAccounts, accountSeverity, postingLine, lines[postingLine], 'Account');
+    }
 
     // Single pass over transactions
     for (const transaction of parsedDoc.transactions) {
@@ -175,53 +154,18 @@ export function validateUndeclaredItems(
         if (txSourceUri && txSourceUri !== documentUri) continue;
 
         // Check undeclared payee
-        if (hasUndeclaredPayees && transaction.line !== undefined) {
-            const payeeName = transaction.payee;
-            if (undeclaredPayees!.has(payeeName)) {
-                if (markAllInstances || !processedPayees.has(payeeName)) {
-                    const line = lines[transaction.line];
-                    const payeeIndex = line.indexOf(payeeName);
-                    if (payeeIndex !== -1) {
-                        diagnostics.push({
-                            severity: getSeverity(settings?.severity?.undeclaredPayees),
-                            range: {
-                                start: { line: transaction.line, character: payeeIndex },
-                                end: { line: transaction.line, character: payeeIndex + payeeName.length }
-                            },
-                            message: `Payee "${payeeName}" is used but not declared with 'payee' directive`,
-                            source: 'hledger',
-                            code: 'undeclared-payee',
-                            data: { payeeName }
-                        });
-                        processedPayees.add(payeeName);
-                    }
-                }
-            }
+        if (hasUndeclaredPayees && transaction.line !== undefined && undeclaredPayees!.has(transaction.payee)) {
+            tryReport(transaction.payee, processedPayees, payeeSeverity, transaction.line, lines[transaction.line], 'Payee');
         }
 
         // Check transaction-level tags
         if (hasUndeclaredTags && transaction.tags && transaction.line !== undefined) {
             const line = lines[transaction.line];
-            for (const tagName of Object.keys(transaction.tags)) {
-                if (undeclaredTags!.has(tagName)) {
-                    if (!markAllInstances && processedTags.has(tagName)) continue;
-                    const commentIndex = line.indexOf(';');
-                    if (commentIndex !== -1) {
-                        const tagIndex = line.indexOf(tagName + ':', commentIndex);
-                        if (tagIndex !== -1) {
-                            diagnostics.push({
-                                severity: getSeverity(settings?.severity?.undeclaredTags || 'information'),
-                                range: {
-                                    start: { line: transaction.line, character: tagIndex },
-                                    end: { line: transaction.line, character: tagIndex + tagName.length + 1 }
-                                },
-                                message: `Tag "${tagName}" is used but not declared with 'tag' directive`,
-                                source: 'hledger',
-                                code: 'undeclared-tag',
-                                data: { tagName }
-                            });
-                            processedTags.add(tagName);
-                        }
+            const commentIndex = line.indexOf(';');
+            if (commentIndex !== -1) {
+                for (const tagName of Object.keys(transaction.tags)) {
+                    if (undeclaredTags!.has(tagName)) {
+                        tryReport(tagName, processedTags, tagSeverity, transaction.line, line, 'Tag', commentIndex);
                     }
                 }
             }
@@ -232,40 +176,9 @@ export function validateUndeclaredItems(
             let postingLineOffset = 1;
             for (const posting of transaction.postings) {
                 const postingLine = transaction.line + postingLineOffset;
-
-                // Check undeclared account
-                if (hasUndeclaredAccounts) {
-                    const accountName = posting.account;
-                    if (undeclaredAccounts!.has(accountName)) {
-                        if (markAllInstances || !processedAccounts.has(accountName)) {
-                            if (postingLine < lines.length) {
-                                const line = lines[postingLine];
-                                const accountIndex = line.indexOf(accountName);
-                                if (accountIndex !== -1) {
-                                    diagnostics.push({
-                                        severity: getSeverity(settings?.severity?.undeclaredAccounts),
-                                        range: {
-                                            start: { line: postingLine, character: accountIndex },
-                                            end: { line: postingLine, character: accountIndex + accountName.length }
-                                        },
-                                        message: `Account "${accountName}" is used but not declared with 'account' directive`,
-                                        source: 'hledger',
-                                        code: 'undeclared-account',
-                                        data: { accountName }
-                                    });
-                                    processedAccounts.add(accountName);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Check undeclared commodities
+                checkPostingAccount(postingLine, posting.account);
                 checkPostingCommodities(postingLine, posting);
-
-                // Check undeclared tags on posting
                 checkPostingTags(postingLine, posting);
-
                 postingLineOffset++;
             }
         }
@@ -276,37 +189,9 @@ export function validateUndeclaredItems(
         if (periodicTx.sourceUri && periodicTx.sourceUri.toString() !== documentUri) continue;
 
         for (const posting of periodicTx.postings) {
-            const postingLine = posting.line;
-
-            // Check undeclared account
-            if (hasUndeclaredAccounts && postingLine !== undefined && postingLine < lines.length) {
-                const accountName = posting.account;
-                if (undeclaredAccounts!.has(accountName)) {
-                    if (markAllInstances || !processedAccounts.has(accountName)) {
-                        const line = lines[postingLine];
-                        const accountIndex = line.indexOf(accountName);
-                        if (accountIndex !== -1) {
-                            diagnostics.push({
-                                severity: getSeverity(settings?.severity?.undeclaredAccounts),
-                                range: {
-                                    start: { line: postingLine, character: accountIndex },
-                                    end: { line: postingLine, character: accountIndex + accountName.length }
-                                },
-                                message: `Account "${accountName}" is used but not declared with 'account' directive`,
-                                source: 'hledger',
-                                code: 'undeclared-account',
-                                data: { accountName }
-                            });
-                            processedAccounts.add(accountName);
-                        }
-                    }
-                }
-            }
-
-            // Check undeclared commodities
-            if (postingLine !== undefined) {
-                checkPostingCommodities(postingLine, posting);
-            }
+            if (posting.line === undefined) continue;
+            checkPostingAccount(posting.line, posting.account);
+            checkPostingCommodities(posting.line, posting);
         }
     }
 
@@ -315,77 +200,18 @@ export function validateUndeclaredItems(
         if (autoPost.sourceUri && autoPost.sourceUri.toString() !== documentUri) continue;
 
         for (const entry of autoPost.postings) {
-            const entryLine = entry.line;
-
-            // Check undeclared account
-            if (hasUndeclaredAccounts && entryLine !== undefined && entryLine < lines.length) {
-                const accountName = entry.account;
-                if (undeclaredAccounts!.has(accountName)) {
-                    if (markAllInstances || !processedAccounts.has(accountName)) {
-                        const line = lines[entryLine];
-                        const accountIndex = line.indexOf(accountName);
-                        if (accountIndex !== -1) {
-                            diagnostics.push({
-                                severity: getSeverity(settings?.severity?.undeclaredAccounts),
-                                range: {
-                                    start: { line: entryLine, character: accountIndex },
-                                    end: { line: entryLine, character: accountIndex + accountName.length }
-                                },
-                                message: `Account "${accountName}" is used but not declared with 'account' directive`,
-                                source: 'hledger',
-                                code: 'undeclared-account',
-                                data: { accountName }
-                            });
-                            processedAccounts.add(accountName);
-                        }
-                    }
-                }
-            }
+            if (entry.line === undefined) continue;
+            checkPostingAccount(entry.line, entry.account);
 
             // Check undeclared commodities (regular amount and multiplier)
-            if (hasUndeclaredCommodities && entryLine !== undefined && entryLine < lines.length) {
-                const line = lines[entryLine];
+            if (hasUndeclaredCommodities && entry.line < lines.length) {
+                const line = lines[entry.line];
 
                 if (entry.amount?.commodity && undeclaredCommodities!.has(entry.amount.commodity)) {
-                    const commodityName = entry.amount.commodity;
-                    if (markAllInstances || !processedCommodities.has(commodityName)) {
-                        const commodityIndex = line.indexOf(commodityName);
-                        if (commodityIndex !== -1) {
-                            diagnostics.push({
-                                severity: getSeverity(settings?.severity?.undeclaredCommodities),
-                                range: {
-                                    start: { line: entryLine, character: commodityIndex },
-                                    end: { line: entryLine, character: commodityIndex + commodityName.length }
-                                },
-                                message: `Commodity "${commodityName}" is used but not declared with 'commodity' directive`,
-                                source: 'hledger',
-                                code: 'undeclared-commodity',
-                                data: { commodityName }
-                            });
-                            processedCommodities.add(commodityName);
-                        }
-                    }
+                    tryReport(entry.amount.commodity, processedCommodities, commoditySeverity, entry.line, line, 'Commodity');
                 }
-
                 if (entry.multiplier?.commodity && undeclaredCommodities!.has(entry.multiplier.commodity)) {
-                    const commodityName = entry.multiplier.commodity;
-                    if (markAllInstances || !processedCommodities.has(commodityName)) {
-                        const commodityIndex = line.indexOf(commodityName);
-                        if (commodityIndex !== -1) {
-                            diagnostics.push({
-                                severity: getSeverity(settings?.severity?.undeclaredCommodities),
-                                range: {
-                                    start: { line: entryLine, character: commodityIndex },
-                                    end: { line: entryLine, character: commodityIndex + commodityName.length }
-                                },
-                                message: `Commodity "${commodityName}" is used but not declared with 'commodity' directive`,
-                                source: 'hledger',
-                                code: 'undeclared-commodity',
-                                data: { commodityName }
-                            });
-                            processedCommodities.add(commodityName);
-                        }
-                    }
+                    tryReport(entry.multiplier.commodity, processedCommodities, commoditySeverity, entry.line, line, 'Commodity');
                 }
             }
         }
@@ -398,50 +224,14 @@ export function validateUndeclaredItems(
             if (priceDir.line === undefined || priceDir.line >= lines.length) continue;
             const priceLine = lines[priceDir.line];
 
-            // Check base commodity
             if (undeclaredCommodities!.has(priceDir.commodity)) {
-                const commodityName = priceDir.commodity;
-                if (markAllInstances || !processedCommodities.has(commodityName)) {
-                    const commodityIndex = priceLine.indexOf(commodityName);
-                    if (commodityIndex !== -1) {
-                        diagnostics.push({
-                            severity: getSeverity(settings?.severity?.undeclaredCommodities),
-                            range: {
-                                start: { line: priceDir.line, character: commodityIndex },
-                                end: { line: priceDir.line, character: commodityIndex + commodityName.length }
-                            },
-                            message: `Commodity "${commodityName}" is used but not declared with 'commodity' directive`,
-                            source: 'hledger',
-                            code: 'undeclared-commodity',
-                            data: { commodityName }
-                        });
-                        processedCommodities.add(commodityName);
-                    }
-                }
+                tryReport(priceDir.commodity, processedCommodities, commoditySeverity, priceDir.line, priceLine, 'Commodity');
             }
 
-            // Check price commodity
             if (priceDir.amount.commodity && undeclaredCommodities!.has(priceDir.amount.commodity)) {
-                const commodityName = priceDir.amount.commodity;
-                if (markAllInstances || !processedCommodities.has(commodityName)) {
-                    const baseStart = priceLine.indexOf(priceDir.commodity);
-                    const searchStart = baseStart !== -1 ? baseStart + priceDir.commodity.length : 0;
-                    const commodityIndex = priceLine.indexOf(commodityName, searchStart);
-                    if (commodityIndex !== -1) {
-                        diagnostics.push({
-                            severity: getSeverity(settings?.severity?.undeclaredCommodities),
-                            range: {
-                                start: { line: priceDir.line, character: commodityIndex },
-                                end: { line: priceDir.line, character: commodityIndex + commodityName.length }
-                            },
-                            message: `Commodity "${commodityName}" is used but not declared with 'commodity' directive`,
-                            source: 'hledger',
-                            code: 'undeclared-commodity',
-                            data: { commodityName }
-                        });
-                        processedCommodities.add(commodityName);
-                    }
-                }
+                const baseStart = priceLine.indexOf(priceDir.commodity);
+                const searchStart = baseStart !== -1 ? baseStart + priceDir.commodity.length : 0;
+                tryReport(priceDir.amount.commodity, processedCommodities, commoditySeverity, priceDir.line, priceLine, 'Commodity', searchStart);
             }
         }
     }

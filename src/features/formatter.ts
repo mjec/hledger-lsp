@@ -7,7 +7,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 import { ParsedDocument, Transaction } from '../types';
 import { parseTransactionHeader } from '../parser/ast';
-import { isTransactionHeader, isComment, isDirective, isPeriodicTransactionHeader, isAutoPostingHeader } from '../utils/index';
+import { isTransactionHeader, isComment, isDirective, isPeriodicTransactionHeader, isAutoPostingHeader, isFromDocument } from '../utils/index';
 import { getAmountLayout, AmountLayout, renderAmountLayout, AmountWidths } from '../utils/amountFormatter';
 import { FormattingOptions, DEFAULT_FORMATTING_OPTIONS, InlayHintsOptions, DEFAULT_INLAY_HINTS_OPTIONS } from '../server/settings';
 import { isSafeToFormat } from './formattingValidation';
@@ -39,6 +39,41 @@ export class FormattingProvider {
     const text = document.getText();
     const lines = text.split('\n');
 
+    // Build lookup maps for O(1) access by line number
+    const txByLine = new Map<number, Transaction>();
+    for (const t of parsed.transactions) {
+      if (isFromDocument(t, documentUri) && t.line !== undefined) {
+        txByLine.set(t.line, t);
+      }
+    }
+    const periodicTxByLine = new Map<number, typeof parsed.periodicTransactions[0]>();
+    for (const t of parsed.periodicTransactions) {
+      if (isFromDocument(t, documentUri) && t.line !== undefined) {
+        periodicTxByLine.set(t.line, t);
+      }
+    }
+    const autoPostByLine = new Map<number, typeof parsed.autoPostings[0]>();
+    for (const t of parsed.autoPostings) {
+      if (isFromDocument(t, documentUri) && t.line !== undefined) {
+        autoPostByLine.set(t.line, t);
+      }
+    }
+
+    // Collect posting/body lines after a header, stopping at the next block boundary
+    function collectBodyLines(): { bodyLines: string[], nextIndex: number } {
+      const bodyLines: string[] = [];
+      let j = i + 1;
+      while (j < lines.length) {
+        const bodyTrimmed = lines[j].trim();
+        if (!bodyTrimmed || isTransactionHeader(bodyTrimmed) || isPeriodicTransactionHeader(bodyTrimmed) || isAutoPostingHeader(bodyTrimmed) || isDirective(bodyTrimmed)) {
+          break;
+        }
+        bodyLines.push(lines[j]);
+        j++;
+      }
+      return { bodyLines, nextIndex: j };
+    }
+
     // Format line by line, tracking transactions
     const formattedLines: string[] = [];
     let i = 0;
@@ -48,87 +83,35 @@ export class FormattingProvider {
       const trimmed = line.trim();
 
       if (isTransactionHeader(trimmed)) {
-        // Format the transaction header
         formattedLines.push(this.formatTransactionHeader(trimmed));
-        const transaction = parsed.transactions.find(t => (t.line === i && t.sourceUri?.toString() === documentUri));
-        const transactionLines: string[] = [];
-        i++;
-
-        while (i < lines.length) {
-          const postingLine = lines[i];
-          const postingTrimmed = postingLine.trim();
-
-          // Stop at empty line, next transaction, periodic transaction, auto posting, or directive
-          if (!postingTrimmed || isTransactionHeader(postingTrimmed) || isPeriodicTransactionHeader(postingTrimmed) || isAutoPostingHeader(postingTrimmed) || isDirective(postingTrimmed)) {
-            break;
-          }
-
-          transactionLines.push(postingLine);
-          i++;
-        }
-
-        // Format all postings in the transaction together for alignment
-        formattedLines.push(...this.formatTransactionLines(transactionLines, transaction, parsed, options, inlayHintsConfig));
-
-        // Don't increment i here as we've already moved past the transaction
+        const { bodyLines, nextIndex } = collectBodyLines();
+        const transaction = txByLine.get(i);
+        formattedLines.push(...this.formatTransactionLines(bodyLines, transaction, parsed, options, inlayHintsConfig));
+        i = nextIndex;
         continue;
       } else if (isPeriodicTransactionHeader(trimmed)) {
-        // Preserve periodic transaction header as-is to maintain the crucial double space
-        // between period expression and description (e.g., "~ every 2 months  in 2023, we will review")
+        // Preserve header as-is to maintain the crucial double space
+        // between period expression and description
         formattedLines.push(trimmed);
         const headerLineIndex = i;
-        const transactionLines: string[] = [];
-        i++;
+        const { bodyLines, nextIndex } = collectBodyLines();
 
-        while (i < lines.length) {
-          const postingLine = lines[i];
-          const postingTrimmed = postingLine.trim();
-
-          // Stop at empty line, next transaction, periodic transaction, auto posting, or directive
-          if (!postingTrimmed || isTransactionHeader(postingTrimmed) || isPeriodicTransactionHeader(postingTrimmed) || isAutoPostingHeader(postingTrimmed) || isDirective(postingTrimmed)) {
-            break;
-          }
-
-          transactionLines.push(postingLine);
-          i++;
-        }
-
-        // Look up the PeriodicTransaction and create a Transaction-shaped object for formatting
-        const periodicTx = parsed.periodicTransactions.find(t => t.line === headerLineIndex && t.sourceUri?.toString() === documentUri);
-        let tempTransaction: Transaction | undefined;
-        if (periodicTx) {
-          tempTransaction = {
-            date: '', description: periodicTx.description, payee: '', note: '',
-            postings: periodicTx.postings, line: headerLineIndex,
-          };
-        }
-        formattedLines.push(...this.formatTransactionLines(transactionLines, tempTransaction, parsed, options, inlayHintsConfig));
-
+        const periodicTx = periodicTxByLine.get(headerLineIndex);
+        const tempTransaction: Transaction | undefined = periodicTx ? {
+          date: '', description: periodicTx.description, payee: '', note: '',
+          postings: periodicTx.postings, line: headerLineIndex,
+        } : undefined;
+        formattedLines.push(...this.formatTransactionLines(bodyLines, tempTransaction, parsed, options, inlayHintsConfig));
+        i = nextIndex;
         continue;
       } else if (isAutoPostingHeader(trimmed)) {
-        // Preserve auto posting header as-is
         formattedLines.push(trimmed);
         const headerLineIndex = i;
-        const transactionLines: string[] = [];
-        i++;
+        const { bodyLines, nextIndex } = collectBodyLines();
 
-        while (i < lines.length) {
-          const postingLine = lines[i];
-          const postingTrimmed = postingLine.trim();
-
-          if (!postingTrimmed || isTransactionHeader(postingTrimmed) || isPeriodicTransactionHeader(postingTrimmed) || isAutoPostingHeader(postingTrimmed) || isDirective(postingTrimmed)) {
-            break;
-          }
-
-          transactionLines.push(postingLine);
-          i++;
-        }
-
-        // Look up the AutoPosting and create a Transaction-shaped object for formatting
-        const autoPost = parsed.autoPostings.find(t => t.line === headerLineIndex && t.sourceUri?.toString() === documentUri);
+        const autoPost = autoPostByLine.get(headerLineIndex);
         let tempTransaction: Transaction | undefined;
         if (autoPost) {
-          // Convert AutoPostingEntries to Postings for formatting
           const postings = autoPost.postings.map(entry => ({
             account: entry.account,
             amount: entry.amount,
@@ -141,8 +124,8 @@ export class FormattingProvider {
             postings, line: headerLineIndex,
           };
         }
-        formattedLines.push(...this.formatTransactionLines(transactionLines, tempTransaction, parsed, options, inlayHintsConfig));
-
+        formattedLines.push(...this.formatTransactionLines(bodyLines, tempTransaction, parsed, options, inlayHintsConfig));
+        i = nextIndex;
         continue;
       } else if (isDirective(trimmed)) {
         formattedLines.push(this.formatDirective(trimmed));
@@ -455,8 +438,7 @@ export class FormattingProvider {
       assertion: this.emptyAmountWidths()
     };
 
-    for (const posting of transaction.
-      postings) {
+    for (const posting of transaction.postings) {
       widths.account = Math.max(widths.account, posting.account.length);
 
       if (posting.amount && !posting.amount.inferred) {

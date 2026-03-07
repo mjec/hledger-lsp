@@ -80,6 +80,16 @@ function encodeModifiers(modifiers: TokenModifier[]): number {
 /**
  * Provides semantic tokens for hledger journal files.
  */
+const directiveKeywords = [
+  'account', 'commodity', 'payee', 'tag',
+  'include', 'alias', 'end', 'apply', 'Y', 'D'
+];
+
+const directivePatterns = directiveKeywords.map(kw => ({
+  keyword: kw,
+  pattern: new RegExp(`^(${kw})\\b`),
+}));
+
 export class SemanticTokensProvider {
   /**
    * Provide semantic tokens for the entire document.
@@ -373,13 +383,7 @@ export class SemanticTokensProvider {
     lineIndex: number,
     builder: SemanticTokensBuilder,
   ): boolean {
-    const directiveKeywords = [
-      'account', 'commodity', 'payee', 'tag',
-      'include', 'alias', 'end', 'apply', 'Y', 'D'
-    ];
-
-    for (const keyword of directiveKeywords) {
-      const pattern = new RegExp(`^(${keyword})\\b`);
+    for (const { keyword, pattern } of directivePatterns) {
       const match = line.match(pattern);
 
       if (match) {

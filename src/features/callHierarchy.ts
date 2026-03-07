@@ -21,6 +21,7 @@ import { URI } from 'vscode-uri';
 import * as path from 'path';
 import { ParsedDocument, FileReader } from '../types';
 import { WorkspaceManager } from '../server/workspace';
+import { isFromDocument } from '../utils/index';
 import { getIncludePathRange } from '../utils/includeRange';
 import { toFilePath } from '../utils/uri';
 
@@ -73,7 +74,7 @@ export class CallHierarchyProvider {
     // Check if we're on an include directive line
     if (lineText !== undefined) {
       const includeDirectives = parsedDoc.directives.filter(
-        d => d.type === 'include' && d.line === line && d.sourceUri?.toString() === documentUri.toString()
+        d => d.type === 'include' && d.line === line && isFromDocument(d, documentUri.toString())
       );
 
       if (includeDirectives.length > 0) {

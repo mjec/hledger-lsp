@@ -12,7 +12,7 @@
 
 import { Hover, MarkupKind } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { ParsedDocument } from '../types';
+import { Account, Commodity, ParsedDocument, Payee, Tag } from '../types';
 import { isTransactionHeader, isPosting, extractAccountFromPosting, getIndentationLevel } from '../utils/index';
 import { calculateTransactionBalanceSimple } from '../utils/balanceCalculator';
 import { formatAmount } from '../utils/amountFormatter';
@@ -21,6 +21,7 @@ import * as path from 'path';
 
 import { HledgerSettings } from '../server/settings';
 import { URI } from 'vscode-uri';
+import { getTokenAtPosition } from '../utils/getToken';
 
 export class HoverProvider {
   /**
@@ -48,7 +49,7 @@ export class HoverProvider {
 
       if (character > commentStart) {
         // If token contains ':', extract just the tag name part
-        const token = this.getTokenAtPosition(fullLine, character);
+        const token = getTokenAtPosition(fullLine, character, /\s|;|#|\|/);
         if (token) {
           let tagName = token;
           if (token.includes(':')) {
@@ -86,7 +87,7 @@ export class HoverProvider {
 
     // Fallback to token matching for other items
     // Get token at cursor position
-    const token = this.getTokenAtPosition(fullLine, character);
+    const token = getTokenAtPosition(fullLine, character, /\s|;|#|\|/);
     if (!token) return null;
 
     // Check for date first (highest priority)
@@ -119,32 +120,6 @@ export class HoverProvider {
     }
 
     return null;
-  }
-
-  /**
-   * Get the token at a specific character position
-   */
-  private getTokenAtPosition(line: string, character: number): string | null {
-    const col = Math.min(character, line.length);
-
-    // Find token boundaries
-    let start = col - 1;
-    while (start >= 0) {
-      const ch = line[start];
-      if (/\s|;|#|\|/.test(ch)) break;
-      start--;
-    }
-    start++;
-
-    let end = col;
-    while (end < line.length) {
-      const ch = line[end];
-      if (/\s|;|#|\|/.test(ch)) break;
-      end++;
-    }
-
-    const token = line.substring(start, end).trim();
-    return token || null;
   }
 
   /**
@@ -203,14 +178,7 @@ export class HoverProvider {
     if (account.declared) {
       parts.push(`**Status:** Declared`);
       if (account.sourceUri) {
-        const filePath = toFilePath(account.sourceUri);
-        let fileName = path.basename(filePath);
-        // Handle edge case where fsPath is invalid (e.g., file://test.journal with 2 slashes)
-        if (!fileName || fileName === '/') {
-          fileName = path.basename(account.sourceUri.toString().replace(/^file:\/\/+/, ''));
-        }
-        const lineNum = (account.line ?? 0) + 1;
-        parts.push(`**Location:** ${fileName}:${lineNum}`);
+        parts.push(`**Location:** ${this.locationFromResource(account)}`);
       }
     } else {
       parts.push(`**Status:** Undeclared (inferred from usage)`);
@@ -230,24 +198,35 @@ export class HoverProvider {
     };
   }
 
+  /** 
+   * Build location from resource
+   */
+  private locationFromResource(resource: Commodity | Account | Tag): string {
+    if (!resource.sourceUri) {
+      return "";
+    }
+    const filePath = toFilePath(resource.sourceUri);
+    let fileName = path.basename(filePath);
+    // Handle edge case where fsPath is invalid (e.g., file://test.journal with 2 slashes)
+    if (!fileName || fileName === '/') {
+      fileName = path.basename(resource.sourceUri.toString().replace(/^file:\/\/+/, ''));
+    }
+    const lineNum = (resource.line ?? 0) + 1;
+    return `${fileName}:${lineNum}`;
+  }
+
+
   /**
    * Provide hover for commodities
    */
-  private provideCommodityHover(commodity: any, parsedDoc?: ParsedDocument): Hover {
+  private provideCommodityHover(commodity: Commodity, parsedDoc?: ParsedDocument): Hover {
     const parts: string[] = [`**Commodity**\n\n\`${commodity.name}\``];
 
     // Add declaration status
     if (commodity.declared) {
       parts.push(`**Status:** Declared`);
       if (commodity.sourceUri) {
-        const filePath = toFilePath(commodity.sourceUri);
-        let fileName = path.basename(filePath);
-        // Handle edge case where fsPath is invalid (e.g., file://test.journal with 2 slashes)
-        if (!fileName || fileName === '/') {
-          fileName = path.basename(commodity.sourceUri.toString().replace(/^file:\/\/+/, ''));
-        }
-        const lineNum = (commodity.line ?? 0) + 1;
-        parts.push(`**Location:** ${fileName}:${lineNum}`);
+        parts.push(`**Location:** ${this.locationFromResource(commodity)}`);
       }
     } else {
       parts.push(`**Status:** Undeclared (inferred from usage)`);
@@ -312,21 +291,14 @@ export class HoverProvider {
   /**
    * Provide hover for payees
    */
-  private providePayeeHover(payee: any, parsed: ParsedDocument): Hover {
+  private providePayeeHover(payee: Payee, parsed: ParsedDocument): Hover {
     const parts: string[] = [`**Payee**\n\n\`${payee.name}\``];
 
     // Add declaration status
     if (payee.declared) {
       parts.push(`**Status:** Declared`);
       if (payee.sourceUri) {
-        const filePath = toFilePath(payee.sourceUri);
-        let fileName = path.basename(filePath);
-        // Handle edge case where fsPath is invalid (e.g., file://test.journal with 2 slashes)
-        if (!fileName || fileName === '/') {
-          fileName = path.basename(payee.sourceUri.toString().replace(/^file:\/\/+/, ''));
-        }
-        const lineNum = (payee.line ?? 0) + 1;
-        parts.push(`**Location:** ${fileName}:${lineNum}`);
+        parts.push(`**Location:** ${this.locationFromResource(payee)}`);
       }
     } else {
       parts.push(`**Status:** Undeclared (inferred from usage)`);
@@ -367,14 +339,7 @@ export class HoverProvider {
     if (tag.declared) {
       parts.push(`**Status:** Declared`);
       if (tag.sourceUri) {
-        const filePath = toFilePath(tag.sourceUri);
-        let fileName = path.basename(filePath);
-        // Handle edge case where fsPath is invalid (e.g., file://test.journal with 2 slashes)
-        if (!fileName || fileName === '/') {
-          fileName = path.basename(tag.sourceUri.toString().replace(/^file:\/\/+/, ''));
-        }
-        const lineNum = (tag.line ?? 0) + 1;
-        parts.push(`**Location:** ${fileName}:${lineNum}`);
+        parts.push(`**Location:** ${this.locationFromResource(tag)}`);
       }
     } else {
       parts.push(`**Status:** Undeclared (inferred from usage)`);
@@ -487,7 +452,7 @@ export class HoverProvider {
       end: { line, character: Number.MAX_SAFE_INTEGER }
     });
 
-    const token = this.getTokenAtPosition(fullLine, character);
+    const token = getTokenAtPosition(fullLine, character, /\s|;|#|\|/);
     if (!token) return null;
 
     if (this.isDate(token)) {
