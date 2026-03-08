@@ -1,7 +1,7 @@
 import { Location, Range, Position } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument } from '../types';
-import { getTokenAtPosition } from '../utils/getToken';
+import { getTokenAtPosition } from "../utils/getTokenAtPosition";
 
 export class DefinitionProvider {
   /**

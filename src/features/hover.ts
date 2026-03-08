@@ -21,7 +21,7 @@ import * as path from 'path';
 
 import { HledgerSettings } from '../server/settings';
 import { URI } from 'vscode-uri';
-import { getTokenAtPosition } from '../utils/getToken';
+import { getTokenAtPosition } from "../utils/getTokenAtPosition";
 
 export class HoverProvider {
   /**
