@@ -3,7 +3,10 @@ import { Transaction, Posting, Amount, Account, Payee, Commodity, Tag, Directive
 import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment, stripQuotes } from '../utils/index';
 
 function splitComment(line: string): { content: string; comment: string } | null {
-  const match = line.match(/^([^;]*);(.*)$/);
+  // Use [^\r\n]* instead of .* to handle both LF and CRLF line endings.
+  // In JS regex, . does not match \r, and $ does not match before \r,
+  // so the original (.*)$ would fail for lines ending with \r (CRLF files).
+  const match = line.match(/^([^;]*);([^\r\n]*)/);
   if (!match) return null;
   return { content: match[1], comment: match[2] };
 }

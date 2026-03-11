@@ -380,6 +380,26 @@ describe('Validator', () => {
       const amountErrors = result.diagnostics.filter(d => d.message.includes('without amounts'));
       expect(amountErrors).toHaveLength(0);
     });
+
+    test('should not flag postings with inline comments after amounts as missing amounts (LF)', () => {
+      const content = '2026-03-10 Sample Store | Purchase\n    expenses:shopping        USD 100.00  ;tag:sample\n    expenses:fees            USD 2.00    ;tag:sample\n    assets:bank:checking     USD -102.00 ;ref:mar26';
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsedDoc = parser.parse(doc);
+      const result = validator.validate(doc, parsedDoc);
+
+      const amountErrors = result.diagnostics.filter(d => d.message.includes('without amounts'));
+      expect(amountErrors).toHaveLength(0);
+    });
+
+    test('should not flag postings with inline comments after amounts as missing amounts (CRLF)', () => {
+      const content = '2026-03-10 Sample Store | Purchase\r\n    expenses:shopping        USD 100.00  ;tag:sample\r\n    expenses:fees            USD 2.00    ;tag:sample\r\n    assets:bank:checking     USD -102.00 ;ref:mar26';
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsedDoc = parser.parse(doc);
+      const result = validator.validate(doc, parsedDoc);
+
+      const amountErrors = result.diagnostics.filter(d => d.message.includes('without amounts'));
+      expect(amountErrors).toHaveLength(0);
+    });
   });
 
   describe('undeclared items validation', () => {
