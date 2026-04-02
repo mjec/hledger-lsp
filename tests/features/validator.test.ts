@@ -1116,6 +1116,32 @@ account expenses:food
       expect(futureWarnings).toHaveLength(0);
     });
 
+    // Issue #11: When local date is ahead of UTC (e.g. UTC+9 past midnight),
+    // today's local date should not be flagged as future.
+    //
+    // Scenario: it's 2026-04-03 01:00 in UTC+9 (= 2026-04-02T16:00Z).
+    // The user types today's local date: 2026-04-03.
+    // UTC date is still April 2. Old UTC-based code flagged this as future.
+    //
+    // We can't rely on process.env.TZ in Jest workers, so we override the
+    // local date getters on the injected `now` to simulate UTC+9.
+    test('should not flag local today as future when UTC is still previous day (issue #11)', () => {
+      const now = new Date('2026-04-02T16:00:00.000Z');
+      // Override local getters to simulate UTC+9 (where it's already April 3)
+      now.getFullYear = () => 2026;
+      now.getMonth = () => 3; // April (0-indexed)
+      now.getDate = () => 3;
+
+      const { validateFutureDate } = require('../../src/features/validation/dates');
+      const transaction = { date: '2026-04-03', description: 'Test', postings: [], line: 0 } as any;
+      const lines = ['2026-04-03 * Test', '    expenses:food  $50.00', '    assets:checking  $-50.00'];
+
+      // With fix: Date.UTC(2026, 3, 3) = April 3 midnight = parseDate("2026-04-03") → no warning
+      // Without fix: setUTCHours → April 2 midnight < parseDate("2026-04-03") → false warning
+      const diagnostics = validateFutureDate(transaction, lines, now);
+      expect(diagnostics).toHaveLength(0);
+    });
+
     test('should warn about future dates', () => {
       const future = new Date();
       future.setFullYear(future.getFullYear() + 1);

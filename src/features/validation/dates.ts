@@ -111,7 +111,7 @@ export function validateDateFormat(transaction: Transaction, lines: string[]): D
     return diagnostics;
 }
 
-export function validateFutureDate(transaction: Transaction, lines: string[]): Diagnostic[] {
+export function validateFutureDate(transaction: Transaction, lines: string[], now?: Date): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
     const parsedDate = parseDate(transaction.date);
@@ -119,9 +119,12 @@ export function validateFutureDate(transaction: Transaction, lines: string[]): D
         return diagnostics; // Already handled by validateDateFormat
     }
 
-    // Use UTC for consistent date comparison regardless of timezone
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0); // Reset time portion for date-only comparison
+    // Build "today" as UTC midnight using the local calendar date.
+    // parseDate() returns UTC midnight for "YYYY-MM-DD", so we need today
+    // as UTC midnight too for correct comparison — but derived from the
+    // *local* date, since "today" is inherently a local concept (issue #11).
+    const currentTime = now ?? new Date();
+    const today = new Date(Date.UTC(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate()));
 
     if (parsedDate > today) {
         const range = getTransactionRange(transaction, lines);
