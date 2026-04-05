@@ -1,5 +1,5 @@
 import { URI } from 'vscode-uri';
-import { Transaction, Posting, Amount, Account, Payee, Commodity, Tag, Directive, DecimalMark, ThousandsSeparator, Format, PeriodicTransaction, AutoPosting, AutoPostingEntry, MultiplierAmount, PriceDirective } from '../types';
+import { Transaction, Posting, Amount, Account, Payee, Commodity, Tag, Directive, DecimalMark, ThousandsSeparator, Format, PeriodicTransaction, AutoPosting, AutoPostingEntry, MultiplierAmount, PriceDirective, Lot } from '../types';
 import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment, stripQuotes } from '../utils/index';
 
 function splitComment(line: string): { content: string; comment: string } | null {
@@ -693,7 +693,10 @@ export function parsePosting(line: string, transactionDate?: string, commodities
   const afterAccount = trimmed.substring(account.length).trim();
   if (!afterAccount) return posting;
 
-  // Parse order: amount [@ cost | @@ cost] [= assertion]
+  // Parse order: amount [lot] [@ cost | @@ cost] [= assertion]
+  // Where lot is:
+  //    [ [{unit cost} | {{total cost}}] [ '['date']' ] [(label)] | {date, "label", cost} ]
+
   // First, split on assertion (=)
   const assertionMatch = afterAccount.match(/=\s*(.+)$/);
   const beforeAssertion = assertionMatch
@@ -706,8 +709,12 @@ export function parsePosting(line: string, transactionDate?: string, commodities
     if (assertionAmount) posting.assertion = assertionAmount;
   }
 
-  // Now parse amount and cost from beforeAssertion
-  const { amountPart, cost } = parseCost(beforeAssertion, commodities);
+  // Parse lot information from beforeAssertion
+  const { withoutLot, lot } = parseLot(beforeAssertion);
+  if (lot) posting.lot = lot;
+
+  // Now parse amount and cost from afterLot
+  const { amountPart, cost } = parseCost(withoutLot, commodities);
   if (cost) posting.cost = cost;
 
   const amount = parseAmount(amountPart, undefined, commodities);
@@ -736,6 +743,119 @@ function parsePostingDate(dateStr: string, transactionDate?: string): string | n
 
   return null; // Invalid format
 }
+
+function parseLot(text: string, commodities?: Map<string, Commodity>): { withoutLot: string, lot?: Lot } {
+  // Stateful parser; this is the easiest way to handle the fact that lot information can appear in various orders and combinations,
+  // and that the v1 unit cost syntax overlaps with the v2 lot syntax.
+
+  let position = 0; // where we currently are in `text`
+  let beginningOfState = 0; // the beginning of the current stateful section (e.g., unit cost, date, label, v2 lot)
+  let parsedLot: Lot = {'version': 1}; // the lot we will return (if valid)
+  // the current parser state, which determines how we interpret the next characters. We start in 'start' state, and
+  // switch to other states when we encounter relevant delimiters.
+  let state: 'start' | 'in braces' | 'in v1 total cost' | 'in date' | 'in label' = 'start';
+  let withoutLot = ""; // text with lot information removed (what's left after we extract lot info)
+
+  // we loop through each character in the text, using the current state to determine how to interpret it
+  while (position < text.length) {
+    const char = text[position];
+
+    switch (state) {
+      case 'start':
+        // if we're in the "start" state, we are looking for the beginning of lot information,
+        // which can be indicated by '{', '[', or '('
+        switch (char) {
+          case '{':
+            if (text[position + 1] === '{') {
+              // '{{' can only be the start of a v1 total cost
+              state = 'in v1 total cost';
+              position++; // Skip the second '{'
+              beginningOfState = position + 1;
+            } else {
+              // '{' indicates the start of v1 unit cost or v2 lot; that's all we know right now
+              state = 'in braces';
+              beginningOfState = position + 1;
+            }
+            break;
+          case '[':
+            // '[' can only be the start of a date
+            if (parsedLot.date !== undefined) {
+              // invalid: only one date is allowed
+              return { withoutLot: text.trim() };
+            }
+            state = 'in date';
+            beginningOfState = position + 1;
+            break;
+          case '(':
+            // '(' can only be the start of a label
+            if (parsedLot.label !== undefined) {
+              // invalid: only one label is allowed
+              return { withoutLot: text.trim() };
+            }
+            beginningOfState = position + 1;
+            state = 'in label';
+            break;
+          default:
+            // if we see any other character, we just add it to the withoutLot result; it's not lot information
+            withoutLot += char;
+            break;
+        }
+        break; // state == 'start'
+      case 'in braces':
+        if (char === '}') {
+          const textInBraces = text.substring(beginningOfState, position).trim();
+
+          // try parsing this as a unit cost first; if that fails, it'll be a v2 lot
+          parsedLot.unitCost = parseAmount(textInBraces, undefined, commodities) ?? undefined;
+
+          if (parsedLot.unitCost === undefined) {
+            // v2 lot syntax: {date, "label", cost}
+            const parts = textInBraces.split(',').map(p => p.trim());
+            if (parts.length !== 3) {
+              // invalid: a v2 lot must have exactly three parts: date, label and cost
+              return { withoutLot: text.trim() };
+            } else {
+              parsedLot.version = 2;
+              parsedLot.date = parts[0];
+              parsedLot.label = parts[1].replace(/^"(.*)"$/, '$1');
+              parsedLot.unitCost = parseAmount(parts[2], undefined, commodities) || undefined;
+            }
+          }
+          state = 'start';
+        }
+        break; // state == 'in braces'
+      case 'in v1 total cost':
+        if (char === '}' && text[position + 1] === '}') {
+          state = 'start';  
+          parsedLot.totalCost = parseAmount(text.substring(beginningOfState, position).trim(), undefined, commodities) || undefined;
+          position++; // Skip the second '}'
+        }
+        break; // state == 'in v1 total cost'
+      case 'in date':
+        if (char === ']') {
+          state = 'start';
+          parsedLot.date = parseDate(text.substring(beginningOfState, position).trim())?.date;
+        }
+        break; // state == 'in date'
+      case 'in label':
+        if (char === ')') { 
+          state = 'start';
+          parsedLot.label = text.substring(beginningOfState, position).trim();
+        }
+        break; // state == 'in label'
+    }
+
+    position++;
+  }
+
+  if (state !== 'start') {
+    // invalid: unclosed lot information
+    return { withoutLot: text.trim() };
+  }
+
+  return { withoutLot, lot: parsedLot };
+}
+
 
 function parseCost(text: string, commodities?: Map<string, Commodity>): { amountPart: string, cost?: { type: 'unit' | 'total', amount: Amount } } {
   // Check for @@ first (total price), then @ (unit price)

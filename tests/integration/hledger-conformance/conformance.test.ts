@@ -447,6 +447,36 @@ describeConformance('hledger conformance', () => {
       );
       expect(errors).toEqual([]);
     });
+    
+    test('hledger and LSP agree: cost-lot.journal is valid', () => {
+      const filePath = path.join(validDir, 'cost-lot.journal');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      // Ground truth
+      const hledgerResult = runHledgerCheck(filePath);
+      expect(hledgerResult.success).toBe(true);
+
+      // LSP result — enable the same checks hledger runs by default
+      // (parseable, autobalanced, assertions)
+      const result = validator.validate(doc, parsed, {
+        settings: {
+          validation: {
+            ...disableAll(),
+            balance: true,
+            balanceAssertions: true,
+            invalidDates: true,
+            missingAmounts: true,
+          },
+        },
+      });
+
+      // LSP should produce no errors for default hledger checks
+      const errors = result.diagnostics.filter(
+        d => d.severity === 1 // DiagnosticSeverity.Error
+      );
+      expect(errors).toEqual([]);
+    });
   });
 
   // ─── Cross-check: valid files pass strict checks too ─────────────

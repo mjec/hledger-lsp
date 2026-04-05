@@ -1782,6 +1782,68 @@ include common.journal
       });
     });
 
+    describe('lot notation parsing', () => {
+      test('should parse posting with a lot unit cost', () => {
+        const line = '    assets:euros                 €100 {$1.00}';
+        const result = ast.parsePosting(line);
+
+        expect(result).not.toBeNull();
+        expect(result?.account).toBe('assets:euros');
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
+        expect(result?.lot).toEqual(expect.objectContaining({ unitCost: expect.objectContaining({ quantity: 1, commodity: '$' }) }));
+      });
+
+      test('should parse posting with lot total cost', () => {
+        const line = '    assets:euros                 €100 {{ $100.00 }}';
+        const result = ast.parsePosting(line);
+
+        expect(result).not.toBeNull();
+        expect(result?.account).toBe('assets:euros');
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
+        expect(result?.lot).toEqual(expect.objectContaining({ totalCost: expect.objectContaining({ quantity: 100, commodity: '$' }) }));
+      });
+
+      test('should parse posting with a lot date', () => {
+        const line = '    assets:euros                 €100 [2026-04-05]';
+        const result = ast.parsePosting(line);
+
+        expect(result).not.toBeNull();
+        expect(result?.account).toBe('assets:euros');
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
+        expect(result?.lot).toEqual(expect.objectContaining({ date: '2026-04-05' }));
+      });
+
+      test('should parse posting with a lot label', () => {
+        const line = '    assets:euros                 €100 (ooh fancy!)';
+        const result = ast.parsePosting(line);
+
+        expect(result).not.toBeNull();
+        expect(result?.account).toBe('assets:euros');
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
+        expect(result?.lot).toEqual(expect.objectContaining({ label: 'ooh fancy!' }));
+      });
+
+      test('should parse posting with v2 lot format', () => {
+        const line = '    assets:euros                 €100 {2026-04-05, "today\'s lot", $1.00}';
+        const result = ast.parsePosting(line);
+
+        expect(result).not.toBeNull();
+        expect(result?.account).toBe('assets:euros');
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
+        expect(result?.lot).toEqual(expect.objectContaining({ date: '2026-04-05', label: "today's lot", unitCost: expect.objectContaining({ quantity: 1, commodity: '$' }) }));
+      });
+
+      test('should parse posting with v2 lot format and commodity suffix', () => {
+        const line = '    assets:euros                 €100 {2026-04-05, "today\'s lot", 1.00 USD}';
+        const result = ast.parsePosting(line);
+
+        expect(result).not.toBeNull();
+        expect(result?.account).toBe('assets:euros');
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 100, commodity: '€' }));
+        expect(result?.lot).toEqual(expect.objectContaining({ date: '2026-04-05', label: "today's lot", unitCost: expect.objectContaining({ quantity: 1, commodity: 'USD' }) }));
+      });
+    });
+
     describe('cost notation parsing', () => {
       test('should parse posting with unit cost (@)', () => {
         const line = '    assets:euros                 €100 @ $1.35';
@@ -1807,6 +1869,20 @@ include common.journal
           type: 'total',
           amount: expect.objectContaining({ quantity: 135, commodity: '$' })
         });
+      });
+
+      test('should parse posting with a lot price', () => {
+        const line = '    assets:stock    10 AAPL {$100.00} @ $150.50';
+        const result = ast.parsePosting(line);
+
+        expect(result).not.toBeNull();
+        expect(result?.account).toBe('assets:stock');
+        expect(result?.amount).toEqual(expect.objectContaining({ quantity: 10, commodity: 'AAPL' }));
+        expect(result?.cost).toEqual({
+          type: 'unit',
+          amount: expect.objectContaining({ quantity: 150.5, commodity: '$' })
+        });
+        expect(result?.lot).toEqual(expect.objectContaining({ unitCost: expect.objectContaining({ quantity: 100, commodity: '$' }) }));
       });
 
       test('should parse posting with cost and balance assertion', () => {
