@@ -295,7 +295,12 @@ export class FormattingProvider {
         }
       }
 
-      // 2. Cost
+      // 2. Lot annotation (re-emit verbatim between amount and cost)
+      if (posting.lotAnnotation) {
+        line += ' ' + posting.lotAnnotation;
+      }
+
+      // 3. Cost
       if (posting.cost && !posting.cost.inferred) {
         const marker = (posting.cost.type === 'unit' ? ' @ ' : ' @@ ');
         const layout = getAmountLayout(posting.cost.amount, parsed, options, marker);

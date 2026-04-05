@@ -649,7 +649,7 @@ payee Grocery Store;main grocery store
         const formatted = edits[0].newText;
         const lines = formatted.split('\n');
 
-        expect(lines[2]).toContain('10 FOO');
+        expectLineToContainNormalized(lines[2], '10 FOO');
         expect(lines[2]).toContain('{$1}');
         expect(lines[2]).toContain('[2026-01-01]');
         expect(lines[2]).toContain('(mylot)');
@@ -684,7 +684,7 @@ payee Grocery Store;main grocery store
         const formatted = edits[0].newText;
         const lines = formatted.split('\n');
 
-        expect(lines[2]).toContain('10 FOO');
+        expectLineToContainNormalized(lines[2], '10 FOO');
         expect(lines[2]).toContain('[2026-01-01]');
         expect(lines[2]).toContain('@ $1.50');
       });
@@ -701,7 +701,7 @@ payee Grocery Store;main grocery store
         const formatted = edits[0].newText;
         const lines = formatted.split('\n');
 
-        expect(lines[2]).toContain('10 FOO');
+        expectLineToContainNormalized(lines[2], '10 FOO');
         expect(lines[2]).toContain('{2026-01-01, "mylot", $1.50}');
         expect(lines[2]).toContain('@ $2.00');
       });
