@@ -1934,6 +1934,158 @@ include common.journal
         });
       });
 
+      describe('lot cost basis annotations (issue #12)', () => {
+        test('should parse posting with lot unit cost annotation {AMOUNT}', () => {
+          const line = '    assets:stock    10 FOO  {$1}';
+          const result = ast.parsePosting(line);
+
+          expect(result).not.toBeNull();
+          expect(result?.account).toBe('assets:stock');
+          expect(result?.amount).toEqual(expect.objectContaining({ quantity: 10, commodity: 'FOO' }));
+        });
+
+        test('should parse posting with lot total cost annotation {{AMOUNT}}', () => {
+          const line = '    assets:stock    10 FOO  {{$10}}';
+          const result = ast.parsePosting(line);
+
+          expect(result).not.toBeNull();
+          expect(result?.account).toBe('assets:stock');
+          expect(result?.amount).toEqual(expect.objectContaining({ quantity: 10, commodity: 'FOO' }));
+        });
+
+        test('should parse posting with lot date annotation [DATE]', () => {
+          const line = '    assets:stock    10 FOO  [2026-01-01]';
+          const result = ast.parsePosting(line);
+
+          expect(result).not.toBeNull();
+          expect(result?.account).toBe('assets:stock');
+          expect(result?.amount).toEqual(expect.objectContaining({ quantity: 10, commodity: 'FOO' }));
+        });
+
+        test('should parse posting with lot label annotation (LABEL)', () => {
+          const line = '    assets:stock    10 FOO  (mylot)';
+          const result = ast.parsePosting(line);
+
+          expect(result).not.toBeNull();
+          expect(result?.account).toBe('assets:stock');
+          expect(result?.amount).toEqual(expect.objectContaining({ quantity: 10, commodity: 'FOO' }));
+        });
+
+        test('should parse posting with lot unit cost and lot date, plus @ price', () => {
+          const line = '    b  10 FOO  {$1} [2026-01-01] @ $1.50';
+          const result = ast.parsePosting(line);
+
+          expect(result).not.toBeNull();
+          expect(result?.account).toBe('b');
+          expect(result?.amount).toEqual(expect.objectContaining({ quantity: 10, commodity: 'FOO' }));
+          expect(result?.cost).toEqual({
+            type: 'unit',
+            amount: expect.objectContaining({ quantity: 1.50, commodity: '$' })
+          });
+        });
+
+        test('should parse full example from issue #12 (lot unit cost + lot date + @ price)', () => {
+          const lines = [
+            '2026-04-05 A transaction',
+            '    a',
+            '    b  10 FOO  {$1} [2026-01-01] @ $1.50'
+          ];
+          const result = ast.parseTransaction(lines, 0);
+
+          expect(result).not.toBeNull();
+          expect(result?.postings).toHaveLength(2);
+          // Second posting should have an amount, not be treated as missing
+          expect(result?.postings[1].amount).toEqual(
+            expect.objectContaining({ quantity: 10, commodity: 'FOO' })
+          );
+          expect(result?.postings[1].cost).toEqual({
+            type: 'unit',
+            amount: expect.objectContaining({ quantity: 1.50, commodity: '$' })
+          });
+          // First posting should have inferred amount (no false "2 postings without amounts")
+          expect(result?.postings[0].amount).toBeDefined();
+        });
+
+        test('should parse posting with all lot annotations combined', () => {
+          const line = '    assets:stock    10 FOO  {$1} [2026-01-01] (mylot) @@ $15';
+          const result = ast.parsePosting(line);
+
+          expect(result).not.toBeNull();
+          expect(result?.account).toBe('assets:stock');
+          expect(result?.amount).toEqual(expect.objectContaining({ quantity: 10, commodity: 'FOO' }));
+          expect(result?.cost).toEqual({
+            type: 'total',
+            amount: expect.objectContaining({ quantity: 15, commodity: '$' })
+          });
+        });
+
+        describe('hledger 2.x unified lot syntax {DATE, "LABEL", COST}', () => {
+          test('should parse posting with unified cost-only lot annotation {AMOUNT}', () => {
+            const line = '    assets:stock    10 FOO  {$1.50}';
+            const result = ast.parsePosting(line);
+
+            expect(result).not.toBeNull();
+            expect(result?.account).toBe('assets:stock');
+            expect(result?.amount).toEqual(expect.objectContaining({ quantity: 10, commodity: 'FOO' }));
+          });
+
+          test('should parse posting with unified date-only lot annotation {DATE}', () => {
+            const line = '    assets:stock    10 FOO  {2026-01-01}';
+            const result = ast.parsePosting(line);
+
+            expect(result).not.toBeNull();
+            expect(result?.account).toBe('assets:stock');
+            expect(result?.amount).toEqual(expect.objectContaining({ quantity: 10, commodity: 'FOO' }));
+          });
+
+          test('should parse posting with unified label-only lot annotation {"LABEL"}', () => {
+            const line = '    assets:stock    10 FOO  {"mylot"}';
+            const result = ast.parsePosting(line);
+
+            expect(result).not.toBeNull();
+            expect(result?.account).toBe('assets:stock');
+            expect(result?.amount).toEqual(expect.objectContaining({ quantity: 10, commodity: 'FOO' }));
+          });
+
+          test('should parse posting with full unified lot annotation {DATE, "LABEL", COST}', () => {
+            const line = '    assets:stock    10 FOO  {2026-01-01, "mylot", $1.50}';
+            const result = ast.parsePosting(line);
+
+            expect(result).not.toBeNull();
+            expect(result?.account).toBe('assets:stock');
+            expect(result?.amount).toEqual(expect.objectContaining({ quantity: 10, commodity: 'FOO' }));
+          });
+
+          test('should parse posting with unified lot annotation plus @ price', () => {
+            const line = '    assets:stock    10 FOO  {2026-01-01, "mylot", $1.50} @ $2.00';
+            const result = ast.parsePosting(line);
+
+            expect(result).not.toBeNull();
+            expect(result?.account).toBe('assets:stock');
+            expect(result?.amount).toEqual(expect.objectContaining({ quantity: 10, commodity: 'FOO' }));
+            expect(result?.cost).toEqual({
+              type: 'unit',
+              amount: expect.objectContaining({ quantity: 2.00, commodity: '$' })
+            });
+          });
+
+          test('should not flag transaction with unified lot annotation as having missing amounts', () => {
+            const lines = [
+              '2026-04-05 Stock sale',
+              '    a',
+              '    b  10 FOO  {2026-01-01, "mylot", $1.50} @ $2.00'
+            ];
+            const result = ast.parseTransaction(lines, 0);
+
+            expect(result).not.toBeNull();
+            expect(result?.postings[1].amount).toEqual(
+              expect.objectContaining({ quantity: 10, commodity: 'FOO' })
+            );
+            expect(result?.postings[0].amount).toBeDefined();
+          });
+        });
+      });
+
       test('should not parse @ within account name as cost', () => {
         const line = '    assets:email@example.com     $100';
         const result = ast.parsePosting(line);

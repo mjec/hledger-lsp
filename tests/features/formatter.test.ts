@@ -635,6 +635,109 @@ payee Grocery Store;main grocery store
 
       expectLineToContainNormalized(lines[1], '100 SHARES @ $12.345');
     });
+
+    describe('lot cost basis annotation preservation (issue #12)', () => {
+      it('should preserve ledger-style lot annotations {COST} [DATE] (LABEL) when formatting', () => {
+        const content = `2026-04-05 Stock purchase
+    a
+    b  10 FOO  {$1} [2026-01-01] (mylot) @ $1.50
+`;
+        const doc = createDocument(content);
+        const parsed = parser.parse(doc);
+        const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+        const formatted = edits[0].newText;
+        const lines = formatted.split('\n');
+
+        expect(lines[2]).toContain('10 FOO');
+        expect(lines[2]).toContain('{$1}');
+        expect(lines[2]).toContain('[2026-01-01]');
+        expect(lines[2]).toContain('(mylot)');
+        expect(lines[2]).toContain('@ $1.50');
+      });
+
+      it('should preserve lot unit cost {COST} annotation when formatting', () => {
+        const content = `2026-04-05 Stock purchase
+    a
+    b  10 FOO  {$1}
+`;
+        const doc = createDocument(content);
+        const parsed = parser.parse(doc);
+        const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+        const formatted = edits[0].newText;
+        const lines = formatted.split('\n');
+
+        expect(lines[2]).toContain('10 FOO');
+        expect(lines[2]).toContain('{$1}');
+      });
+
+      it('should preserve lot date [DATE] annotation when formatting', () => {
+        const content = `2026-04-05 Stock purchase
+    a
+    b  10 FOO  [2026-01-01] @ $1.50
+`;
+        const doc = createDocument(content);
+        const parsed = parser.parse(doc);
+        const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+        const formatted = edits[0].newText;
+        const lines = formatted.split('\n');
+
+        expect(lines[2]).toContain('10 FOO');
+        expect(lines[2]).toContain('[2026-01-01]');
+        expect(lines[2]).toContain('@ $1.50');
+      });
+
+      it('should preserve hledger 2.x unified lot annotation {DATE, "LABEL", COST} when formatting', () => {
+        const content = `2026-04-05 Stock purchase
+    a
+    b  10 FOO  {2026-01-01, "mylot", $1.50} @ $2.00
+`;
+        const doc = createDocument(content);
+        const parsed = parser.parse(doc);
+        const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+        const formatted = edits[0].newText;
+        const lines = formatted.split('\n');
+
+        expect(lines[2]).toContain('10 FOO');
+        expect(lines[2]).toContain('{2026-01-01, "mylot", $1.50}');
+        expect(lines[2]).toContain('@ $2.00');
+      });
+
+      it('should preserve hledger 2.x unified lot annotation with only date {DATE} when formatting', () => {
+        const content = `2026-04-05 Stock purchase
+    a
+    b  10 FOO  {2026-01-01}
+`;
+        const doc = createDocument(content);
+        const parsed = parser.parse(doc);
+        const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+        const formatted = edits[0].newText;
+        const lines = formatted.split('\n');
+
+        expect(lines[2]).toContain('10 FOO');
+        expect(lines[2]).toContain('{2026-01-01}');
+      });
+
+      it('should preserve hledger 2.x unified lot annotation with only label {"LABEL"} when formatting', () => {
+        const content = `2026-04-05 Stock purchase
+    a
+    b  10 FOO  {"mylot"}
+`;
+        const doc = createDocument(content);
+        const parsed = parser.parse(doc);
+        const edits = provider.formatDocument(doc, parsed, { tabSize: 2, insertSpaces: true });
+
+        const formatted = edits[0].newText;
+        const lines = formatted.split('\n');
+
+        expect(lines[2]).toContain('10 FOO');
+        expect(lines[2]).toContain('{"mylot"}');
+      });
+    });
   });
 
   describe('formatOnType', () => {
