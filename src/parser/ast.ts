@@ -706,8 +706,13 @@ export function parsePosting(line: string, transactionDate?: string, commodities
     if (assertionAmount) posting.assertion = assertionAmount;
   }
 
-  // Now parse amount and cost from beforeAssertion
-  const { amountPart, cost } = parseCost(beforeAssertion, commodities);
+  // Strip lot annotations before parsing amount and cost.
+  // Ledger-style: {COST}, {{COST}}, [DATE], (LABEL) — in any order, after the amount.
+  // hledger 2.x unified style: {DATE, "LABEL", COST} — single braces with optional comma-separated parts.
+  const { text: withoutLot, lotAnnotation } = stripLotAnnotations(beforeAssertion);
+  if (lotAnnotation) posting.lotAnnotation = lotAnnotation;
+
+  const { amountPart, cost } = parseCost(withoutLot, commodities);
   if (cost) posting.cost = cost;
 
   const amount = parseAmount(amountPart, undefined, commodities);
@@ -735,6 +740,83 @@ function parsePostingDate(dateStr: string, transactionDate?: string): string | n
   }
 
   return null; // Invalid format
+}
+
+/**
+ * Strip lot annotations from a posting's amount+cost string, returning the cleaned
+ * text and the raw annotation for later re-emission.
+ *
+ * Handles two styles:
+ *   Ledger-style (any order after the amount):
+ *     {COST} or {{COST}}  — lot unit/total cost
+ *     [DATE]              — lot date
+ *     (LABEL)             — lot label
+ *   hledger 2.x unified (single braces, comma-separated, all optional):
+ *     {DATE, "LABEL", COST}
+ *
+ * The unified style is distinguished from the Ledger-style {COST} by the presence
+ * of a comma, a quoted string, or a date pattern inside the braces.
+ */
+function stripLotAnnotations(text: string): { text: string; lotAnnotation?: string } {
+  // Pattern for a single brace group (non-nested): {...}
+  // Pattern for a double brace group: {{...}}
+  // Pattern for square bracket group: [...]
+  // Pattern for paren group: (...)
+  //
+  // We match the lot annotation region as everything between the amount and the
+  // @ / @@ cost marker (or end of string). We do this by repeatedly stripping
+  // known annotation tokens from the right side of the amount.
+
+  // Regex components (applied left-to-right after the amount):
+  //   double braces first so {{...}} isn't matched as {   {...}   }
+  const doubleBrace = /\{\{[^}]*\}\}/;
+  const singleBrace = /\{[^}]*\}/;
+  const squareBracket = /\[[^\]]*\]/;
+  const paren = /\([^)]*\)/;
+
+  // Combined: match any sequence of annotation tokens (possibly with whitespace between)
+  // that appears after a non-annotation prefix (the actual amount).
+  // We anchor by finding where annotations start: after all amount-like text.
+  const annotationToken = new RegExp(
+    `(?:${doubleBrace.source}|${singleBrace.source}|${squareBracket.source}|${paren.source})`,
+    'g'
+  );
+
+  // Find the first annotation token position, then check if the text before it
+  // can be a valid amount (or amount+cost). Collect all consecutive tokens from
+  // that point as the lot annotation.
+  let firstMatch: RegExpExecArray | null = null;
+  annotationToken.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = annotationToken.exec(text)) !== null) {
+    // Only consider this a lot annotation if the text before it (trimmed) could
+    // plausibly be an amount — i.e. it doesn't end with @@ or @, which would
+    // mean we've already passed the cost marker. Stop at the first candidate.
+    const before = text.substring(0, m.index).trimEnd();
+    // Skip if this is inside the cost portion (after @ marker)
+    if (/@/.test(before)) break;
+    firstMatch = m;
+    break;
+  }
+
+  if (!firstMatch) return { text };
+
+  // Collect all annotation tokens starting from firstMatch.index
+  const annotationStart = firstMatch.index;
+  const afterAmount = text.substring(annotationStart);
+
+  // Greedily match consecutive annotation tokens (with whitespace between)
+  const greedyAnnotation = new RegExp(
+    `^((?:\\s*(?:${doubleBrace.source}|${singleBrace.source}|${squareBracket.source}|${paren.source}))+)`,
+  );
+  const annotationMatch = afterAmount.match(greedyAnnotation);
+  if (!annotationMatch) return { text };
+
+  const lotAnnotation = annotationMatch[1].trim();
+  const remainder = afterAmount.substring(annotationMatch[1].length);
+  const cleanedText = text.substring(0, annotationStart).trimEnd() + remainder;
+
+  return { text: cleanedText.trim(), lotAnnotation };
 }
 
 function parseCost(text: string, commodities?: Map<string, Commodity>): { amountPart: string, cost?: { type: 'unit' | 'total', amount: Amount } } {

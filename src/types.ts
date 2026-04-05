@@ -34,6 +34,7 @@ export interface Transaction {
 export interface Posting {
   account: string;
   amount?: Amount;
+  lotAnnotation?: string; // Raw lot annotation text, e.g. "{$1} [2026-01-01] (mylot)" or "{2026-01-01, \"label\", $1}"
   cost?: Cost;
   assertion?: Amount;
   comment?: string;

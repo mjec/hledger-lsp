@@ -381,6 +381,35 @@ describe('Validator', () => {
       expect(amountErrors).toHaveLength(0);
     });
 
+    test('should not flag postings with lot cost basis annotations as missing amounts (issue #12)', () => {
+      const content = `account a
+account b
+commodity $
+commodity FOO
+
+2026-04-05 A transaction
+    a
+    b  10 FOO  {$1} [2026-01-01] @ $1.50`;
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsedDoc = parser.parse(doc);
+      const result = validator.validate(doc, parsedDoc);
+
+      const amountErrors = result.diagnostics.filter(d => d.message.includes('without amounts'));
+      expect(amountErrors).toHaveLength(0);
+    });
+
+    test('should not flag postings with lot total cost basis annotations as missing amounts', () => {
+      const content = `2026-04-05 A transaction
+    a
+    b  10 FOO  {{$10}} @ $1.50`;
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsedDoc = parser.parse(doc);
+      const result = validator.validate(doc, parsedDoc);
+
+      const amountErrors = result.diagnostics.filter(d => d.message.includes('without amounts'));
+      expect(amountErrors).toHaveLength(0);
+    });
+
     test('should not flag postings with inline comments after amounts as missing amounts (LF)', () => {
       const content = '2026-03-10 Sample Store | Purchase\n    expenses:shopping        USD 100.00  ;tag:sample\n    expenses:fees            USD 2.00    ;tag:sample\n    assets:bank:checking     USD -102.00 ;ref:mar26';
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
