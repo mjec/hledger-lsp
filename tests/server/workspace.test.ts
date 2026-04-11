@@ -5,6 +5,7 @@ import { FileReader } from '../../src/types';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Connection } from 'vscode-languageserver/node';
 import * as path from 'path';
+import { logger } from '../../src/utils/logger';
 
 // Mock the Connection interface
 const mockConnection = {
@@ -91,6 +92,8 @@ describe('WorkspaceManager', () => {
     manager = new WorkspaceManager();
     parser = new HledgerParser();
     jest.clearAllMocks();
+    // Route the global logger through the mock so log assertions still work.
+    logger.init((mockConnection as any).console);
 
     // Default mock implementations
     mockDiscoverConfigFile.mockReturnValue(null);

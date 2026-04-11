@@ -4,6 +4,7 @@ import * as os from 'os';
 import fg from 'fast-glob';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
+import { logger } from './logger';
 
 /**
  * Convert a file:// URI to a filesystem path
@@ -37,6 +38,7 @@ export function defaultFileReader(uri: URI): TextDocument | null {
     }
     return null;
   } catch (error) {
+    logger.error(`[FileReader] Unexpected error reading ${uri}`, error);
     return null;
   }
 }

@@ -12,6 +12,9 @@ import { HledgerParser } from '../parser/index';
 import { URI } from 'vscode-uri';
 import { isFromDocument } from '../utils/index';
 import { readDocument, readDocumentLines } from '../utils/fileReader';
+import { logger } from '../utils/logger';
+
+const referencesLog = logger.withContext('FindReferences');
 
 export class FindReferencesProvider {
   /**
@@ -79,7 +82,7 @@ export class FindReferencesProvider {
         const parsedFile = parser.parse(doc);
         parsedDocs.set(fileUri.toString(), parsedFile);
       } catch (error) {
-        // Skip files that can't be parsed
+        referencesLog.warn(`skipping unparseable file ${fileUri}`, error);
         continue;
       }
     }

@@ -26,6 +26,9 @@ import { ParsedDocument, FileReader } from '../types';
 import { HledgerSettings, defaultSettings } from './settings';
 import { WorkspaceManager } from './workspace';
 import { HledgerParser } from '../parser/index';
+import { logger } from '../utils/logger';
+
+const featureLog = logger.withContext('Feature');
 
 export interface ServiceRegistryContext {
     connection: Connection;
@@ -54,22 +57,30 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
 
     /**
      * Get document and parse it, returning defaultValue if document not found.
+     * Catches and logs unexpected handler errors.
      */
     function withDocument<T>(
+        handlerName: string,
         uri: string,
         defaultValue: T,
         handler: (document: TextDocument, parsed: ParsedDocument) => T
     ): T {
-        const document = getDocument(uri);
-        if (!document) return defaultValue;
-        const parsed = parseDocument(document);
-        return handler(document, parsed);
+        try {
+            const document = getDocument(uri);
+            if (!document) return defaultValue;
+            const parsed = parseDocument(document);
+            return handler(document, parsed);
+        } catch (error) {
+            featureLog.error(`${handlerName} failed for ${uri}`, error);
+            return defaultValue;
+        }
     }
 
     /**
-     * Get document, parse it, and fetch settings. Wraps in try/catch.
+     * Get document, parse it, and fetch settings. Catches and logs errors.
      */
     async function withDocumentAndSettings<T>(
+        handlerName: string,
         uri: string,
         defaultValue: T,
         handler: (document: TextDocument, parsed: ParsedDocument, settings: HledgerSettings) => T
@@ -81,7 +92,7 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
             const settings = await getDocumentSettings(URI.parse(uri));
             return handler(document, parsed, settings);
         } catch (error) {
-            connection.console.error(`Error: ${error}`);
+            featureLog.error(`${handlerName} failed for ${uri}`, error);
             return defaultValue;
         }
     }
@@ -90,7 +101,7 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
 
     connection.onCompletion(
         (params: TextDocumentPositionParams): Promise<CompletionItem[]> =>
-            withDocumentAndSettings(params.textDocument.uri, [], (document, parsed, settings) =>
+            withDocumentAndSettings('completion', params.textDocument.uri, [], (document, parsed, settings) =>
                 completionProvider.getCompletionItems(document, params.position, parsed, settings?.completion)
             )
     );
@@ -100,7 +111,7 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
     // ── Hover & Info ────────────────────────────────────────────────────
 
     connection.onHover((params) =>
-        withDocumentAndSettings(params.textDocument.uri, null, (document, parsed, settings) =>
+        withDocumentAndSettings('hover', params.textDocument.uri, null, (document, parsed, settings) =>
             hoverProvider.provideHover(document, params.position.line, params.position.character, parsed, settings)
         )
     );
@@ -108,14 +119,14 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
     // ── Navigation ──────────────────────────────────────────────────────
 
     connection.onDefinition((params) =>
-        withDocument(params.textDocument.uri, null, (document, parsed) => {
+        withDocument('definition', params.textDocument.uri, null, (document, parsed) => {
             const loc = definitionProvider.provideDefinition(document, params.position.line, params.position.character, parsed);
             return loc ? [loc] : null;
         })
     );
 
     connection.onReferences((params) =>
-        withDocument(params.textDocument.uri, null, (document, parsed) => {
+        withDocument('references', params.textDocument.uri, null, (document, parsed) => {
             const workspaceManager = getWorkspaceManager();
             if (workspaceManager) {
                 const workspaceFiles = workspaceManager.getAllWorkspaceFiles();
@@ -131,7 +142,7 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
     );
 
     connection.onDocumentLinks((params) =>
-        withDocument(params.textDocument.uri, [], (document, parsed) =>
+        withDocument('documentLinks', params.textDocument.uri, [], (document, parsed) =>
             documentLinksProvider.provideDocumentLinks(document, parsed)
         )
     );
@@ -145,7 +156,7 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
     // ── Symbols ─────────────────────────────────────────────────────────
 
     connection.onDocumentSymbol((params) =>
-        withDocument(params.textDocument.uri, [], (document, parsed) =>
+        withDocument('documentSymbol', params.textDocument.uri, [], (document, parsed) =>
             documentSymbolProvider.provideDocumentSymbols(document, parsed)
         )
     );
@@ -160,13 +171,13 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
     // ── Code Actions & Rename ───────────────────────────────────────────
 
     connection.onCodeAction((params) =>
-        withDocument(params.textDocument.uri, [], (document, parsed) =>
+        withDocument('codeAction', params.textDocument.uri, [], (document, parsed) =>
             codeActionProvider.provideCodeActions(document, params.range, params.context.diagnostics, parsed)
         )
     );
 
     connection.onPrepareRename((params) =>
-        withDocument(params.textDocument.uri, null, (document, parsed) => {
+        withDocument('prepareRename', params.textDocument.uri, null, (document, parsed) => {
             const item = findReferencesProvider.getItemAtCursor(document, params.position, parsed);
             if (!item) return null;
 
@@ -187,7 +198,7 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
     );
 
     connection.onRenameRequest((params) =>
-        withDocument(params.textDocument.uri, null, (document, parsed) => {
+        withDocument('rename', params.textDocument.uri, null, (document, parsed) => {
             const item = findReferencesProvider.getItemAtCursor(document, params.position, parsed);
             if (!item) return null;
 
@@ -207,20 +218,20 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
     // ── Formatting ──────────────────────────────────────────────────────
 
     connection.onDocumentFormatting((params) =>
-        withDocumentAndSettings(params.textDocument.uri, [], (document, parsed, settings) => {
-            connection.console.log(`Formatting`);
+        withDocumentAndSettings('formatting', params.textDocument.uri, [], (document, parsed, settings) => {
+            featureLog.debug(`formatting ${params.textDocument.uri}`);
             return formattingProvider.formatDocument(document, parsed, params.options, settings?.formatting || {}, settings?.inlayHints);
         })
     );
 
     connection.onDocumentRangeFormatting((params) =>
-        withDocumentAndSettings(params.textDocument.uri, [], (document, parsed, settings) =>
+        withDocumentAndSettings('rangeFormatting', params.textDocument.uri, [], (document, parsed, settings) =>
             formattingProvider.formatRange(document, params.range, parsed, params.options, settings?.formatting || {}, settings?.inlayHints)
         )
     );
 
     connection.onDocumentOnTypeFormatting((params) =>
-        withDocumentAndSettings(params.textDocument.uri, [], (document, parsed, settings) =>
+        withDocumentAndSettings('onTypeFormatting', params.textDocument.uri, [], (document, parsed, settings) =>
             formattingProvider.formatOnType(document, params.position, params.ch, parsed, params.options, settings?.formatting || {}, settings?.inlayHints)
         )
     );
@@ -236,7 +247,7 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
     // ── Inlay Hints ─────────────────────────────────────────────────────
 
     connection.languages.inlayHint.on((params) =>
-        withDocumentAndSettings(params.textDocument.uri, [], (document, parsed, settings) =>
+        withDocumentAndSettings('inlayHints', params.textDocument.uri, [], (document, parsed, settings) =>
             inlayHintsProvider.provideInlayHints(document, params.range, parsed, settings)
         )
     );
@@ -244,7 +255,7 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
     // ── Code Lens ───────────────────────────────────────────────────────
 
     connection.onCodeLens((params) =>
-        withDocumentAndSettings(params.textDocument.uri, [], (document, parsed, settings) =>
+        withDocumentAndSettings('codeLens', params.textDocument.uri, [], (document, parsed, settings) =>
             codeLensProvider.provideCodeLenses(document, parsed, settings?.codeLens)
         )
     );
@@ -252,7 +263,7 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
     // ── Folding Ranges ──────────────────────────────────────────────────
 
     connection.onFoldingRanges((params) =>
-        withDocument(params.textDocument.uri, [], (document, parsed) =>
+        withDocument('foldingRanges', params.textDocument.uri, [], (document, parsed) =>
             foldingRangesProvider.provideFoldingRanges(document, parsed)
         )
     );
@@ -262,7 +273,7 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
     connection.languages.callHierarchy.onPrepare((params) => {
         const workspaceManager = getWorkspaceManager();
         if (!workspaceManager) return null;
-        return withDocument(params.textDocument.uri, null, (document, parsed) =>
+        return withDocument('callHierarchyPrepare', params.textDocument.uri, null, (document, parsed) =>
             callHierarchyProvider.prepareCallHierarchy(
                 document, params.position.line, params.position.character, parsed, workspaceManager
             )
@@ -283,8 +294,10 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
 
     // ── Commands ────────────────────────────────────────────────────────
 
+    const cmdLog = logger.withContext('Command');
+
     connection.onExecuteCommand(async (params) => {
-        connection.console.log(`[ExecuteCommand] ${params.command}`);
+        cmdLog.log(params.command);
 
         if (params.command === 'hledger.addBalanceAssertion' || params.command === 'hledger.insertBalanceAssertion') {
             const [uri, line, amounts] = params.arguments as [string, number, string[]];
@@ -323,7 +336,9 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
                 }
             });
 
-            await connection.languages.inlayHint.refresh().catch(() => {});
+            await connection.languages.inlayHint.refresh().catch((err) => {
+                featureLog.warn(`inlayHint.refresh failed after addBalanceAssertion`, err);
+            });
         } else if (params.command === 'hledger.insertInferredAmount') {
             const [uri, line, accountEnd, quantity, commodity] = params.arguments as [string, number, number, number, string];
             const document = getDocument(uri);
@@ -395,33 +410,34 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
                 }
             });
 
-            await connection.languages.inlayHint.refresh().catch(() => {});
+            await connection.languages.inlayHint.refresh().catch((err) => {
+                featureLog.warn(`inlayHint.refresh failed after insertInferredAmount`, err);
+            });
         } else if (params.command === 'hledger.refreshInlayHints') {
             if (hasInlayHintRefreshSupport) {
                 await connection.languages.inlayHint.refresh().catch((err) => {
-                    connection.console.error(`Failed to refresh inlay hints: ${err}`);
+                    cmdLog.error('Failed to refresh inlay hints', err);
                 });
             } else {
                 connection.window.showInformationMessage('Inlay hint refresh not supported by your editor');
             }
         } else if (params.command === 'hledger.showWorkspaceGraphStructured') {
             const workspaceManager = getWorkspaceManager();
-            connection.console.log(`[ExecuteCommand] showWorkspaceGraphStructured called. workspaceManager exists: ${!!workspaceManager}`);
             if (workspaceManager) {
                 try {
                     const entries = workspaceManager.getWorkspaceTreeStructured();
-                    connection.console.log(`[ExecuteCommand] Structured tree generated, ${entries.length} entries`);
+                    cmdLog.debug(`showWorkspaceGraphStructured: ${entries.length} entries`);
                     return entries;
                 } catch (error) {
-                    connection.console.error(`[ExecuteCommand] Error generating structured tree: ${error}`);
+                    cmdLog.error('showWorkspaceGraphStructured failed', error);
                     return [];
                 }
             } else {
-                connection.console.warn('[ExecuteCommand] Workspace manager not initialized');
+                cmdLog.warn('showWorkspaceGraphStructured: workspace manager not initialized');
                 return [];
             }
         } else if (params.command === 'hledger.insertCost') {
-            connection.console.log(`[ExecuteCommand] insertCost command not yet implemented`);
+            cmdLog.warn('insertCost not yet implemented');
         }
     });
 }

@@ -3,6 +3,7 @@ import { FileReader } from "../types";
 import { toFilePath } from "./uri";
 import * as fs from 'fs';
 import { TextDocument } from "vscode-languageserver-textdocument";
+import { logger } from "./logger";
 
 export function readDocument(fileUri: URI, fileReader?: FileReader,): TextDocument {
   // Get the TextDocument for this URI
@@ -37,6 +38,7 @@ export function readDocumentLines(fileUri: URI, fileReader?: FileReader,): strin
       const content = fs.readFileSync(filePath, 'utf8');
       lines = content.split('\n');
     } catch (error) {
+      logger.error(`[FileReader] Failed to read ${fileUri}`, error);
       return null;
     }
   }

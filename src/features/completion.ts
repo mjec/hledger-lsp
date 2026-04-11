@@ -20,6 +20,9 @@ import { ParsedDocument } from '../types';
 import { transactionAnalyzer } from './transactionAnalyzer';
 import { URI } from 'vscode-uri';
 import { type CompletionOptions } from '../server/settings';
+import { logger } from '../utils/logger';
+
+const completionLog = logger.withContext('Completion');
 
 export class CompletionProvider {
   private accounts: Array<{ name: string; declared: boolean }> = [];
@@ -274,7 +277,7 @@ export class CompletionProvider {
 
       return completions;
     } catch (error) {
-      // If any error occurs (permissions, etc.), return empty array
+      completionLog.warn(`include path completion failed for directory listing`, error);
       return [];
     }
   }

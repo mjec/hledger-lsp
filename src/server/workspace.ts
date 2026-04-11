@@ -1,4 +1,3 @@
-import { Connection } from 'vscode-languageserver/node';
 import { URI } from 'vscode-uri';
 import fg from 'fast-glob';
 import * as path from 'path';
@@ -7,6 +6,9 @@ import { ParsedDocument, Directive, FileReader } from '../types';
 import { toFilePath, toFileUri, resolveIncludePaths } from '../utils/uri';
 import { createEmptyParsedDocument, mergeParsedDocuments } from '../utils/documentMerge';
 import { HledgerLspConfig, discoverConfigFile, loadConfigFile, resolveRootFile, mergeConfig } from './configFile';
+import { logger } from '../utils/logger';
+
+const wsLog = logger.withContext('Workspace');
 
 /**
  * Function type for resolving include paths to URIs.
@@ -44,7 +46,6 @@ export class WorkspaceManager {
   // Dependencies
   private parser!: HledgerParser;
   private fileReader!: FileReader;
-  private connection!: Connection;
   private includePathResolver?: IncludePathResolver;
 
   /**
@@ -56,7 +57,7 @@ export class WorkspaceManager {
     workspaceFolders: URI[],
     parser: HledgerParser,
     fileReader: FileReader,
-    connection: Connection,
+    _connection?: unknown,
     runtimeConfig?: Partial<HledgerLspConfig>
   ): Promise<void> {
     const startTime = Date.now();
@@ -64,7 +65,6 @@ export class WorkspaceManager {
     this.workspaceFolders = workspaceFolders;
     this.parser = parser;
     this.fileReader = fileReader;
-    this.connection = connection;
 
     // Try to discover and load config file
     await this.loadConfig(runtimeConfig);
@@ -77,11 +77,11 @@ export class WorkspaceManager {
       }
     }
 
-    connection.console.log(`Discovered ${this.journalFiles.size} journal files in workspace`);
+    wsLog.log(`Discovered ${this.journalFiles.size} journal files in workspace`);
 
     // Warn if workspace is very large
     if (this.journalFiles.size > 100) {
-      connection.console.warn(
+      wsLog.warn(
         `Large workspace detected (${this.journalFiles.size} files). ` +
         `Consider using exclude patterns in .hledger-lsp.json to improve performance.`
       );
@@ -96,13 +96,13 @@ export class WorkspaceManager {
     const endTime = Date.now();
     this.metrics.initializationTime = endTime - startTime;
 
-    connection.console.info(
-      `[WorkspaceManager] Root file: ${this.rootFile || 'none'} (initialized in ${this.metrics.initializationTime}ms)`
+    wsLog.info(
+      `Root file: ${this.rootFile || 'none'} (initialized in ${this.metrics.initializationTime}ms)`
     );
 
     // Warn if initialization was slow
     if (this.metrics.initializationTime > 5000) {
-      connection.console.warn(
+      wsLog.warn(
         `Workspace initialization took ${this.metrics.initializationTime}ms. ` +
         `Consider optimizing your workspace structure or using exclude patterns.`
       );
@@ -116,21 +116,20 @@ export class WorkspaceManager {
    * @param fileUris - List of file URIs that make up the workspace
    * @param parser - Parser instance for parsing documents
    * @param fileReader - Function to read file contents by URI
-   * @param connection - LSP connection for logging
+   * @param _connection - Unused (kept for backward compatibility with test helpers)
    * @param includePathResolver - Optional custom resolver for include paths (for testing)
    */
   async initializeWithFiles(
     fileUris: URI[],
     parser: HledgerParser,
     fileReader: FileReader,
-    connection: { console: { log: (msg: string) => void; info: (msg: string) => void; warn: (msg: string) => void; error?: (msg: string) => void; debug?: (msg: string) => void } },
+    _connection?: unknown,
     includePathResolver?: IncludePathResolver
   ): Promise<void> {
     const startTime = Date.now();
 
     this.parser = parser;
     this.fileReader = fileReader;
-    this.connection = connection as any;
     this.includePathResolver = includePathResolver;
 
     // Use provided files directly instead of discovering
@@ -138,7 +137,7 @@ export class WorkspaceManager {
       this.journalFiles.set(uri.toString(), uri);
     }
 
-    connection.console.log(`[WorkspaceManager] Initialized with ${this.journalFiles.size} files`);
+    wsLog.log(`Initialized with ${this.journalFiles.size} files`);
 
     // Build include graph
     await this.buildIncludeGraph();
@@ -149,8 +148,8 @@ export class WorkspaceManager {
     const endTime = Date.now();
     this.metrics.initializationTime = endTime - startTime;
 
-    connection.console.info(
-      `[WorkspaceManager] Root file: ${this.rootFile || 'none'} (initialized in ${this.metrics.initializationTime}ms)`
+    wsLog.info(
+      `Root file: ${this.rootFile || 'none'} (initialized in ${this.metrics.initializationTime}ms)`
     );
   }
 
@@ -158,7 +157,7 @@ export class WorkspaceManager {
    * Discover and load configuration from .hledger-lsp.json
    */
   private async loadConfig(runtimeConfig?: Partial<HledgerLspConfig>): Promise<void> {
-    this.connection.console.debug(`Loading Config`)
+    wsLog.debug('Loading config');
     if (this.workspaceFolders.length === 0) {
       return;
     }
@@ -166,33 +165,25 @@ export class WorkspaceManager {
     // Try to find config file starting from first workspace folder
     const workspaceRoot = this.workspaceFolders[0];
     this.configPath = discoverConfigFile(workspaceRoot, workspaceRoot);
-    this.connection.console.debug(`Config path is ${this.configPath}`)
+    wsLog.debug(`Config path: ${this.configPath}`);
 
     if (this.configPath) {
       try {
         const loadResult = loadConfigFile(this.configPath);
-        this.connection.console.debug(`Loaded Config is ${JSON.stringify(loadResult.config)}`);
+        wsLog.debug(`Loaded config: ${JSON.stringify(loadResult.config)}`);
 
         // Log any warnings
         if (loadResult.warnings.length > 0) {
-          this.connection.console.warn(
-            `Warnings in ${this.configPath}:\n${loadResult.warnings.join('\n')}`
-          );
+          wsLog.warn(`Warnings in ${this.configPath}:\n${loadResult.warnings.join('\n')}`);
         }
 
         // Merge with runtime config (runtime takes precedence)
         this.config = mergeConfig(loadResult.config, runtimeConfig);
 
-
-        this.connection.console.log(
-          `Loaded configuration from ${this.configPath}`
-        );
-
-        this.connection.console.debug(`Config is ${JSON.stringify(this.config)}`);
+        wsLog.log(`Loaded configuration from ${this.configPath}`);
+        wsLog.debug(`Effective config: ${JSON.stringify(this.config)}`);
       } catch (error) {
-        this.connection.console.error(
-          `Failed to load config file ${this.configPath}: ${error}`
-        );
+        wsLog.error(`Failed to load config file ${this.configPath}`, error);
         // Continue without config
       }
     }
@@ -229,7 +220,7 @@ export class WorkspaceManager {
 
       return uris;
     } catch (error) {
-      this.connection.console.error(`Error discovering journal files in ${folder}: ${error}`);
+      wsLog.error(`Error discovering journal files in ${folder}`, error);
       return [];
     }
   }
@@ -280,7 +271,7 @@ export class WorkspaceManager {
       this.includeGraph.set(fileUri.toString(), includedFiles);
 
       if (includedFiles.size > 0) {
-        this.connection.console.debug(`[WorkspaceManager] ${fileUri} directly includes ${includedFiles.size} file(s): ${Array.from(includedFiles).join(', ')}`);
+        wsLog.debug(`${fileUri} directly includes ${includedFiles.size} file(s): ${Array.from(includedFiles.keys()).join(', ')}`);
       }
 
       // Update reverse graph
@@ -311,19 +302,17 @@ export class WorkspaceManager {
     // Step 1: Check for explicit root file from config
     if (this.config && this.config.rootFile && this.configPath) {
       const explicitRoot = resolveRootFile(this.config, this.configPath);
-      this.connection.console.log(`[WorkspaceManager] Explicit root from config: ${explicitRoot}`);
+      wsLog.log(`Explicit root from config: ${explicitRoot}`);
 
       if (explicitRoot) {
-        this.connection.console.log(`Journal files has explicit root: ${this.journalFiles.has(explicitRoot.toString())}`);
+        wsLog.debug(`Journal files has explicit root: ${this.journalFiles.has(explicitRoot.toString())}`);
         // Verify the file exists and is in our discovered files
         if (this.journalFiles.has(explicitRoot.toString())) {
           this.rootFile = explicitRoot;
-          this.connection.console.log(`[WorkspaceManager] Using explicit root from config: ${explicitRoot}`);
+          wsLog.log(`Using explicit root from config: ${explicitRoot}`);
           return;
         } else {
-          this.connection.console.warn(
-            `[WorkspaceManager] Configured root file not found: ${explicitRoot}`
-          );
+          wsLog.warn(`Configured root file not found: ${explicitRoot}`);
         }
       }
     }
@@ -332,9 +321,7 @@ export class WorkspaceManager {
     const shouldAutoDetect = this.config?.workspace?.autoDetectRoot ?? true;
 
     if (!shouldAutoDetect) {
-      this.connection.console.warn(
-        '[WorkspaceManager] Auto-detect disabled and no valid root configured, workspace features disabled'
-      );
+      wsLog.warn('Auto-detect disabled and no valid root configured, workspace features disabled');
       return;
     }
 
@@ -344,27 +331,23 @@ export class WorkspaceManager {
       const parents = this.reverseGraph.get(fileUri.toString());
       if (!parents || parents.size === 0) {
         candidateRoots.push(fileUri);
-        this.connection.console.log(`[WorkspaceManager] Root candidate (no parents): ${fileUri}`);
+        wsLog.debug(`Root candidate (no parents): ${fileUri}`);
       }
     }
 
     if (candidateRoots.length === 0) {
-      this.connection.console.warn(
-        '[WorkspaceManager] No root candidates found (all files are included by others), workspace features disabled'
-      );
+      wsLog.warn('No root candidates found (all files are included by others), workspace features disabled');
       return;
     }
 
     if (candidateRoots.length === 1) {
       this.rootFile = candidateRoots[0];
-      this.connection.console.log(`[WorkspaceManager] Auto-detected root: ${this.rootFile}`);
+      wsLog.log(`Auto-detected root: ${this.rootFile}`);
       return;
     }
 
     // Multiple candidates - use heuristics to pick the best one
-    this.connection.console.log(
-      `[WorkspaceManager] Multiple root candidates (${candidateRoots.length}), using heuristics to select best`
-    );
+    wsLog.log(`Multiple root candidates (${candidateRoots.length}), using heuristics to select best`);
 
     // Score each candidate
     const scores = candidateRoots.map(root => {
@@ -392,8 +375,8 @@ export class WorkspaceManager {
     });
 
     this.rootFile = scores[0].root;
-    this.connection.console.log(
-      `[WorkspaceManager] Selected root: ${this.rootFile} (includes: ${scores[0].includeCount}, hasMain: ${scores[0].hasMainInName})`
+    wsLog.log(
+      `Selected root: ${this.rootFile} (includes: ${scores[0].includeCount}, hasMain: ${scores[0].hasMainInName})`
     );
   }
 
@@ -497,7 +480,7 @@ export class WorkspaceManager {
    */
   parseWorkspace(force: boolean = false): ParsedDocument | null {
     if (!this.rootFile) {
-      this.connection.console.info('[WorkspaceManager] No root file - cannot parse workspace');
+      wsLog.info('No root file — cannot parse workspace');
       return null;
     }
 
@@ -510,17 +493,15 @@ export class WorkspaceManager {
     // If force=true, clear the document cache to re-read files from disk
     if (force) {
       this.documentCache.clear();
-      this.connection.console.info('[WorkspaceManager] Force flag set, cleared document cache');
+      wsLog.info('Force flag set, cleared document cache');
     }
 
     // Cache miss - need to merge from document cache
     this.metrics.cacheMisses++;
     const mergeStartTime = Date.now();
-    this.connection.console.info(`[WorkspaceManager] Merging workspace from cache, root: ${this.rootFile}`);
 
     // Get files in include order
     const orderedFiles = this.getFilesInIncludeOrder();
-    this.connection.console.info(`[WorkspaceManager] Merging ${orderedFiles.length} files in include order`);
 
     // Verify we can read the root file (first in ordered list)
     // This ensures we fail fast if the root file is not accessible
@@ -546,7 +527,7 @@ export class WorkspaceManager {
           filesReparsed++;
         }
       } else {
-        this.connection.console.warn(`[WorkspaceManager] Could not get document for: ${uri}`);
+        wsLog.warn(`Could not get document for: ${uri}`);
       }
     }
 
@@ -556,17 +537,15 @@ export class WorkspaceManager {
     this.metrics.parseCount++;
 
     // Log completion
-    this.connection.console.info(
-      `[WorkspaceManager] Merged workspace in ${mergeTime}ms ` +
-      `(${merged.transactions.length} transactions, ${merged.accounts.size} accounts, ` +
-      `${filesFromCache} from cache, ${filesReparsed} re-parsed)`
+    wsLog.info(
+      `Merged ${orderedFiles.length} files in ${mergeTime}ms — ` +
+      `${merged.transactions.length} transactions, ${merged.accounts.size} accounts ` +
+      `(${filesFromCache} cached, ${filesReparsed} re-parsed)`
     );
 
     // Warn on slow operations
     if (mergeTime > 1000) {
-      this.connection.console.warn(
-        `[WorkspaceManager] Slow parse detected: ${this.rootFile} took ${mergeTime}ms`
-      );
+      wsLog.warn(`Slow parse detected: ${this.rootFile} took ${mergeTime}ms`);
     }
 
     // Cache the result
@@ -594,17 +573,15 @@ export class WorkspaceManager {
    */
   parseFromFile(uri: URI): ParsedDocument {
     const mergeStartTime = Date.now();
-    this.connection.console.info(`[WorkspaceManager] Parsing from file: ${uri}`);
 
     // Get files in include order starting from this file
     const orderedFiles = this.getFilesInIncludeOrderFrom(uri);
-    this.connection.console.info(`[WorkspaceManager] Merging ${orderedFiles.length} files from ${uri}`);
 
     // If the file isn't in our known files, parse it directly
     if (orderedFiles.length === 0) {
       const doc = this.fileReader(uri);
       if (!doc) {
-        this.connection.console.warn(`[WorkspaceManager] Could not read file: ${uri}`);
+        wsLog.warn(`Could not read file: ${uri}`);
         return createEmptyParsedDocument();
       }
       // Parse in document mode (single file, no includes)
@@ -622,9 +599,9 @@ export class WorkspaceManager {
         const doc = this.fileReader(fileUri);
         if (doc) {
           parsed = this.parser.parse(doc);
-          this.connection.console.info(`[WorkspaceManager] Parsed file directly (not in workspace files): ${fileUri}`);
+          wsLog.info(`Parsed file directly (not in workspace files): ${fileUri}`);
         } else {
-          this.connection.console.warn(`[WorkspaceManager] Could not get document for: ${fileUri}`);
+          wsLog.warn(`Could not get document for: ${fileUri}`);
         }
       }
       if (parsed) {
@@ -635,9 +612,9 @@ export class WorkspaceManager {
     const mergeEndTime = Date.now();
     const mergeTime = mergeEndTime - mergeStartTime;
 
-    this.connection.console.info(
-      `[WorkspaceManager] Merged from file in ${mergeTime}ms ` +
-      `(${merged.transactions.length} transactions, ${merged.accounts.size} accounts)`
+    wsLog.info(
+      `Merged ${orderedFiles.length} file(s) from ${uri} in ${mergeTime}ms — ` +
+      `${merged.transactions.length} transactions, ${merged.accounts.size} accounts`
     );
 
     return merged;
@@ -654,15 +631,15 @@ export class WorkspaceManager {
     // Clear the per-file document cache entry
     if (this.documentCache.has(uriString)) {
       this.documentCache.delete(uriString);
-      this.connection.console.info(`[WorkspaceManager] Cleared document cache for: ${uri}`);
+      wsLog.info(`Cleared document cache for: ${uri}`);
     }
 
     // If root file includes this file, clear the workspace cache
     if (this.rootFile && this.rootIncludesFile(this.rootFile, uri)) {
-      this.connection.console.info(`[WorkspaceManager] Invalidating workspace cache due to change in: ${uri}`);
+      wsLog.info(`Invalidating workspace cache due to change in: ${uri}`);
       this.workspaceCache = null;
     } else {
-      this.connection.console.info(`[WorkspaceManager] File change doesn't affect workspace cache: ${uri}`);
+      wsLog.info(`File change doesn't affect workspace cache: ${uri}`);
     }
 
   }
@@ -695,7 +672,7 @@ export class WorkspaceManager {
 
     // Store in cache
     this.documentCache.set(uriString, parsed);
-    this.connection.console.info(`[WorkspaceManager] Re-parsed and cached: ${uri}`);
+    wsLog.info(`Re-parsed and cached: ${uri}`);
 
     return parsed;
   }
@@ -882,20 +859,20 @@ export class WorkspaceManager {
    */
   logDiagnostics(): void {
     const info = this.getDiagnosticInfo();
-    this.connection.console.log('=== WorkspaceManager Diagnostics ===');
-    this.connection.console.log(`Files: ${info.totalFiles} total`);
-    this.connection.console.log(`Root: ${info.rootFile || 'none'}`);
-    this.connection.console.log(`Workspace cache: ${info.cached ? 'populated' : 'empty'}`);
-    this.connection.console.log(`Document cache: ${info.documentsCached} files`);
-    this.connection.console.log(`Config: ${info.configFile || 'none'}`);
-    this.connection.console.log('Performance:');
-    this.connection.console.log(`  Initialization: ${info.performance.initializationTime}ms`);
-    this.connection.console.log(`  Cache hits: ${info.performance.cacheHits}`);
-    this.connection.console.log(`  Cache misses: ${info.performance.cacheMisses}`);
-    this.connection.console.log(`  Cache hit rate: ${info.performance.cacheHitRate}`);
-    this.connection.console.log(`  Parses: ${info.performance.parseCount} (avg ${info.performance.averageParseTime}ms)`);
-    this.connection.console.log(`  Total parse time: ${info.performance.totalParseTime}ms`);
-    this.connection.console.log('===================================');
+    wsLog.log('=== WorkspaceManager Diagnostics ===');
+    wsLog.log(`Files: ${info.totalFiles} total`);
+    wsLog.log(`Root: ${info.rootFile || 'none'}`);
+    wsLog.log(`Workspace cache: ${info.cached ? 'populated' : 'empty'}`);
+    wsLog.log(`Document cache: ${info.documentsCached} files`);
+    wsLog.log(`Config: ${info.configFile || 'none'}`);
+    wsLog.log('Performance:');
+    wsLog.log(`  Initialization: ${info.performance.initializationTime}ms`);
+    wsLog.log(`  Cache hits: ${info.performance.cacheHits}`);
+    wsLog.log(`  Cache misses: ${info.performance.cacheMisses}`);
+    wsLog.log(`  Cache hit rate: ${info.performance.cacheHitRate}`);
+    wsLog.log(`  Parses: ${info.performance.parseCount} (avg ${info.performance.averageParseTime}ms)`);
+    wsLog.log(`  Total parse time: ${info.performance.totalParseTime}ms`);
+    wsLog.log('===================================');
   }
   /**
    * Generate a text-based tree representation of the workspace.

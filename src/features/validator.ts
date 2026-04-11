@@ -15,6 +15,9 @@ import { ParsedDocument } from '../types';
 import { isFromDocument } from '../utils/index';
 import { ValidationOptions, defaultSettings } from '../server/settings';
 import { ValidatorOptions, ValidationResult } from './validation/types';
+import { logger } from '../utils/logger';
+
+const validatorLog = logger.withContext('Validator');
 import { getLineRange } from './validation/utils';
 import {
   validateNonPeriodicBalance,
@@ -39,7 +42,7 @@ export class Validator {
   /**
    * Validate a parsed hledger document
    */
-  validate(document: TextDocument, parsedDoc: ParsedDocument, options?: ValidatorOptions): ValidationResult {
+  validate(document: TextDocument, parsedDoc: ParsedDocument, options?: ValidatorOptions, reason?: string): ValidationResult {
     const diagnostics: Diagnostic[] = [];
     const settings = options?.settings;
 
@@ -49,6 +52,12 @@ export class Validator {
     // Normalize document URI to ensure proper encoding (e.g., @ -> %40)
     // This fixes issues where clients (like Neovim) send partially-encoded URIs
     const documentUri = URI.parse(document.uri).toString();
+
+    validatorLog.debug(
+      `validating ${documentUri}${reason ? ` [${reason}]` : ''} — ` +
+      `${parsedDoc.transactions.length} transactions, ` +
+      `${parsedDoc.periodicTransactions.length} periodic`
+    );
 
     // Helper to check if validation is enabled
     // Uses provided settings, or falls back to default settings
@@ -72,50 +81,74 @@ export class Validator {
 
       // Check balance
       if (isEnabled('balance')) {
-        const balanceIssues = validateNonPeriodicBalance(transaction, lines, parsedDoc);
-        diagnostics.push(...balanceIssues);
+        try {
+          diagnostics.push(...validateNonPeriodicBalance(transaction, lines, parsedDoc));
+        } catch (e) {
+          validatorLog.error(`balance check failed on line ${transaction.line}`, e);
+        }
       }
 
       // Check for implicit cost inference (strict "balanced" mode)
       if (isEnabled('requireExplicitCosts')) {
-        const costIssues = validateExplicitCosts(transaction, lines);
-        diagnostics.push(...costIssues);
+        try {
+          diagnostics.push(...validateExplicitCosts(transaction, lines));
+        } catch (e) {
+          validatorLog.error(`explicit cost check failed on line ${transaction.line}`, e);
+        }
       }
 
       // Check missing amounts
       if (isEnabled('missingAmounts')) {
-        const amountIssues = validateMissingAmounts(transaction, lines);
-        diagnostics.push(...amountIssues);
+        try {
+          diagnostics.push(...validateMissingAmounts(transaction, lines));
+        } catch (e) {
+          validatorLog.error(`missing amounts check failed on line ${transaction.line}`, e);
+        }
       }
 
       // Check empty transactions
       if (isEnabled('emptyTransactions')) {
-        const emptyTxnIssues = validateEmptyTransaction(transaction, lines);
-        diagnostics.push(...emptyTxnIssues);
+        try {
+          diagnostics.push(...validateEmptyTransaction(transaction, lines));
+        } catch (e) {
+          validatorLog.error(`empty transaction check failed on line ${transaction.line}`, e);
+        }
       }
 
       // Check invalid date formats
       if (isEnabled('invalidDates')) {
-        const invalidDateIssues = validateDateFormat(transaction, lines);
-        diagnostics.push(...invalidDateIssues);
+        try {
+          diagnostics.push(...validateDateFormat(transaction, lines));
+        } catch (e) {
+          validatorLog.error(`date format check failed on line ${transaction.line}`, e);
+        }
       }
 
       // Check future dates
       if (isEnabled('futureDates')) {
-        const futureDateIssues = validateFutureDate(transaction, lines);
-        diagnostics.push(...futureDateIssues);
+        try {
+          diagnostics.push(...validateFutureDate(transaction, lines));
+        } catch (e) {
+          validatorLog.error(`future date check failed on line ${transaction.line}`, e);
+        }
       }
 
       // Check empty descriptions
       if (isEnabled('emptyDescriptions')) {
-        const emptyDescIssues = validateEmptyDescription(transaction, lines);
-        diagnostics.push(...emptyDescIssues);
+        try {
+          diagnostics.push(...validateEmptyDescription(transaction, lines));
+        } catch (e) {
+          validatorLog.error(`empty description check failed on line ${transaction.line}`, e);
+        }
       }
 
       // Check format mismatches
       if (isEnabled('formatMismatch')) {
-        const formatIssues = validateFormatMismatch(transaction, lines, parsedDoc, settings);
-        diagnostics.push(...formatIssues);
+        try {
+          diagnostics.push(...validateFormatMismatch(transaction, lines, parsedDoc, settings));
+        } catch (e) {
+          validatorLog.error(`format mismatch check failed on line ${transaction.line}`, e);
+        }
       }
     }
 
@@ -127,14 +160,20 @@ export class Validator {
 
       // Check balance (periodic transactions must balance like regular ones)
       if (isEnabled('balance')) {
-        const balanceIssues = validatePeriodicTransactionBalance(periodicTx, lines, parsedDoc);
-        diagnostics.push(...balanceIssues);
+        try {
+          diagnostics.push(...validatePeriodicTransactionBalance(periodicTx, lines, parsedDoc));
+        } catch (e) {
+          validatorLog.error(`periodic balance check failed on line ${periodicTx.line}`, e);
+        }
       }
 
       // Check missing amounts
       if (isEnabled('missingAmounts')) {
-        const amountIssues = validatePeriodicTransactionMissingAmounts(periodicTx, lines);
-        diagnostics.push(...amountIssues);
+        try {
+          diagnostics.push(...validatePeriodicTransactionMissingAmounts(periodicTx, lines));
+        } catch (e) {
+          validatorLog.error(`periodic missing amounts check failed on line ${periodicTx.line}`, e);
+        }
       }
 
       // Check empty (must have postings)
@@ -151,35 +190,50 @@ export class Validator {
     }
 
     // Check for undeclared items (each type can be enabled/disabled separately)
-    const undeclaredIssues = validateUndeclaredItems(
-      lines,
-      parsedDoc,
-      settings,
-      documentUri,
-      isEnabled('undeclaredAccounts'),
-      isEnabled('undeclaredPayees'),
-      isEnabled('undeclaredCommodities'),
-      isEnabled('undeclaredTags')
-    );
-    diagnostics.push(...undeclaredIssues);
+    try {
+      const undeclaredIssues = validateUndeclaredItems(
+        lines,
+        parsedDoc,
+        settings,
+        documentUri,
+        isEnabled('undeclaredAccounts'),
+        isEnabled('undeclaredPayees'),
+        isEnabled('undeclaredCommodities'),
+        isEnabled('undeclaredTags')
+      );
+      diagnostics.push(...undeclaredIssues);
+    } catch (e) {
+      validatorLog.error('undeclared items check failed', e);
+    }
 
     // Check date ordering
     if (isEnabled('dateOrdering')) {
-      const dateOrderIssues = validateDateOrdering(parsedDoc.transactions, lines, documentUri);
-      diagnostics.push(...dateOrderIssues);
+      try {
+        diagnostics.push(...validateDateOrdering(parsedDoc.transactions, lines, documentUri));
+      } catch (e) {
+        validatorLog.error('date ordering check failed', e);
+      }
     }
 
     // Check balance assertions
     if (isEnabled('balanceAssertions')) {
-      const assertionIssues = validateBalanceAssertions(parsedDoc.transactions, lines, parsedDoc, documentUri, document);
-      diagnostics.push(...assertionIssues);
+      try {
+        diagnostics.push(...validateBalanceAssertions(parsedDoc.transactions, lines, parsedDoc, documentUri, document));
+      } catch (e) {
+        validatorLog.error('balance assertions check failed', e);
+      }
     }
 
     // Check include directives
     if (options?.fileReader && (isEnabled('includeFiles') || isEnabled('circularIncludes'))) {
-      const includeIssues = validateIncludeDirectives(document, parsedDoc, options, isEnabled('includeFiles'), isEnabled('circularIncludes'), lines);
-      diagnostics.push(...includeIssues);
+      try {
+        diagnostics.push(...validateIncludeDirectives(document, parsedDoc, options, isEnabled('includeFiles'), isEnabled('circularIncludes'), lines));
+      } catch (e) {
+        validatorLog.error('include directives check failed', e);
+      }
     }
+
+    validatorLog.debug(`${documentUri}: ${diagnostics.length} diagnostic(s) produced`);
 
     return { diagnostics };
   }

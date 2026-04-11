@@ -26,6 +26,7 @@ import { WorkspaceManager } from './server/workspace';
 import * as path from 'path';
 import { FileReader } from './types';
 import { completionProvider } from './features/completion';
+import { logger } from './utils/logger';
 
 // Handle CLI arguments like --help, --version, --format
 handleCliArguments();
@@ -33,12 +34,17 @@ handleCliArguments();
 // Create a connection for the server using Node's IPC as a transport
 const connection = createConnection(ProposedFeatures.all);
 
-connection.console.log('*========= HLEDGER LSP SERVER STARTING ==========');
+// Initialise the global logger as early as possible so all modules can use it.
+logger.init(connection.console);
+
+const serverLog = logger.withContext('Server');
+
+logger.log('*========= HLEDGER LSP SERVER STARTING ==========');
 // Diagnostic: print runtime filename and argv to verify which file is loaded by the EDH
 try {
   // __filename points at the compiled JS file when running under Node
-  connection.console.log(`SERVER RUNTIME __filename: ${__filename}`);
-  connection.console.log(`SERVER PROCESS ARGV: ${process.argv.join(' ')}`);
+  serverLog.debug(`__filename: ${__filename}`);
+  serverLog.debug(`process.argv: ${process.argv.join(' ')}`);
 } catch (e) {
   // ignore in environments where __filename isn't available
 }
@@ -56,8 +62,8 @@ let workspaceFolders: URI[] = [];
 let workspaceManager: WorkspaceManager | null = null;
 
 connection.onInitialize((params: InitializeParams) => {
-  connection.console.log('========== ON INITIALIZE CALLED ==========');
-  connection.console.log(`workspaceFolders: ${JSON.stringify(params.workspaceFolders)}`);
+  serverLog.log('onInitialize called');
+  serverLog.debug(`workspaceFolders: ${JSON.stringify(params.workspaceFolders)}`);
 
   // Get version from package.json
   let version = 'unknown';
@@ -66,7 +72,7 @@ connection.onInitialize((params: InitializeParams) => {
     const packageJson = require('../package.json');
     version = packageJson.version;
   } catch (error) {
-    connection.console.warn('Failed to read version from package.json');
+    serverLog.warn('Failed to read version from package.json');
   }
 
   const capabilities = params.capabilities;
@@ -95,10 +101,10 @@ connection.onInitialize((params: InitializeParams) => {
     capabilities.workspace.codeLens.refreshSupport
   );
 
-  connection.console.log(`Inlay hint refresh support: ${hasInlayHintRefreshSupport}`);
-  connection.console.log(`Code lens refresh support: ${hasCodeLensRefreshSupport}`);
-  connection.console.log(`Dynamic registration for didChangeConfiguration support: ${hasDidChangeConfigurationDynamicRegistration}`);
-  connection.console.log(`Configuration capability: ${hasConfigurationCapability}`)
+  serverLog.debug(`Inlay hint refresh support: ${hasInlayHintRefreshSupport}`);
+  serverLog.debug(`Code lens refresh support: ${hasCodeLensRefreshSupport}`);
+  serverLog.debug(`Dynamic registration for didChangeConfiguration: ${hasDidChangeConfigurationDynamicRegistration}`);
+  serverLog.debug(`Configuration capability: ${hasConfigurationCapability}`);
 
   // Store workspace folders
   if (params.workspaceFolders && params.workspaceFolders.length > 0) {
@@ -167,14 +173,13 @@ connection.onInitialize((params: InitializeParams) => {
     }
   };
 
-  connection.console.log('========== ON INITIALIZE COMPLETE ==========');
-  connection.console.log(`workspaceFolders array: ${JSON.stringify(workspaceFolders)}`);
+  serverLog.log(`onInitialize complete — version ${version}, ${workspaceFolders.length} workspace folder(s)`);
 
   return result;
 });
 
 connection.onInitialized(async () => {
-  connection.console.log('========== ON INITIALIZED CALLED ==========');
+  serverLog.log('onInitialized called');
 
   // Only use dynamic registration if the client supports it
   if (hasConfigurationCapability && hasDidChangeConfigurationDynamicRegistration) {
@@ -194,15 +199,14 @@ connection.onInitialized(async () => {
     // so we rely on onDidChangeWatchedFiles being called for any file changes
     // If the client supports it, the workspace/configuration already watches files
   } else {
-    connection.console.log('hledger Language Server initialized (no workspace folders provided)');
-    connection.console.log('WorkspaceManager will be initialized when first document is opened');
+    serverLog.log('No workspace folders — WorkspaceManager will be initialized when first document is opened');
   }
 });
 
 // Helper function to initialize workspace manager
 async function initializeWorkspaceManager(folders: URI[], forceReinit: boolean = false): Promise<void> {
   if (workspaceManager && !forceReinit) {
-    connection.console.log('WorkspaceManager already initialized');
+    serverLog.debug('WorkspaceManager already initialized, skipping');
     return;
   }
 
@@ -214,7 +218,7 @@ async function initializeWorkspaceManager(folders: URI[], forceReinit: boolean =
 
   workspaceManager = new WorkspaceManager();
   try {
-    connection.console.log(`Initializing WorkspaceManager with folders: ${folders.join(', ')}`);
+    serverLog.log(`Initializing WorkspaceManager with folders: ${folders.join(', ')}`);
     await workspaceManager.initialize(
       folders,
       sharedParser,
@@ -226,25 +230,25 @@ async function initializeWorkspaceManager(folders: URI[], forceReinit: boolean =
     // Log the root file being used
     const diagnostics = workspaceManager.getDiagnosticInfo();
     if (diagnostics.rootFile) {
-      connection.console.info(`✓ Workspace root file: ${diagnostics.rootFile}`);
+      serverLog.info(`Workspace root file: ${diagnostics.rootFile}`);
     } else {
-      connection.console.warn(`⚠ No workspace root file detected - workspace features disabled`);
+      serverLog.warn('No workspace root file detected — workspace features disabled');
     }
 
-    connection.console.log('hledger Language Server initialized with workspace awareness');
+    serverLog.log('WorkspaceManager initialized');
 
     // Refresh all open documents now that workspace context is available
-    // This ensures features like inlay hints and diagnostics reflect the full workspace tree
-    connection.console.log('Refreshing open documents with workspace context...');
     const openDocuments = documents.all();
     for (const doc of openDocuments) {
-      // Re-validate with full workspace context
-      await validateTextDocument(doc);
+      await validateTextDocument(doc, 'workspace-init');
     }
 
-    connection.console.log(`Refreshed ${openDocuments.length} open document(s) with workspace context`);
+    serverLog.log(`Refreshed ${openDocuments.length} open document(s) with workspace context`);
   } catch (error) {
-    connection.console.error(`Failed to initialize WorkspaceManager: ${error}`);
+    logger.error('Failed to initialize WorkspaceManager', error);
+    connection.window.showErrorMessage(
+      `hledger-lsp: workspace initialization failed — ${error instanceof Error ? error.message : String(error)}`
+    );
     workspaceManager = null;
   }
 }
@@ -275,31 +279,28 @@ function parseDocument(
 
     // No workspace root identified, but we can still parse from this file
     // and follow its includes using the pre-built include graph
-    connection.console.info(
-      `[parseDocument] No workspace root, parsing from file: ${document.uri}`
-    );
+    serverLog.debug(`No workspace root, parsing from file: ${document.uri}`);
     return workspaceManager.parseFromFile(documentUri);
   }
 
   // No workspace manager - fall back to document mode (single file only)
-  connection.console.info(`[parseDocument] Document mode for ${document.uri}`);
+  serverLog.debug(`Document mode (no workspace manager) for ${document.uri}`);
   return sharedParser.parse(document);
 }
 
 connection.onDidChangeConfiguration(change => {
   if (hasConfigurationCapability) {
-    // Reset all cached document settings
     clearAllDocumentSettings();
-    connection.console.log('hledger Language Server: configuration changed (workspace/configuration), clearing settings cache');
+    serverLog.debug('Configuration changed — settings cache cleared');
   } else {
     globalSettings = <HledgerSettings>(
       (change.settings.hledgerLanguageServer || defaultSettings)
     );
-    connection.console.log('hledger Language Server: configuration changed (legacy settings), updating global settings');
+    serverLog.debug('Configuration changed (legacy) — global settings updated');
   }
 
   // Revalidate all open text documents
-  documents.all().forEach(validateTextDocument);
+  documents.all().forEach(doc => validateTextDocument(doc, 'config-change'));
 });
 
 // Wrapper around settings module to use connection and capability flag
@@ -310,10 +311,7 @@ function getDocumentSettings(resource: URI): Thenable<HledgerSettings> {
 
 // Lazy initialize workspace manager when first document is opened
 documents.onDidOpen(async e => {
-  connection.console.log('========== DOCUMENT OPENED ==========');
-  connection.console.log(`Document URI: ${e.document.uri}`);
-  connection.console.log(`workspaceManager exists: ${!!workspaceManager}`);
-  connection.console.log(`workspaceFolders.length: ${workspaceFolders.length}`);
+  serverLog.log(`Document opened: ${e.document.uri}`);
 
   // If workspace manager not initialized and we don't have workspace folders,
   // use the directory of the opened document as the workspace
@@ -323,15 +321,12 @@ documents.onDidOpen(async e => {
     const dirPath = path.dirname(filePath);
     const workspaceUri = toFileUri(dirPath);
 
-
-    connection.console.log(`Lazy-initializing WorkspaceManager with directory: ${workspaceUri}`);
+    serverLog.log(`Lazy-initializing WorkspaceManager with directory: ${workspaceUri}`);
     await initializeWorkspaceManager([workspaceUri]);
   }
 
   // Validate the newly opened document
-  // Note: If workspace was just initialized above, this document was already validated
-  // during initialization, but it's harmless to validate again
-  await validateTextDocument(e.document);
+  await validateTextDocument(e.document, 'document-open');
 });
 
 // Only keep settings for open documents
@@ -342,7 +337,7 @@ documents.onDidClose(e => {
 
 // The content of a text document has changed
 documents.onDidChangeContent(change => {
-  connection.console.info(`[Document Change] ${change.document.uri} (version: ${change.document.version})`);
+  serverLog.debug(`Document changed: ${change.document.uri} (version ${change.document.version})`);
 
 
   // Invalidate workspace cache for affected roots
@@ -350,7 +345,7 @@ documents.onDidChangeContent(change => {
     workspaceManager.invalidateFile(URI.parse(change.document.uri));
   }
 
-  validateTextDocument(change.document);
+  validateTextDocument(change.document, 'document-change');
 
   // Re-validate all files that depend on this one
   const dependents = getDependents(URI.parse(change.document.uri));
@@ -358,7 +353,7 @@ documents.onDidChangeContent(change => {
     for (const dependentUri of dependents) {
       const dependentDoc = getDocument(dependentUri.toString());
       if (dependentDoc) {
-        validateTextDocument(dependentDoc);
+        validateTextDocument(dependentDoc, 'dependent-change');
       }
     }
   }
@@ -390,9 +385,9 @@ documents.onDidChangeContent(change => {
 
       // Re-validate affected documents (updates diagnostics)
       if (affectedDocs.length > 0) {
-        connection.console.log(`[Cascade Validation] Revalidating ${affectedDocs.length} affected document(s)`);
+        serverLog.debug(`Cascade revalidation: ${affectedDocs.length} affected document(s)`);
         for (const doc of affectedDocs) {
-          validateTextDocument(doc);
+          validateTextDocument(doc, 'cascade');
         }
       }
 
@@ -407,14 +402,14 @@ documents.onDidChangeContent(change => {
 connection.onDidChangeWatchedFiles(async (params) => {
   for (const change of params.changes) {
     if (change.uri.endsWith('.hledger-lsp.json')) {
-      connection.console.log(`Config file changed: ${change.uri}, reinitializing workspace`);
+      serverLog.log(`Config file changed: ${change.uri} — reinitializing workspace`);
 
       // Reinitialize workspace manager with new config
       if (workspaceFolders.length > 0) {
         await initializeWorkspaceManager(workspaceFolders, true);
 
         // Revalidate all open documents with new configuration
-        documents.all().forEach(validateTextDocument);
+        documents.all().forEach(doc => validateTextDocument(doc, 'config-file-change'));
       }
 
       break; // Only reinitialize once even if multiple config files changed
@@ -458,16 +453,13 @@ const fileReader: FileReader = (uri: URI) => {
   // Try to find the document with fuzzy URI matching
   const openDoc = getDocument(uriString);
   if (openDoc) {
-    connection.console.debug(`[FileReader] Using in-memory document: ${uriString} (version: ${openDoc.version})`);
     return openDoc;
   }
-
-  // Fall back to reading from disk
-  connection.console.debug(`[FileReader] Reading from disk: ${uriString} (not found in ${documents.all().length} open documents)`);
   return defaultFileReader(uri);
 };
 
-async function validateTextDocument(textDocument: TextDocument): Promise<void> {
+async function validateTextDocument(textDocument: TextDocument, reason = 'unknown'): Promise<void> {
+  serverLog.debug(`Validating ${textDocument.uri} [${reason}]`);
   // Get document settings
   const settings = (await getDocumentSettings(URI.parse(textDocument.uri))) ?? defaultSettings;
 
@@ -497,7 +489,7 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
       validation: settings?.validation,
       severity: settings?.severity
     }
-  });
+  }, reason);
 
   // Send diagnostics to the client
   connection.sendDiagnostics({
@@ -528,4 +520,4 @@ documents.listen(connection);
 // Listen on the connection
 connection.listen();
 
-connection.console.log('========== HLEDGER LSP SERVER LISTENING ==========');
+logger.log('hledger-lsp awaiting LSP connection');

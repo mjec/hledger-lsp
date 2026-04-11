@@ -18,6 +18,9 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { extractTags, isTransactionHeader, isComment, isDirective, isPeriodicTransactionHeader, isAutoPostingHeader } from '../utils/index';
 import * as ast from './ast';
 import { URI } from 'vscode-uri';
+import { logger } from '../utils/logger';
+
+const parserLog = logger.withContext('Parser');
 
 export class HledgerParser {
 
@@ -204,7 +207,8 @@ export class HledgerParser {
         continue;
       }
 
-      // Unknown line type, skip
+      // Unknown line type — log at debug level so we can diagnose parse gaps
+      parserLog.debug(`unrecognised line ${i} in ${uri}: ${line.slice(0, 120)}`);
       i++;
     }
 

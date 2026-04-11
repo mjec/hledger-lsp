@@ -17,6 +17,9 @@ import { isFromDocument } from '../utils/index';
 import { HledgerParser } from '../parser/index';
 import { formatAmount } from '../utils/amountFormatter';
 import { URI } from 'vscode-uri';
+import { logger } from '../utils/logger';
+
+const codeActionsLog = logger.withContext('CodeActions');
 import { findReferencesProvider } from './findReferences';
 import { readDocument } from '../utils/fileReader';
 
@@ -214,7 +217,7 @@ export class CodeActionProvider {
         const parsed = parser.parse(doc);
         parsedDocs.set(fileUri.toString(), parsed);
       } catch (error) {
-        // Skip files that can't be parsed
+        codeActionsLog.warn(`skipping unparseable file ${fileUri}`, error);
         continue;
       }
     }
