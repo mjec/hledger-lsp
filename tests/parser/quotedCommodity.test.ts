@@ -2,6 +2,9 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { HledgerParser } from '../../src/parser/index';
 import { parseAmount, parsePosting, parsePriceDirective } from '../../src/parser/ast';
 import { Validator } from '../../src/features/validator';
+import { formatAmount } from '../../src/utils/amountFormatter';
+import { quoteCommodityIfNeeded } from '../../src/utils/index';
+import { isSafeToFormat } from '../../src/features/formattingValidation';
 
 function parseDoc(content: string) {
   const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
@@ -99,6 +102,40 @@ describe('quoted commodity symbols (B3 tickers)', () => {
       expect(parsed.commodities.has('"WEGE3"')).toBe(false);
     });
   });
+
+  describe('formatAmount re-adds the quotes', () => {
+    const { parsed } = parseDoc([
+      'commodity 1. "WEGE3"',
+      '',
+      '2026-07-16 * Compra',
+      '    assets:rv:WEGE3    9 "WEGE3"',
+      '    assets:caixa',
+    ].join('\n'));
+
+    it('quotes a ticker symbol on output', () => {
+      expect(formatAmount(9, 'WEGE3', parsed)).toContain('"WEGE3"');
+    });
+
+    it('leaves plain symbols unquoted', () => {
+      expect(formatAmount(10, 'USD', parsed)).not.toContain('"');
+    });
+
+    it('round-trips: format -> parse gives the same quantity and commodity', () => {
+      const formatted = formatAmount(9, 'WEGE3', parsed);
+      const reparsed = parseAmount(formatted);
+      expect(reparsed).not.toBeNull();
+      expect(reparsed?.quantity).toBe(9);
+      expect(reparsed?.commodity).toBe('WEGE3');
+    });
+
+    it('does not double-quote an already quoted symbol', () => {
+      expect(quoteCommodityIfNeeded('"WEGE3"')).toBe('"WEGE3"');
+    });
+
+    it('quotes symbols containing spaces', () => {
+      expect(quoteCommodityIfNeeded('My Stock')).toBe('"My Stock"');
+    });
+  });
 });
 
 /**
@@ -138,6 +175,20 @@ describe('B3 ticker regressions (integration)', () => {
     const result = new Validator().validate(doc, parsed);
     const missing = result.diagnostics.filter(d => /postings without amounts/.test(d.message));
     expect(missing).toHaveLength(0);
+  });
+
+  it('does not report the round-trip failure "9 WEGE3 cannot be parsed back"', () => {
+    const { doc, parsed } = parseDoc(content);
+    const result = new Validator().validate(doc, parsed);
+    const roundTrip = result.diagnostics.filter(d => d.code === 'format-roundtrip-failed');
+    expect(roundTrip).toHaveLength(0);
+  });
+
+  it('considers quoted-commodity postings safe to format', () => {
+    const { parsed } = parseDoc(content);
+    const postings = parsed.transactions[0].postings;
+    expect(isSafeToFormat(postings[0], parsed)).toBe(true);
+    expect(isSafeToFormat(postings[1], parsed)).toBe(true);
   });
 
   it('parses the quoted amounts on every stock posting', () => {
