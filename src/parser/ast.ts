@@ -1114,6 +1114,20 @@ export function parseFormat(sample: string): { name: string; format?: Format } |
 
   // const stripQuotes = (s: string) => { const t = s.trim(); if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) return t.substring(1, t.length - 1); return t; };
 
+  // A quoted symbol may itself contain digits (e.g. "WEGE3"), so when it comes
+  // first the digit scan below would split inside the symbol. Handle that case
+  // explicitly: take the format from the number part and re-attach the symbol.
+  const leadingQuoted = s.match(/^"([^"]+)"(\s*)([+-]?\s*\d.*)$/);
+  if (leadingQuoted) {
+    const inner = parseFormat(leadingQuoted[3]);
+    if (!inner?.format) return null;
+    const symbol = leadingQuoted[1];
+    return {
+      name: symbol,
+      format: { ...inner.format, symbol, symbolOnLeft: true, spaceBetween: leadingQuoted[2].length > 0 }
+    };
+  }
+
   const firstDigit = s.search(/\d/);
   if (firstDigit === -1) {
     return { name: stripQuotes(s) };

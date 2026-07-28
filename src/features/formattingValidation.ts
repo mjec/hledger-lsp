@@ -86,6 +86,12 @@ export function isAmountRoundTripSafe(
     return false; // Value would change
   }
 
+  // The commodity must survive the round-trip too — a symbol that is rendered
+  // wrongly (e.g. quoting gone astray) can still yield the right quantity.
+  if ((reparsedAmount.commodity || '') !== commodity) {
+    return false; // Commodity would change
+  }
+
   return true;
 }
 

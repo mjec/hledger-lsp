@@ -2,9 +2,10 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { HledgerParser } from '../../src/parser/index';
 import { parseAmount, parsePosting, parsePriceDirective } from '../../src/parser/ast';
 import { Validator } from '../../src/features/validator';
+import { FormattingProvider } from '../../src/features/formatter';
 import { formatAmount } from '../../src/utils/amountFormatter';
 import { quoteCommodityIfNeeded } from '../../src/utils/index';
-import { isSafeToFormat } from '../../src/features/formattingValidation';
+import { isSafeToFormat, isAmountRoundTripSafe } from '../../src/features/formattingValidation';
 
 function parseDoc(content: string) {
   const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
@@ -198,5 +199,85 @@ describe('B3 ticker regressions (integration)', () => {
     expect(tx.postings[0].amount?.quantity).toBe(9);
     expect(tx.postings[1].amount?.commodity).toBe('VALE3');
     expect(tx.postings[1].amount?.quantity).toBe(3);
+  });
+});
+
+/**
+ * A quoted symbol placed before the number ("WEGE3" 9) must not be split
+ * inside the quotes when the format is inferred — a truncated symbol like
+ * '"WEGE' used to be stored on the commodity and then written back out,
+ * corrupting every posting of that commodity in the file.
+ */
+describe('quoted commodity before the number', () => {
+  it('infers an intact format symbol from `"WEGE3" 9`', () => {
+    const amount = parseAmount('"WEGE3" 9');
+    expect(amount?.format?.symbol).toBe('WEGE3');
+    expect(amount?.format?.symbolOnLeft).toBe(true);
+    expect(amount?.format?.spaceBetween).toBe(true);
+  });
+
+  it('keeps decimals of the number part: `"WEGE3" 1.234,50`', () => {
+    const amount = parseAmount('"WEGE3" 1.234,50');
+    expect(amount?.quantity).toBeCloseTo(1234.5);
+    expect(amount?.format?.symbol).toBe('WEGE3');
+    expect(amount?.format?.decimalMark).toBe(',');
+    expect(amount?.format?.precision).toBe(2);
+  });
+
+  it('registers an intact inferred format on an undeclared ticker', () => {
+    const { parsed } = parseDoc([
+      '2026-01-01 x',
+      '    a    "WEGE3" 9',
+      '    b    $-100',
+    ].join('\n'));
+    expect(parsed.commodities.get('WEGE3')?.format?.symbol).toBe('WEGE3');
+  });
+
+  it('formats back to a parseable amount, quotes intact', () => {
+    const content = [
+      '2026-01-01 x',
+      '    a    "WEGE3" 9',
+      '    b    $-100',
+      '',
+      '2026-01-02 y',
+      '    a    5 "WEGE3"',
+      '    b    $-50',
+    ].join('\n');
+    const { doc, parsed } = parseDoc(content);
+    const formatted = new FormattingProvider().formatDocument(doc, parsed, {} as never)[0].newText;
+    expect(formatted).not.toContain('""');
+    for (const line of formatted.split('\n').filter(l => /WEGE3/.test(l))) {
+      const amountPart = line.trim().replace(/^\S+\s+/, '');
+      const reparsed = parseAmount(amountPart);
+      expect(reparsed?.commodity).toBe('WEGE3');
+    }
+  });
+});
+
+describe('round-trip guard covers the commodity, not just the quantity', () => {
+  it('rejects an amount whose symbol cannot be written back', () => {
+    const { parsed } = parseDoc('2026-01-01 x\n    a    9 USD\n    b');
+    // A symbol containing a quote has no writable form: left as-is, not mangled
+    // into `""WE3"`, and the guard then refuses to format it.
+    expect(quoteCommodityIfNeeded('WE"3')).toBe('WE"3');
+    expect(isAmountRoundTripSafe({ quantity: 9, commodity: 'WE"3' }, parsed)).toBe(false);
+  });
+
+  it('rejects a commodity whose declared format symbol does not round-trip', () => {
+    const { parsed } = parseDoc('commodity 1. "WEGE3"');
+    const commodity = parsed.commodities.get('WEGE3')!;
+    // A format symbol that disagrees with the commodity it is registered under
+    // renders an amount of a different commodity — refuse to rewrite it.
+    parsed.commodities.set('WEGE3', { ...commodity, format: { ...commodity.format!, symbol: 'WEGE' } });
+    expect(isAmountRoundTripSafe({ quantity: 9, commodity: 'WEGE3' }, parsed)).toBe(false);
+  });
+
+  it('still accepts ordinary and quoted-ticker amounts', () => {
+    const { parsed } = parseDoc([
+      'commodity 1. "WEGE3"',
+      'commodity $1,000.00',
+    ].join('\n'));
+    expect(isAmountRoundTripSafe({ quantity: 9, commodity: 'WEGE3' }, parsed)).toBe(true);
+    expect(isAmountRoundTripSafe({ quantity: 10, commodity: '$' }, parsed)).toBe(true);
   });
 });
