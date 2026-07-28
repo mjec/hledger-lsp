@@ -4,6 +4,7 @@
 
 import { ParsedDocument, Amount, Format } from '../types';
 import { FormattingOptions, DEFAULT_FORMATTING_OPTIONS } from '../server/settings';
+import { quoteCommodityIfNeeded } from './index';
 
 export interface AmountLayout {
   marker: string;
@@ -154,16 +155,20 @@ export function getAmountLayout(amount: Amount, parsed: ParsedDocument, options:
     negPosSign = '-';
   }
 
+  // Symbols are stored unquoted; re-add quotes when hledger requires them
+  // (e.g. B3 tickers), otherwise the rendered amount cannot be parsed back.
+  const symbol = quoteCommodityIfNeeded(format?.symbol || amount.commodity || '');
+
   return {
     marker: marker,
-    commodityBefore: symbolOnLeft ? format?.symbol || amount.commodity || '' : '',
+    commodityBefore: symbolOnLeft ? symbol : '',
     negPosSign: negPosSign,
     negativeSignBeforeCommodity: negativeSignBefore,
     amountIntegerString,
     amountDecimalString,
     decimalMark: (targetPrecision !== undefined && targetPrecision > 0) || amountDecimalString.length > 0 ? (format.decimalMark || '.') : '',
     spaceBetweenCommodityAndAmount,
-    commodityAfter: !symbolOnLeft ? format?.symbol || amount.commodity || '' : ''
+    commodityAfter: !symbolOnLeft ? symbol : ''
   };
 }
 

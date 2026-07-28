@@ -473,10 +473,12 @@ export function processAutoPostingEntries(entries: AutoPostingEntry[], accountMa
 
 // Parse Price Directive
 export function parsePriceDirective(line: string, commodities?: Map<string, Commodity>): PriceDirective | null {
-  const match = line.match(/^P\s+(\d{4}[-/.]\d{2}[-/.]\d{2})\s+(\S+)\s+(.+?)(\s*;.*)?$/);
+  // Commodity may be quoted ("WEGE3") when it contains digits/spaces, per hledger.
+  const match = line.match(/^P\s+(\d{4}[-/.]\d{2}[-/.]\d{2})\s+("[^"]+"|\S+)\s+(.+?)(\s*;.*)?$/);
   if (!match) return null;
 
-  const [, date, commodity, amountStr, commentPart] = match;
+  const [, date, commodityRaw, amountStr, commentPart] = match;
+  const commodity = stripQuotes(commodityRaw);
   const amount = parseAmount(amountStr.trim(), undefined, commodities);
   if (!amount) return null;
 
@@ -873,6 +875,30 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark, commod
 
   const patterns = [
     {
+      // Quoted symbol on right (e.g. 9 "WEGE3", -3 "VALE3").
+      // hledger requires quotes for symbols containing digits/spaces (B3 tickers).
+      // The stored commodity is the unquoted content.
+      pattern: /^([+-]?\s*\d[\d.,\s]*?)\s*"([^"]+)"$/,
+      handler: (m: RegExpMatchArray) => {
+        const rawAmount = m[1];
+        const { decimalMark: mark } = detectNumberFormat(rawAmount, effectiveDecimalMark(m[2]));
+        return { quantity: parseNumberWithFormat(rawAmount, toMarkArg(mark)), commodity: m[2], rawAmount };
+      },
+      cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[1], m[1].replace(/[+-]/, ''))
+    },
+    {
+      // Quoted symbol on left (e.g. "WEGE3" 9, "My Stock" -2).
+      pattern: /^([+-]?)\s*"([^"]+)"\s*([+-]?\s*\d[\d.,\s]*)$/,
+      handler: (m: RegExpMatchArray) => {
+        const sign = m[1];
+        const rawAmount = m[3];
+        const { decimalMark: mark } = detectNumberFormat(rawAmount, effectiveDecimalMark(m[2]));
+        const quantity = parseNumberWithFormat(rawAmount, toMarkArg(mark));
+        return { quantity: sign === '-' ? -Math.abs(quantity) : quantity, commodity: m[2], rawAmount };
+      },
+      cleaner: (m: RegExpMatchArray, s: string) => s.replace(m[3], m[3].replace(/[+-]/, ''))
+    },
+    {
       // Symbol on left, with sign prefix (e.g. -$100, +$100, - $100, + $100)
       pattern: /^([+-])\s*([^\d\s+-]+)\s*([+-]?\d[\d.,\s]*)$/,
       handler: (m: RegExpMatchArray) => {
@@ -1087,6 +1113,20 @@ export function parseFormat(sample: string): { name: string; format?: Format } |
   const s = sample.trim();
 
   // const stripQuotes = (s: string) => { const t = s.trim(); if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) return t.substring(1, t.length - 1); return t; };
+
+  // A quoted symbol may itself contain digits (e.g. "WEGE3"), so when it comes
+  // first the digit scan below would split inside the symbol. Handle that case
+  // explicitly: take the format from the number part and re-attach the symbol.
+  const leadingQuoted = s.match(/^"([^"]+)"(\s*)([+-]?\s*\d.*)$/);
+  if (leadingQuoted) {
+    const inner = parseFormat(leadingQuoted[3]);
+    if (!inner?.format) return null;
+    const symbol = leadingQuoted[1];
+    return {
+      name: symbol,
+      format: { ...inner.format, symbol, symbolOnLeft: true, spaceBetween: leadingQuoted[2].length > 0 }
+    };
+  }
 
   const firstDigit = s.search(/\d/);
   if (firstDigit === -1) {

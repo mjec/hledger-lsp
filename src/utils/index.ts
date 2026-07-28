@@ -153,3 +153,22 @@ export function stripQuotes(s: string): string {
   if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) return t.substring(1, t.length - 1);
   return t;
 };
+
+/**
+ * Wrap a commodity symbol in quotes when hledger requires it.
+ *
+ * hledger only accepts a bare symbol when it has no digits, whitespace or
+ * sign characters; symbols like B3 tickers (WEGE3, TAEE11) must be written
+ * as "WEGE3" or they are read as part of the number. Symbols are stored
+ * unquoted internally (see stripQuotes), so quoting happens on output.
+ *
+ * A symbol containing a double quote cannot be written at all (hledger has no
+ * escape for it), so it is returned unchanged rather than wrapped into
+ * something unparseable; the round-trip guard then refuses to format it.
+ */
+export function quoteCommodityIfNeeded(symbol: string): string {
+  if (!symbol) return symbol;
+  if (symbol.length >= 2 && symbol.startsWith('"') && symbol.endsWith('"') && !symbol.slice(1, -1).includes('"')) return symbol;
+  if (symbol.includes('"')) return symbol;
+  return /[\d\s+-]/.test(symbol) ? `"${symbol}"` : symbol;
+}
