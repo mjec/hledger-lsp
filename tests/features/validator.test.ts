@@ -971,7 +971,7 @@ account expenses:food
       const parsedDoc = parser.parse(doc);
       const result = validator.validate(doc, parsedDoc);
 
-      const emptyTxnErrors = result.diagnostics.filter(d => d.message.includes('minimum 2 required'));
+      const emptyTxnErrors = result.diagnostics.filter(d => d.message.includes('no postings'));
       expect(emptyTxnErrors).toHaveLength(0);
     });
 
@@ -984,21 +984,25 @@ account expenses:food
       const parsedDoc = parser.parse(doc);
       const result = validator.validate(doc, parsedDoc);
 
-      const emptyTxnErrors = result.diagnostics.filter(d => d.message.includes('minimum 2 required'));
+      const emptyTxnErrors = result.diagnostics.filter(d => d.message.includes('no postings'));
       expect(emptyTxnErrors).toHaveLength(0);
     });
 
-    test('should detect transactions with only 1 posting', () => {
+    // hledger has no minimum posting count - see singlePostingTransaction.test.ts
+    // (issue #101). A lone posting is only a problem if it fails to balance, and
+    // that is the balance validator's job to report.
+    test('should not report a posting count for transactions with only 1 posting', () => {
       const content = `2024-01-15 * Store
     expenses:food  $50.00`;
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
       const parsedDoc = parser.parse(doc);
       const result = validator.validate(doc, parsedDoc);
 
-      const emptyTxnErrors = result.diagnostics.filter(d => d.message.includes('minimum 2 required'));
-      expect(emptyTxnErrors.length).toBeGreaterThan(0);
-      expect(emptyTxnErrors[0].severity).toBe(DiagnosticSeverity.Error);
-      expect(emptyTxnErrors[0].message).toContain('1 posting');
+      const emptyTxnErrors = result.diagnostics.filter(d => d.message.includes('no postings'));
+      expect(emptyTxnErrors).toHaveLength(0);
+
+      const balanceErrors = result.diagnostics.filter(d => d.message.includes('does not balance'));
+      expect(balanceErrors.length).toBeGreaterThan(0);
     });
 
     test('should detect transactions with no postings', () => {
@@ -1007,9 +1011,9 @@ account expenses:food
       const parsedDoc = parser.parse(doc);
       const result = validator.validate(doc, parsedDoc);
 
-      const emptyTxnErrors = result.diagnostics.filter(d => d.message.includes('minimum 2 required'));
+      const emptyTxnErrors = result.diagnostics.filter(d => d.message.includes('no postings'));
       expect(emptyTxnErrors.length).toBeGreaterThan(0);
-      expect(emptyTxnErrors[0].message).toContain('0 posting');
+      expect(emptyTxnErrors[0].severity).toBe(DiagnosticSeverity.Warning);
     });
   });
 
