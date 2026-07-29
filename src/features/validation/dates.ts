@@ -3,11 +3,53 @@ import { Transaction } from '../../types';
 import { isFromDocument } from '../../utils/index';
 import { getTransactionRange } from './utils';
 
+// YYYY-M-D or YYYY/M/D, with a consistent separator and 1- or 2-digit month/day.
+const DATE_PATTERN = /^(\d{4})([-/])(\d{1,2})\2(\d{1,2})$/;
+
+/**
+ * Split a date string into its numeric components, or null if it is not a
+ * well-formed hledger date.
+ */
+function splitDate(dateStr: string): { year: number, month: number, day: number } | null {
+    const match = dateStr.trim().match(DATE_PATTERN);
+    if (!match) {
+        return null;
+    }
+    return {
+        year: parseInt(match[1], 10),
+        month: parseInt(match[3], 10),
+        day: parseInt(match[4], 10)
+    };
+}
+
+/**
+ * Parse a date string to UTC midnight. Returns null if the string is malformed
+ * or names a date that does not exist in the calendar.
+ *
+ * Components are combined with Date.UTC rather than handed to `new Date(string)`:
+ * only the zero-padded "YYYY-MM-DD" form is an ISO date string parsed as UTC.
+ * "2011-5-5" falls back to implementation-defined parsing as *local* time, which
+ * shifts the UTC calendar day in any timezone with a non-zero offset — so
+ * hledger's valid single-digit dates were reported as non-existent.
+ */
 export function parseDate(dateStr: string): Date | null {
-    // Handle both YYYY-MM-DD and YYYY/MM/DD formats
-    const normalized = dateStr.replace(/\//g, '-');
-    const date = new Date(normalized);
-    return isNaN(date.getTime()) ? null : date;
+    const parts = splitDate(dateStr);
+    if (!parts) {
+        return null;
+    }
+
+    const { year, month, day } = parts;
+    const date = new Date(Date.UTC(year, month - 1, day));
+
+    // Date.UTC rolls impossible dates forward (Feb 29 2001 → Mar 1), so confirm
+    // the components survived the round trip.
+    if (date.getUTCFullYear() !== year ||
+        date.getUTCMonth() + 1 !== month ||
+        date.getUTCDate() !== day) {
+        return null;
+    }
+
+    return date;
 }
 
 export function validateDateOrdering(transactions: Transaction[], lines: string[], documentUri: string): Diagnostic[] {
@@ -35,80 +77,35 @@ export function validateDateOrdering(transactions: Transaction[], lines: string[
 }
 
 export function validateDateFormat(transaction: Transaction, lines: string[]): Diagnostic[] {
-    const diagnostics: Diagnostic[] = [];
+    const invalid = (message: string): Diagnostic[] => [{
+        severity: DiagnosticSeverity.Error,
+        range: getTransactionRange(transaction, lines),
+        message,
+        source: 'hledger'
+    }];
 
-    const normalized = transaction.date.replace(/\//g, '-');
-    const parts = normalized.split('-');
+    const parts = splitDate(transaction.date);
 
-    if (parts.length !== 3) {
-        const range = getTransactionRange(transaction, lines);
-        diagnostics.push({
-            severity: DiagnosticSeverity.Error,
-            range,
-            message: `Invalid date format: ${transaction.date}`,
-            source: 'hledger'
-        });
-        return diagnostics;
+    if (!parts) {
+        return invalid(`Invalid date format: ${transaction.date}`);
     }
-
-    const year = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10);
-    const day = parseInt(parts[2], 10);
 
     // Check if values are in valid ranges
-    if (month < 1 || month > 12) {
-        const range = getTransactionRange(transaction, lines);
-        diagnostics.push({
-            severity: DiagnosticSeverity.Error,
-            range,
-            message: `Invalid month in date: ${transaction.date} (month must be 1-12)`,
-            source: 'hledger'
-        });
-        return diagnostics;
+    if (parts.month < 1 || parts.month > 12) {
+        return invalid(`Invalid month in date: ${transaction.date} (month must be 1-12)`);
     }
 
-    if (day < 1 || day > 31) {
-        const range = getTransactionRange(transaction, lines);
-        diagnostics.push({
-            severity: DiagnosticSeverity.Error,
-            range,
-            message: `Invalid day in date: ${transaction.date} (day must be 1-31)`,
-            source: 'hledger'
-        });
-        return diagnostics;
+    if (parts.day < 1 || parts.day > 31) {
+        return invalid(`Invalid day in date: ${transaction.date} (day must be 1-31)`);
     }
 
-    // Now try to parse the date
-    const parsedDate = parseDate(transaction.date);
-
-    if (!parsedDate) {
-        const range = getTransactionRange(transaction, lines);
-        diagnostics.push({
-            severity: DiagnosticSeverity.Error,
-            range,
-            message: `Invalid date format: ${transaction.date}`,
-            source: 'hledger'
-        });
-        return diagnostics;
+    // The shape and ranges are fine, so the only remaining failure is a day that
+    // does not exist in that month (e.g. Feb 29 in a non-leap year).
+    if (!parseDate(transaction.date)) {
+        return invalid(`Invalid date: ${transaction.date} (date does not exist in calendar)`);
     }
 
-    // Check if the date components match the parsed date
-    // This catches cases like Feb 30 which get corrected to Mar 2
-    // Use UTC getters to match the UTC parsing of "YYYY-MM-DD" format
-    // This ensures correct validation regardless of timezone
-    if (parsedDate.getUTCFullYear() !== year ||
-        parsedDate.getUTCMonth() + 1 !== month ||
-        parsedDate.getUTCDate() !== day) {
-        const range = getTransactionRange(transaction, lines);
-        diagnostics.push({
-            severity: DiagnosticSeverity.Error,
-            range,
-            message: `Invalid date: ${transaction.date} (date does not exist in calendar)`,
-            source: 'hledger'
-        });
-    }
-
-    return diagnostics;
+    return [];
 }
 
 export function validateFutureDate(transaction: Transaction, lines: string[], now?: Date): Diagnostic[] {
