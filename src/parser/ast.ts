@@ -357,16 +357,37 @@ export function parseMultiplierAmount(amountStr: string, commodities?: Map<strin
 }
 
 /**
- * Infer amounts for a list of postings (used by both regular transactions and periodic transactions).
- * At most one posting may omit an amount; the inferred amount balances to zero.
+ * The balancing group a posting belongs to, or null for `(unbalanced)` postings,
+ * which never participate in balancing.
+ *
+ * hledger balances real postings among themselves and `[balanced virtual]`
+ * postings among themselves, so each group independently gets at most one
+ * inferred amount.
  */
-function inferAmountsForPostings(postings: Posting[]): void {
-  // Find real (non-unbalanced-virtual) postings without amounts
+export function balancingGroupOf(posting: Posting): 'real' | 'balanced' | null {
+  if (posting.virtual === 'unbalanced') return null;
+  return posting.virtual === 'balanced' ? 'balanced' : 'real';
+}
+
+/**
+ * Infer amounts for a list of postings (used by both regular transactions and periodic transactions).
+ * Within each balancing group, at most one posting may omit an amount; the
+ * inferred amount balances that group to zero.
+ */
+export function inferAmountsForPostings(postings: Posting[]): void {
+  for (const group of ['real', 'balanced'] as const) {
+    inferAmountForGroup(postings.filter(p => balancingGroupOf(p) === group));
+  }
+}
+
+/**
+ * Infer the single missing amount within one balancing group. The postings are
+ * the same objects as in the transaction, so assigning to them mutates it.
+ */
+function inferAmountForGroup(postings: Posting[]): void {
   const postingsWithoutAmounts: number[] = [];
   for (let i = 0; i < postings.length; i++) {
-    const p = postings[i];
-    if (p.virtual === 'unbalanced') continue;
-    if (!p.amount) {
+    if (!postings[i].amount) {
       postingsWithoutAmounts.push(i);
     }
   }
@@ -379,7 +400,6 @@ function inferAmountsForPostings(postings: Posting[]): void {
   for (let i = 0; i < postings.length; i++) {
     if (i === targetIndex) continue;
     const posting = postings[i];
-    if (posting.virtual === 'unbalanced') continue;
     if (!posting.amount) continue;
 
     if (posting.cost) {
