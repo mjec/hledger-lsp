@@ -364,6 +364,14 @@ export function parseMultiplierAmount(amountStr: string, commodities?: Map<strin
  * postings among themselves, so each group independently gets at most one
  * inferred amount.
  */
+/**
+ * A balance assignment: the posting asserts a balance but states no amount, so
+ * its amount is derived from that assertion rather than from balancing.
+ */
+export function isBalanceAssignmentPosting(posting: Posting): boolean {
+  return posting.assertion !== undefined && posting.amount === undefined;
+}
+
 export function balancingGroupOf(posting: Posting): 'real' | 'balanced' | null {
   if (posting.virtual === 'unbalanced') return null;
   return posting.virtual === 'balanced' ? 'balanced' : 'real';
@@ -385,6 +393,13 @@ export function inferAmountsForPostings(postings: Posting[]): void {
  * the same objects as in the transaction, so assigning to them mutates it.
  */
 function inferAmountForGroup(postings: Posting[]): void {
+  // A posting with an assertion but no amount is a balance assignment: its amount
+  // comes from the asserted balance, which needs the account's running balance and
+  // so is resolved later, by resolveBalanceAssignments. Auto-balancing must not
+  // claim such a posting, and cannot balance the group while one is outstanding —
+  // its amount is still unknown, so the sum would be wrong.
+  if (postings.some(isBalanceAssignmentPosting)) return;
+
   const postingsWithoutAmounts: number[] = [];
   for (let i = 0; i < postings.length; i++) {
     if (!postings[i].amount) {

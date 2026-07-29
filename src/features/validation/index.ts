@@ -5,6 +5,8 @@ export * from './costs';
 export * from './empty';
 export * from './dates';
 export * from './assertions';
+export * from './balanceAssignments';
+export * from './journalOrder';
 export * from './includes';
 export * from './formatting';
 export * from './undeclared';

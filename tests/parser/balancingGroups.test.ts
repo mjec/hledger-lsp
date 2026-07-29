@@ -45,3 +45,29 @@ describe('auto-balancing is per balancing group', () => {
         expect(ps[1].amount?.quantity).toBe(-7);
     });
 });
+
+describe('auto-balancing never claims a balance assignment', () => {
+    // A posting with an assertion and no amount is a balance assignment: its
+    // amount comes from the asserted balance, not from balancing the transaction.
+    // hledger resolves assignments first, so auto-balancing must leave them alone.
+    it('does not auto-balance a posting whose amount comes from an assertion', () => {
+        const ps = postings('2013/1/1\n  a    $1  =$1\n  b         =$-1\n');
+
+        expect(ps[1].amount).toBeUndefined();
+    });
+
+    it('does not auto-balance a sibling while an assignment is still unresolved', () => {
+        // c cannot be inferred yet: b's amount is not known until the assignment
+        // is resolved against the account's running balance.
+        const ps = postings('2013/1/1\n  a    $1\n  b     = $5\n  c\n');
+
+        expect(ps[1].amount).toBeUndefined();
+        expect(ps[2].amount).toBeUndefined();
+    });
+
+    it('still auto-balances normally when an assertion has a written amount', () => {
+        const ps = postings('2013/1/1\n  a    $1  =$1\n  b\n');
+
+        expect(ps[1].amount?.quantity).toBe(-1);
+    });
+});

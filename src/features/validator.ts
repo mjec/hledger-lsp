@@ -31,6 +31,8 @@ import {
   validateFutureDate,
   validateDateOrdering,
   validateBalanceAssertions,
+  resolveBalanceAssignments,
+  validateBalanceAssignmentRules,
   validateIncludeDirectives,
   validateFormatMismatch,
   validateUndeclaredItems
@@ -58,6 +60,15 @@ export class Validator {
       `${parsedDoc.transactions.length} transactions, ` +
       `${parsedDoc.periodicTransactions.length} periodic`
     );
+
+    // Infer amounts for balance assignments before any check runs. This is not
+    // gated on a setting: individual validations can be disabled, but every
+    // check that reads posting amounts needs the inferred ones.
+    try {
+      resolveBalanceAssignments(parsedDoc, documentUri, URI.parse(document.uri));
+    } catch (e) {
+      validatorLog.error('balance assignment inference failed', e);
+    }
 
     // Helper to check if validation is enabled
     // Uses provided settings, or falls back to default settings
@@ -94,6 +105,15 @@ export class Validator {
           diagnostics.push(...validateExplicitCosts(transaction, lines));
         } catch (e) {
           validatorLog.error(`explicit cost check failed on line ${transaction.line}`, e);
+        }
+      }
+
+      // Check uses of balance assignments that hledger rejects
+      if (isEnabled('balanceAssertions')) {
+        try {
+          diagnostics.push(...validateBalanceAssignmentRules(transaction, lines));
+        } catch (e) {
+          validatorLog.error(`balance assignment rule check failed on line ${transaction.line}`, e);
         }
       }
 
