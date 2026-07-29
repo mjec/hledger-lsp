@@ -1,0 +1,1327 @@
+{
+  "source": "hledger test suite",
+  "version": "1.52.1",
+  "count": 264,
+  "files": [
+    {
+      "file": "account-types-01.j",
+      "source": "account-types",
+      "hash": "1c776ea0f80c"
+    },
+    {
+      "file": "account-types-02.j",
+      "source": "account-types",
+      "hash": "9c14bd74d03f"
+    },
+    {
+      "file": "account-types-03.j",
+      "source": "account-types",
+      "hash": "d1c912bde9f5"
+    },
+    {
+      "file": "account-types-04.j",
+      "source": "account-types",
+      "hash": "e371f9e6c6ce"
+    },
+    {
+      "file": "account-types-05.j",
+      "source": "account-types",
+      "hash": "090e9ff0bec2"
+    },
+    {
+      "file": "account-types-06.j",
+      "source": "account-types",
+      "hash": "a5404fcd52d6"
+    },
+    {
+      "file": "amounts-and-commodities-01.j",
+      "source": "amounts-and-commodities",
+      "hash": "6369a45ee303"
+    },
+    {
+      "file": "amounts-and-commodities-02.j",
+      "source": "amounts-and-commodities",
+      "hash": "0b51ca5b1029"
+    },
+    {
+      "file": "amounts-and-commodities-03.j",
+      "source": "amounts-and-commodities",
+      "hash": "93c389374b37"
+    },
+    {
+      "file": "amounts-and-commodities-04.j",
+      "source": "amounts-and-commodities",
+      "hash": "23d5ade0f0b2"
+    },
+    {
+      "file": "amounts-and-commodities-05.j",
+      "source": "amounts-and-commodities",
+      "hash": "be3f171cbfb0"
+    },
+    {
+      "file": "amounts-and-commodities-06.j",
+      "source": "amounts-and-commodities",
+      "hash": "835684895743"
+    },
+    {
+      "file": "amounts-and-commodities-07.j",
+      "source": "amounts-and-commodities",
+      "hash": "837df3d24e54"
+    },
+    {
+      "file": "amounts-and-commodities-08.j",
+      "source": "amounts-and-commodities",
+      "hash": "764a2dd6c66b"
+    },
+    {
+      "file": "amounts-and-commodities-09.j",
+      "source": "amounts-and-commodities",
+      "hash": "9d571ec6d0d8"
+    },
+    {
+      "file": "amounts-and-commodities-10.j",
+      "source": "amounts-and-commodities",
+      "hash": "91fe156366c8"
+    },
+    {
+      "file": "amounts-and-commodities-11.j",
+      "source": "amounts-and-commodities",
+      "hash": "6d1bc0aa89a7"
+    },
+    {
+      "file": "amounts-and-commodities-12.j",
+      "source": "amounts-and-commodities",
+      "hash": "b700d9a9f335"
+    },
+    {
+      "file": "amounts-and-commodities-13.j",
+      "source": "amounts-and-commodities",
+      "hash": "d6456e0cb5fc"
+    },
+    {
+      "file": "amounts-and-commodities-14.j",
+      "source": "amounts-and-commodities",
+      "hash": "7c58680358ed"
+    },
+    {
+      "file": "amounts-and-commodities-15.j",
+      "source": "amounts-and-commodities",
+      "hash": "e3beb617123f"
+    },
+    {
+      "file": "amounts-and-commodities-16.j",
+      "source": "amounts-and-commodities",
+      "hash": "b5bda1bb1062"
+    },
+    {
+      "file": "amounts-and-commodities-17.j",
+      "source": "amounts-and-commodities",
+      "hash": "7f0283398849"
+    },
+    {
+      "file": "amounts-and-commodities-18.j",
+      "source": "amounts-and-commodities",
+      "hash": "562f4bd8622c"
+    },
+    {
+      "file": "amounts-and-commodities-19.j",
+      "source": "amounts-and-commodities",
+      "hash": "3e1b82ca7156"
+    },
+    {
+      "file": "amounts-and-commodities-20.j",
+      "source": "amounts-and-commodities",
+      "hash": "c3aad9412d5c"
+    },
+    {
+      "file": "amounts-and-commodities-21.j",
+      "source": "amounts-and-commodities",
+      "hash": "7abc10c762b2"
+    },
+    {
+      "file": "assertions-01.j",
+      "source": "assertions",
+      "hash": "c725135c2f82"
+    },
+    {
+      "file": "assertions-02.j",
+      "source": "assertions",
+      "hash": "d7deb95f8abf"
+    },
+    {
+      "file": "assertions-03.j",
+      "source": "assertions",
+      "hash": "34a5b80f7b97"
+    },
+    {
+      "file": "assertions-04.j",
+      "source": "assertions",
+      "hash": "54b3622f0046"
+    },
+    {
+      "file": "assertions-05.j",
+      "source": "assertions",
+      "hash": "dcc11654ff60"
+    },
+    {
+      "file": "assertions-06.j",
+      "source": "assertions",
+      "hash": "8da2bd539d25"
+    },
+    {
+      "file": "assertions-07.j",
+      "source": "assertions",
+      "hash": "4d097245965b"
+    },
+    {
+      "file": "assertions-08.j",
+      "source": "assertions",
+      "hash": "bfad21d9cde0"
+    },
+    {
+      "file": "assertions-09.j",
+      "source": "assertions",
+      "hash": "8404b0bd57c6"
+    },
+    {
+      "file": "assertions-10.j",
+      "source": "assertions",
+      "hash": "48d954f6f9fa"
+    },
+    {
+      "file": "assertions-11.j",
+      "source": "assertions",
+      "hash": "a66c60ff8b7f"
+    },
+    {
+      "file": "assertions-12.j",
+      "source": "assertions",
+      "hash": "73861be86f3d"
+    },
+    {
+      "file": "assertions-13.j",
+      "source": "assertions",
+      "hash": "490df3c1f4d3"
+    },
+    {
+      "file": "assertions-14.j",
+      "source": "assertions",
+      "hash": "4be11496dbea"
+    },
+    {
+      "file": "assertions-15.j",
+      "source": "assertions",
+      "hash": "8f81d2a6ffc6"
+    },
+    {
+      "file": "assertions-16.j",
+      "source": "assertions",
+      "hash": "92a079d21df9"
+    },
+    {
+      "file": "assertions-17.j",
+      "source": "assertions",
+      "hash": "1627f899236e"
+    },
+    {
+      "file": "assertions-18.j",
+      "source": "assertions",
+      "hash": "17f94cfe1945"
+    },
+    {
+      "file": "assertions-19.j",
+      "source": "assertions",
+      "hash": "800eb4750fc9"
+    },
+    {
+      "file": "assertions-20.j",
+      "source": "assertions",
+      "hash": "ba82255a9135"
+    },
+    {
+      "file": "assertions-21.j",
+      "source": "assertions",
+      "hash": "32530b19e866"
+    },
+    {
+      "file": "assertions-22.j",
+      "source": "assertions",
+      "hash": "e74a7f716d6d"
+    },
+    {
+      "file": "assertions-23.j",
+      "source": "assertions",
+      "hash": "b80f20ff0405"
+    },
+    {
+      "file": "assertions-24.j",
+      "source": "assertions",
+      "hash": "d156e10ac52f"
+    },
+    {
+      "file": "assertions-25.j",
+      "source": "assertions",
+      "hash": "6ddadef5d01b"
+    },
+    {
+      "file": "assertions-26.j",
+      "source": "assertions",
+      "hash": "fd15baaf37c9"
+    },
+    {
+      "file": "assertions-27.j",
+      "source": "assertions",
+      "hash": "235e544040d6"
+    },
+    {
+      "file": "assertions-28.j",
+      "source": "assertions",
+      "hash": "73f2f25bd71b"
+    },
+    {
+      "file": "assertions-29.j",
+      "source": "assertions",
+      "hash": "0d6932e71cb7"
+    },
+    {
+      "file": "assertions-30.j",
+      "source": "assertions",
+      "hash": "15c961173ebd"
+    },
+    {
+      "file": "auto-postings-01.j",
+      "source": "auto-postings",
+      "hash": "3d94991e21f0"
+    },
+    {
+      "file": "auto-postings-02.j",
+      "source": "auto-postings",
+      "hash": "cc991f543183"
+    },
+    {
+      "file": "auto-postings-03.j",
+      "source": "auto-postings",
+      "hash": "0fa153459d60"
+    },
+    {
+      "file": "auto-postings-04.j",
+      "source": "auto-postings",
+      "hash": "d5c1b96bf346"
+    },
+    {
+      "file": "auto-postings-05.j",
+      "source": "auto-postings",
+      "hash": "664a54933262"
+    },
+    {
+      "file": "auto-postings-06.j",
+      "source": "auto-postings",
+      "hash": "5ee0a6420038"
+    },
+    {
+      "file": "auto-postings-07.j",
+      "source": "auto-postings",
+      "hash": "3e678e762bae"
+    },
+    {
+      "file": "auto-postings-08.j",
+      "source": "auto-postings",
+      "hash": "e8e807f9cf19"
+    },
+    {
+      "file": "auto-postings-09.j",
+      "source": "auto-postings",
+      "hash": "b910b4148aff"
+    },
+    {
+      "file": "auto-postings-10.j",
+      "source": "auto-postings",
+      "hash": "35658e552d5c"
+    },
+    {
+      "file": "auto-postings-11.j",
+      "source": "auto-postings",
+      "hash": "20489e3d800b"
+    },
+    {
+      "file": "auto-postings-12.j",
+      "source": "auto-postings",
+      "hash": "5e3f6c295bc8"
+    },
+    {
+      "file": "auto-postings-13.j",
+      "source": "auto-postings",
+      "hash": "6223124fc2cb"
+    },
+    {
+      "file": "auto-postings-14.j",
+      "source": "auto-postings",
+      "hash": "5e34fd3aee2b"
+    },
+    {
+      "file": "auto-postings-15.j",
+      "source": "auto-postings",
+      "hash": "47ea06a707fe"
+    },
+    {
+      "file": "auto-postings-16.j",
+      "source": "auto-postings",
+      "hash": "03f8ca956fa5"
+    },
+    {
+      "file": "auto-postings-17.j",
+      "source": "auto-postings",
+      "hash": "14b9c50a5368"
+    },
+    {
+      "file": "auto-postings-18.j",
+      "source": "auto-postings",
+      "hash": "8f2d7c3f21a4"
+    },
+    {
+      "file": "auto-postings-19.j",
+      "source": "auto-postings",
+      "hash": "d1475fb5f302"
+    },
+    {
+      "file": "blank-description-01.j",
+      "source": "blank-description",
+      "hash": "9e5417e291be"
+    },
+    {
+      "file": "blank-description-02.j",
+      "source": "blank-description",
+      "hash": "47498ef3a2fb"
+    },
+    {
+      "file": "comments-01.j",
+      "source": "comments",
+      "hash": "2fa17071d8b9"
+    },
+    {
+      "file": "comments-02.j",
+      "source": "comments",
+      "hash": "54022810fd5a"
+    },
+    {
+      "file": "comments-03.j",
+      "source": "comments",
+      "hash": "f3cd19620366"
+    },
+    {
+      "file": "comments-04.j",
+      "source": "comments",
+      "hash": "4d9ee70c731c"
+    },
+    {
+      "file": "comments-05.j",
+      "source": "comments",
+      "hash": "7f41f2668f17"
+    },
+    {
+      "file": "commodity-tags-01.j",
+      "source": "commodity-tags",
+      "hash": "18e32f713de0"
+    },
+    {
+      "file": "commodity-tags-02.j",
+      "source": "commodity-tags",
+      "hash": "66d85eb9f3d3"
+    },
+    {
+      "file": "commodity-tags-03.j",
+      "source": "commodity-tags",
+      "hash": "ebf9101cefd2"
+    },
+    {
+      "file": "costs-01.j",
+      "source": "costs",
+      "hash": "5c9300846529"
+    },
+    {
+      "file": "costs-02.j",
+      "source": "costs",
+      "hash": "365513301883"
+    },
+    {
+      "file": "costs-03.j",
+      "source": "costs",
+      "hash": "46e788efc190"
+    },
+    {
+      "file": "costs-04.j",
+      "source": "costs",
+      "hash": "e7d6e0b99b72"
+    },
+    {
+      "file": "costs-05.j",
+      "source": "costs",
+      "hash": "ec4c63f3b51d"
+    },
+    {
+      "file": "costs-06.j",
+      "source": "costs",
+      "hash": "d7ec238f5013"
+    },
+    {
+      "file": "costs-07.j",
+      "source": "costs",
+      "hash": "c82aeb51d2be"
+    },
+    {
+      "file": "costs-08.j",
+      "source": "costs",
+      "hash": "7fe7f731af91"
+    },
+    {
+      "file": "costs-09.j",
+      "source": "costs",
+      "hash": "3e34ff6a47b3"
+    },
+    {
+      "file": "costs-10.j",
+      "source": "costs",
+      "hash": "18107a371584"
+    },
+    {
+      "file": "costs-11.j",
+      "source": "costs",
+      "hash": "997f69dcd510"
+    },
+    {
+      "file": "costs-12.j",
+      "source": "costs",
+      "hash": "657d052743cc"
+    },
+    {
+      "file": "costs-13.j",
+      "source": "costs",
+      "hash": "cc833ff2d198"
+    },
+    {
+      "file": "costs-14.j",
+      "source": "costs",
+      "hash": "cd581103fb78"
+    },
+    {
+      "file": "costs-15.j",
+      "source": "costs",
+      "hash": "2ed88f12526e"
+    },
+    {
+      "file": "costs-16.j",
+      "source": "costs",
+      "hash": "fb707103cc43"
+    },
+    {
+      "file": "costs-17.j",
+      "source": "costs",
+      "hash": "1d45c42278a2"
+    },
+    {
+      "file": "costs-18.j",
+      "source": "costs",
+      "hash": "ec7c1e272f2f"
+    },
+    {
+      "file": "costs-19.j",
+      "source": "costs",
+      "hash": "d0cfce389c63"
+    },
+    {
+      "file": "costs-20.j",
+      "source": "costs",
+      "hash": "f11cc0c6ca18"
+    },
+    {
+      "file": "costs-21.j",
+      "source": "costs",
+      "hash": "5b8daaf31a04"
+    },
+    {
+      "file": "costs-22.j",
+      "source": "costs",
+      "hash": "31edf6474545"
+    },
+    {
+      "file": "costs-23.j",
+      "source": "costs",
+      "hash": "a0bc732f205b"
+    },
+    {
+      "file": "costs-24.j",
+      "source": "costs",
+      "hash": "370e6ddf3daa"
+    },
+    {
+      "file": "costs-25.j",
+      "source": "costs",
+      "hash": "8896a5df4f9c"
+    },
+    {
+      "file": "costs-26.j",
+      "source": "costs",
+      "hash": "c5b75b35a7ee"
+    },
+    {
+      "file": "costs-27.j",
+      "source": "costs",
+      "hash": "f7fc72405825"
+    },
+    {
+      "file": "dates-01.j",
+      "source": "dates",
+      "hash": "da4b10490eab"
+    },
+    {
+      "file": "dates-02.j",
+      "source": "dates",
+      "hash": "cb147dedb19a"
+    },
+    {
+      "file": "dates-03.j",
+      "source": "dates",
+      "hash": "5cef83b1921f"
+    },
+    {
+      "file": "dates-04.j",
+      "source": "dates",
+      "hash": "7a4c5517e9e0"
+    },
+    {
+      "file": "dates-05.j",
+      "source": "dates",
+      "hash": "ff5254aa1062"
+    },
+    {
+      "file": "directive-account-01.j",
+      "source": "directive-account",
+      "hash": "3e71e5cebfce"
+    },
+    {
+      "file": "directive-account-02.j",
+      "source": "directive-account",
+      "hash": "8ce8b5545193"
+    },
+    {
+      "file": "directive-account-03.j",
+      "source": "directive-account",
+      "hash": "26743132470b"
+    },
+    {
+      "file": "directive-account-04.j",
+      "source": "directive-account",
+      "hash": "66f136a8388f"
+    },
+    {
+      "file": "directive-account-05.j",
+      "source": "directive-account",
+      "hash": "0203800bcb77"
+    },
+    {
+      "file": "directive-commodity-02.j",
+      "source": "directive-commodity",
+      "hash": "9319df85e7a7"
+    },
+    {
+      "file": "directive-commodity-03.j",
+      "source": "directive-commodity",
+      "hash": "9450d064c578"
+    },
+    {
+      "file": "directive-commodity-04.j",
+      "source": "directive-commodity",
+      "hash": "1c5a72dd29b1"
+    },
+    {
+      "file": "directive-commodity-05.j",
+      "source": "directive-commodity",
+      "hash": "4aa4ee544272"
+    },
+    {
+      "file": "directive-commodity-06.j",
+      "source": "directive-commodity",
+      "hash": "34b45d245c2d"
+    },
+    {
+      "file": "directive-commodity-07.j",
+      "source": "directive-commodity",
+      "hash": "e43ec589d8b4"
+    },
+    {
+      "file": "directive-commodity-08.j",
+      "source": "directive-commodity",
+      "hash": "869caff8578d"
+    },
+    {
+      "file": "directive-commodity-09.j",
+      "source": "directive-commodity",
+      "hash": "6b3f4dafdbea"
+    },
+    {
+      "file": "directive-commodity-10.j",
+      "source": "directive-commodity",
+      "hash": "7bf7a9e08b78"
+    },
+    {
+      "file": "directive-default-commodity-01.j",
+      "source": "directive-default-commodity",
+      "hash": "69ece61c44fa"
+    },
+    {
+      "file": "directive-default-commodity-02.j",
+      "source": "directive-default-commodity",
+      "hash": "3922ca82fa68"
+    },
+    {
+      "file": "directive-default-commodity-03.j",
+      "source": "directive-default-commodity",
+      "hash": "87d0f306e3b9"
+    },
+    {
+      "file": "directive-default-commodity-04.j",
+      "source": "directive-default-commodity",
+      "hash": "399e570fb829"
+    },
+    {
+      "file": "directive-default-commodity-05.j",
+      "source": "directive-default-commodity",
+      "hash": "350e2fecbf47"
+    },
+    {
+      "file": "directive-default-commodity-06.j",
+      "source": "directive-default-commodity",
+      "hash": "28c2aa69ee51"
+    },
+    {
+      "file": "directive-payee-01.j",
+      "source": "directive-payee",
+      "hash": "58660d5a1297"
+    },
+    {
+      "file": "directives-01.j",
+      "source": "directives",
+      "hash": "ab85083066d2"
+    },
+    {
+      "file": "directives-02.j",
+      "source": "directives",
+      "hash": "25deb2ccf9ce"
+    },
+    {
+      "file": "directives-03.j",
+      "source": "directives",
+      "hash": "d7d50a8824f5"
+    },
+    {
+      "file": "gain-01.j",
+      "source": "gain",
+      "hash": "0d1284bb120b"
+    },
+    {
+      "file": "lots-01.j",
+      "source": "lots",
+      "hash": "3799491259ee"
+    },
+    {
+      "file": "lots-02.j",
+      "source": "lots",
+      "hash": "8700e2ce6582"
+    },
+    {
+      "file": "numbers-01.j",
+      "source": "numbers",
+      "hash": "2e3a2e172020"
+    },
+    {
+      "file": "numbers-02.j",
+      "source": "numbers",
+      "hash": "836dbfee4486"
+    },
+    {
+      "file": "numbers-03.j",
+      "source": "numbers",
+      "hash": "babea2ab9ff2"
+    },
+    {
+      "file": "numbers-04.j",
+      "source": "numbers",
+      "hash": "21685c474dd3"
+    },
+    {
+      "file": "numbers-05.j",
+      "source": "numbers",
+      "hash": "a11884066cd5"
+    },
+    {
+      "file": "numbers-06.j",
+      "source": "numbers",
+      "hash": "656f99265107"
+    },
+    {
+      "file": "numbers-07.j",
+      "source": "numbers",
+      "hash": "2f3154a2ffc0"
+    },
+    {
+      "file": "numbers-08.j",
+      "source": "numbers",
+      "hash": "a7520d3c75ec"
+    },
+    {
+      "file": "numbers-09.j",
+      "source": "numbers",
+      "hash": "8af01b5da647"
+    },
+    {
+      "file": "numbers-10.j",
+      "source": "numbers",
+      "hash": "323effe68d6a"
+    },
+    {
+      "file": "numbers-11.j",
+      "source": "numbers",
+      "hash": "43cf41c8277a"
+    },
+    {
+      "file": "numbers-12.j",
+      "source": "numbers",
+      "hash": "68caefd2603e"
+    },
+    {
+      "file": "numbers-13.j",
+      "source": "numbers",
+      "hash": "d395fde5fc7e"
+    },
+    {
+      "file": "numbers-14.j",
+      "source": "numbers",
+      "hash": "eb1fcf09018c"
+    },
+    {
+      "file": "numbers-15.j",
+      "source": "numbers",
+      "hash": "2e52f6b414fc"
+    },
+    {
+      "file": "numbers-16.j",
+      "source": "numbers",
+      "hash": "17d198bcdf7b"
+    },
+    {
+      "file": "numbers-17.j",
+      "source": "numbers",
+      "hash": "00c5a069c4b7"
+    },
+    {
+      "file": "numbers-18.j",
+      "source": "numbers",
+      "hash": "19b1f47965fa"
+    },
+    {
+      "file": "numbers-19.j",
+      "source": "numbers",
+      "hash": "1c8cdca766fc"
+    },
+    {
+      "file": "numbers-20.j",
+      "source": "numbers",
+      "hash": "44cdca85eb95"
+    },
+    {
+      "file": "numbers-21.j",
+      "source": "numbers",
+      "hash": "7ee5afc928b3"
+    },
+    {
+      "file": "numbers-22.j",
+      "source": "numbers",
+      "hash": "9ae3c97c8863"
+    },
+    {
+      "file": "parens-in-account-name-01.j",
+      "source": "parens-in-account-name",
+      "hash": "f9770376ef9b"
+    },
+    {
+      "file": "parens-in-account-name-02.j",
+      "source": "parens-in-account-name",
+      "hash": "84a1ea6c6640"
+    },
+    {
+      "file": "parse-errors-01.j",
+      "source": "parse-errors",
+      "hash": "152e69cf3c8e"
+    },
+    {
+      "file": "parse-errors-02.j",
+      "source": "parse-errors",
+      "hash": "dce93ff89e3a"
+    },
+    {
+      "file": "parse-errors-03.j",
+      "source": "parse-errors",
+      "hash": "e32ecee4a194"
+    },
+    {
+      "file": "parse-errors-04.j",
+      "source": "parse-errors",
+      "hash": "17f289b2e277"
+    },
+    {
+      "file": "parse-errors-05.j",
+      "source": "parse-errors",
+      "hash": "978c3df8aece"
+    },
+    {
+      "file": "parse-errors-06.j",
+      "source": "parse-errors",
+      "hash": "78c59bf6df80"
+    },
+    {
+      "file": "parse-errors-07.j",
+      "source": "parse-errors",
+      "hash": "ecd13c18061c"
+    },
+    {
+      "file": "parse-errors-08.j",
+      "source": "parse-errors",
+      "hash": "24f1d7948834"
+    },
+    {
+      "file": "parse-errors-09.j",
+      "source": "parse-errors",
+      "hash": "7be70c709ab4"
+    },
+    {
+      "file": "parse-errors-10.j",
+      "source": "parse-errors",
+      "hash": "f7cc4e2c304a"
+    },
+    {
+      "file": "parse-errors-11.j",
+      "source": "parse-errors",
+      "hash": "157890ed2f58"
+    },
+    {
+      "file": "parse-errors-12.j",
+      "source": "parse-errors",
+      "hash": "3ea7251c3170"
+    },
+    {
+      "file": "parse-sample-journal-01.j",
+      "source": "parse-sample-journal",
+      "hash": "22b28c7a9bfb"
+    },
+    {
+      "file": "posting-dates-01.j",
+      "source": "posting-dates",
+      "hash": "cf247747fe0a"
+    },
+    {
+      "file": "posting-dates-02.j",
+      "source": "posting-dates",
+      "hash": "cdba1a4f7fc6"
+    },
+    {
+      "file": "posting-dates-03.j",
+      "source": "posting-dates",
+      "hash": "4bb7f9b016f0"
+    },
+    {
+      "file": "posting-dates-04.j",
+      "source": "posting-dates",
+      "hash": "7674f049d185"
+    },
+    {
+      "file": "posting-dates-05.j",
+      "source": "posting-dates",
+      "hash": "64370c7ad0c5"
+    },
+    {
+      "file": "precision-01.j",
+      "source": "precision",
+      "hash": "900b5b198ad3"
+    },
+    {
+      "file": "precision-02.j",
+      "source": "precision",
+      "hash": "44115b802664"
+    },
+    {
+      "file": "precision-04.j",
+      "source": "precision",
+      "hash": "b568c2a230ed"
+    },
+    {
+      "file": "precision-05.j",
+      "source": "precision",
+      "hash": "7ee2a463bc8e"
+    },
+    {
+      "file": "precision-06.j",
+      "source": "precision",
+      "hash": "b6f0a98a7d2a"
+    },
+    {
+      "file": "precision-07.j",
+      "source": "precision",
+      "hash": "49c876fe4bd1"
+    },
+    {
+      "file": "precision-08.j",
+      "source": "precision",
+      "hash": "e6c318a1c998"
+    },
+    {
+      "file": "precision-09.j",
+      "source": "precision",
+      "hash": "768b4dc425ef"
+    },
+    {
+      "file": "precision-10.j",
+      "source": "precision",
+      "hash": "ada43ae26e08"
+    },
+    {
+      "file": "precision-11.j",
+      "source": "precision",
+      "hash": "1bd12d17e9bf"
+    },
+    {
+      "file": "precision-12.j",
+      "source": "precision",
+      "hash": "ee12f2899947"
+    },
+    {
+      "file": "precision-13.j",
+      "source": "precision",
+      "hash": "6c366f191e00"
+    },
+    {
+      "file": "precision-14.j",
+      "source": "precision",
+      "hash": "0ab726cd0a54"
+    },
+    {
+      "file": "precision-15.j",
+      "source": "precision",
+      "hash": "e64be0f44f0e"
+    },
+    {
+      "file": "precision-16.j",
+      "source": "precision",
+      "hash": "e6ba414bffc5"
+    },
+    {
+      "file": "scientific-01.j",
+      "source": "scientific",
+      "hash": "39c45a052770"
+    },
+    {
+      "file": "scientific-02.j",
+      "source": "scientific",
+      "hash": "15c74c6c826e"
+    },
+    {
+      "file": "scientific-04.j",
+      "source": "scientific",
+      "hash": "9b405ba54c67"
+    },
+    {
+      "file": "scientific-05.j",
+      "source": "scientific",
+      "hash": "c26c550effed"
+    },
+    {
+      "file": "scientific-06.j",
+      "source": "scientific",
+      "hash": "37bf9c6c5b8d"
+    },
+    {
+      "file": "status-01.j",
+      "source": "status",
+      "hash": "73b3894280f1"
+    },
+    {
+      "file": "valuation-01.j",
+      "source": "valuation",
+      "hash": "189eed380e8e"
+    },
+    {
+      "file": "valuation-02.j",
+      "source": "valuation",
+      "hash": "9eb6eb32c285"
+    },
+    {
+      "file": "valuation-03.j",
+      "source": "valuation",
+      "hash": "aabf5401938a"
+    },
+    {
+      "file": "valuation-04.j",
+      "source": "valuation",
+      "hash": "565f4c1e806e"
+    },
+    {
+      "file": "valuation-05.j",
+      "source": "valuation",
+      "hash": "0e4b6ea88b39"
+    },
+    {
+      "file": "valuation-06.j",
+      "source": "valuation",
+      "hash": "6c86e72b9bb1"
+    },
+    {
+      "file": "valuation-07.j",
+      "source": "valuation",
+      "hash": "4c4dc4c84cc3"
+    },
+    {
+      "file": "valuation-08.j",
+      "source": "valuation",
+      "hash": "d03f93b51293"
+    },
+    {
+      "file": "valuation-09.j",
+      "source": "valuation",
+      "hash": "51cd0f2452c3"
+    },
+    {
+      "file": "valuation-10.j",
+      "source": "valuation",
+      "hash": "a605e8036ed6"
+    },
+    {
+      "file": "valuation-11.j",
+      "source": "valuation",
+      "hash": "65aaffea24c4"
+    },
+    {
+      "file": "valuation-12.j",
+      "source": "valuation",
+      "hash": "81d0fcfed97a"
+    },
+    {
+      "file": "valuation-13.j",
+      "source": "valuation",
+      "hash": "34e90f19b257"
+    },
+    {
+      "file": "valuation-14.j",
+      "source": "valuation",
+      "hash": "8142c56f9453"
+    },
+    {
+      "file": "valuation-16.j",
+      "source": "valuation",
+      "hash": "27a1ca00e1d7"
+    },
+    {
+      "file": "valuation2-01.j",
+      "source": "valuation2",
+      "hash": "8b7de652c567"
+    },
+    {
+      "file": "valuation2-02.j",
+      "source": "valuation2",
+      "hash": "e9285d460d94"
+    },
+    {
+      "file": "valuation2-03.j",
+      "source": "valuation2",
+      "hash": "3bd86c9faad2"
+    },
+    {
+      "file": "valuation2-04.j",
+      "source": "valuation2",
+      "hash": "9df1a9273fbf"
+    },
+    {
+      "file": "valuation2-05.j",
+      "source": "valuation2",
+      "hash": "14f50837f05c"
+    },
+    {
+      "file": "valuation2-06.j",
+      "source": "valuation2",
+      "hash": "da4c1c04f1fa"
+    },
+    {
+      "file": "valuation2-07.j",
+      "source": "valuation2",
+      "hash": "7bb8b9e9654a"
+    },
+    {
+      "file": "valuation2-08.j",
+      "source": "valuation2",
+      "hash": "c2244fb90b84"
+    },
+    {
+      "file": "valuation2-09.j",
+      "source": "valuation2",
+      "hash": "77751ac2d5f1"
+    },
+    {
+      "file": "valuation2-10.j",
+      "source": "valuation2",
+      "hash": "9b2a2b175a45"
+    },
+    {
+      "file": "valuation2-11.j",
+      "source": "valuation2",
+      "hash": "36c2599118fc"
+    },
+    {
+      "file": "valuation2-12.j",
+      "source": "valuation2",
+      "hash": "c2d0c29ef161"
+    },
+    {
+      "file": "valuation2-13.j",
+      "source": "valuation2",
+      "hash": "12df1f858319"
+    },
+    {
+      "file": "valuation2-14.j",
+      "source": "valuation2",
+      "hash": "c74c6fad4975"
+    },
+    {
+      "file": "valuation2-15.j",
+      "source": "valuation2",
+      "hash": "84095dd202d5"
+    },
+    {
+      "file": "valuation2-16.j",
+      "source": "valuation2",
+      "hash": "62b02b5c275a"
+    },
+    {
+      "file": "valuechange-01.j",
+      "source": "valuechange",
+      "hash": "26bc31d2a84e"
+    },
+    {
+      "file": "virtual-postings-01.j",
+      "source": "virtual-postings",
+      "hash": "c93dcb553aac"
+    },
+    {
+      "file": "virtual-postings-02.j",
+      "source": "virtual-postings",
+      "hash": "28012e75ac6a"
+    },
+    {
+      "file": "virtual-postings-03.j",
+      "source": "virtual-postings",
+      "hash": "6b0adfa09b68"
+    },
+    {
+      "file": "virtual-postings-04.j",
+      "source": "virtual-postings",
+      "hash": "3514e8cd72a3"
+    },
+    {
+      "file": "virtual-postings-05.j",
+      "source": "virtual-postings",
+      "hash": "50a9a2d76f88"
+    },
+    {
+      "file": "virtual-postings-06.j",
+      "source": "virtual-postings",
+      "hash": "0dd02b756de7"
+    },
+    {
+      "file": "journal-assertions1.j",
+      "source": "journal-assertions1",
+      "hash": "bb9917237832"
+    },
+    {
+      "file": "journal-assertions2.j",
+      "source": "journal-assertions2",
+      "hash": "7eb50db352cb"
+    },
+    {
+      "file": "journal-assertions22.j",
+      "source": "journal-assertions22",
+      "hash": "2014f6acded9"
+    },
+    {
+      "file": "journal-assertions31.j",
+      "source": "journal-assertions31",
+      "hash": "d5578f30eb17"
+    },
+    {
+      "file": "journal-commas.j",
+      "source": "journal-commas",
+      "hash": "d9a674c8bfc9"
+    },
+    {
+      "file": "journal-status.j",
+      "source": "journal-status",
+      "hash": "fdc6683a0f64"
+    },
+    {
+      "file": "errors-accounts.j",
+      "source": "errors-accounts",
+      "hash": "f6535959eb36"
+    },
+    {
+      "file": "errors-assertions.j",
+      "source": "errors-assertions",
+      "hash": "40ed1c34139b"
+    },
+    {
+      "file": "errors-autobalanced.j",
+      "source": "errors-autobalanced",
+      "hash": "754bff5004da"
+    },
+    {
+      "file": "errors-balanced.j",
+      "source": "errors-balanced",
+      "hash": "bd4a82d2a7f8"
+    },
+    {
+      "file": "errors-commodities.j",
+      "source": "errors-commodities",
+      "hash": "ad8fa1846123"
+    },
+    {
+      "file": "errors-ordereddates.j",
+      "source": "errors-ordereddates",
+      "hash": "dc9e77573b8c"
+    },
+    {
+      "file": "errors-parseable-dates.j",
+      "source": "errors-parseable-dates",
+      "hash": "87bde7daf0ae"
+    },
+    {
+      "file": "errors-parseable-regexps.j",
+      "source": "errors-parseable-regexps",
+      "hash": "f95cac9a965c"
+    },
+    {
+      "file": "errors-parseable.j",
+      "source": "errors-parseable",
+      "hash": "6b86b273ff34"
+    },
+    {
+      "file": "errors-payees.j",
+      "source": "errors-payees",
+      "hash": "7181911869ac"
+    },
+    {
+      "file": "errors-recentassertions.j",
+      "source": "errors-recentassertions",
+      "hash": "55fbd8310a28"
+    },
+    {
+      "file": "errors-uniqueleafnames.j",
+      "source": "errors-uniqueleafnames",
+      "hash": "add795a26a30"
+    }
+  ]
+}

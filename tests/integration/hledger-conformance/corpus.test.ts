@@ -1,0 +1,129 @@
+/**
+ * Differential test over the vendored hledger test corpus.
+ *
+ * For every journal in corpus/ (extracted from hledger's own test suite by
+ * scripts/vendor-hledger-corpus.mjs), runs `hledger check` as ground truth
+ * and the LSP parser+validator with the equivalent checks, then compares
+ * verdicts. Writes a detailed report to corpus-report.json and prints a
+ * summary.
+ *
+ * The suite asserts an agreement floor rather than per-case equality: the
+ * corpus is intentionally full of edge cases we don't handle yet, and the
+ * report is the tool for working through them. Raise MIN_AGREEMENT as
+ * divergences get fixed; never lower it.
+ */
+
+import * as fs from 'fs';
+import * as path from 'path';
+import { TextDocument } from 'vscode-languageserver-textdocument';
+import { URI } from 'vscode-uri';
+import { HledgerParser } from '../../../src/parser';
+import { Validator } from '../../../src/features/validator';
+import { defaultSettings } from '../../../src/server/settings';
+import { isHledgerAvailable, runHledgerCheck } from './hledgerRunner';
+
+const corpusDir = path.join(__dirname, 'corpus');
+const reportPath = path.join(__dirname, 'corpus-report.json');
+
+const describeCorpus = isHledgerAvailable() ? describe : describe.skip;
+
+// Ratchet: raise as divergences get fixed; never lower.
+// Baseline 2026-07-29 against hledger 1.52.1: 75.8%
+const MIN_AGREEMENT = 0.75;
+
+interface CaseResult {
+  file: string;
+  verdict: 'agree-valid' | 'agree-invalid' | 'missed-error' | 'false-positive';
+  hledgerError?: string;
+  lspDiagnostics?: string[];
+}
+
+function disableAll(): typeof defaultSettings.validation {
+  return {
+    balance: false,
+    requireExplicitCosts: false,
+    missingAmounts: false,
+    undeclaredAccounts: false,
+    undeclaredPayees: false,
+    undeclaredCommodities: false,
+    undeclaredTags: false,
+    dateOrdering: false,
+    balanceAssertions: false,
+    emptyTransactions: false,
+    invalidDates: false,
+    futureDates: false,
+    emptyDescriptions: false,
+    formatMismatch: false,
+    includeFiles: false,
+    circularIncludes: false,
+    markAllUndeclaredInstances: true,
+  };
+}
+
+describeCorpus('hledger corpus differential', () => {
+  test('LSP verdicts vs hledger check', () => {
+    const files = fs.readdirSync(corpusDir).filter(f => f.endsWith('.j')).sort();
+    expect(files.length).toBeGreaterThan(0);
+
+    const parser = new HledgerParser();
+    const validator = new Validator();
+    const results: CaseResult[] = [];
+
+    for (const file of files) {
+      const filePath = path.join(corpusDir, file);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const doc = TextDocument.create(URI.file(filePath).toString(), 'hledger', 1, content);
+
+      // Ground truth: hledger's default checks (parseable, autobalanced, assertions)
+      const hledgerResult = runHledgerCheck(filePath);
+
+      // LSP with the equivalent checks enabled
+      const parsed = parser.parse(doc);
+      const lspResult = validator.validate(doc, parsed, {
+        settings: {
+          validation: {
+            ...disableAll(),
+            balance: true,
+            balanceAssertions: true,
+            missingAmounts: true,
+            invalidDates: true,
+          },
+        },
+      });
+      const lspErrors = lspResult.diagnostics.filter(d => d.severity === 1);
+
+      let verdict: CaseResult['verdict'];
+      if (hledgerResult.success && lspErrors.length === 0) verdict = 'agree-valid';
+      else if (!hledgerResult.success && lspErrors.length > 0) verdict = 'agree-invalid';
+      else if (!hledgerResult.success) verdict = 'missed-error';
+      else verdict = 'false-positive';
+
+      results.push({
+        file,
+        verdict,
+        ...(hledgerResult.success ? {} : { hledgerError: hledgerResult.errors[0]?.message?.split('\n')[0] }),
+        ...(lspErrors.length > 0 ? { lspDiagnostics: lspErrors.map(d => `${d.range.start.line + 1}: ${d.message}`) } : {}),
+      });
+    }
+
+    const counts = {
+      total: results.length,
+      agreeValid: results.filter(r => r.verdict === 'agree-valid').length,
+      agreeInvalid: results.filter(r => r.verdict === 'agree-invalid').length,
+      missedError: results.filter(r => r.verdict === 'missed-error').length,
+      falsePositive: results.filter(r => r.verdict === 'false-positive').length,
+    };
+    const agreement = (counts.agreeValid + counts.agreeInvalid) / counts.total;
+
+    fs.writeFileSync(reportPath, JSON.stringify({ counts, agreement, results }, null, 2) + '\n');
+
+    console.log(
+      `hledger corpus differential: ${counts.total} journals — ` +
+      `${counts.agreeValid} agree-valid, ${counts.agreeInvalid} agree-invalid, ` +
+      `${counts.missedError} missed errors, ${counts.falsePositive} false positives ` +
+      `(${(agreement * 100).toFixed(1)}% agreement). Details: ${path.relative(process.cwd(), reportPath)}`
+    );
+
+    expect(agreement).toBeGreaterThanOrEqual(MIN_AGREEMENT);
+  }, 120000);
+});
