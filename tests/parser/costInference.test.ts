@@ -110,3 +110,30 @@ describe('cost inference needs a genuine exchange', () => {
         expect(ps.every(p => p.cost === undefined)).toBe(true);
     });
 });
+
+describe('an inferred cost implies a positive rate', () => {
+    // A cost converts one commodity into another, so the two sums must point in
+    // opposite directions. hledger refuses otherwise — corpus costs-10.j is
+    // annotated "a balancing cost can not be inferred when BOTH amounts are
+    // negative" — because the implied rate would be negative.
+    it('infers nothing when both commodities are negative', () => {
+        const ps = postings('2011/01/01 x\n  a  -10£\n  b  -16$\n');
+
+        expect(ps.every(p => p.cost === undefined)).toBe(true);
+    });
+
+    it('infers nothing when both commodities are positive', () => {
+        const ps = postings('2011/01/01 x\n  a  10£\n  b  16$\n');
+
+        expect(ps.every(p => p.cost === undefined)).toBe(true);
+    });
+
+    it.each([
+        ['10£', '-16$'],
+        ['-10£', '16$'],
+    ])('still infers for opposite signs (%s / %s)', (first, second) => {
+        const ps = postings(`2011/01/01 x\n  a  ${first}\n  b  ${second}\n`);
+
+        expect(ps.some(p => p.cost?.inferred)).toBe(true);
+    });
+});

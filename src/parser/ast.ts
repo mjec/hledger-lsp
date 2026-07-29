@@ -174,6 +174,12 @@ export function inferCosts(transaction: Transaction): void {
   // produce a rate of zero and silently erase the other commodity's residue.
   if (sourceSum === 0 || otherSum === 0) return;
 
+  // The two sides must also point in opposite directions, one commodity going out
+  // as the other comes in. Equal signs would imply a negative rate, which hledger
+  // refuses to invent: corpus costs-10.j notes that "a balancing cost can not be
+  // inferred when BOTH amounts are negative".
+  if (Math.sign(sourceSum) === Math.sign(otherSum)) return;
+
   if (sourcePostings.length === 1) {
     // One posting carries the whole source commodity, so the conversion can be
     // stated as a total cost on it — matching hledger, which prints `€100 @@ $135`.
