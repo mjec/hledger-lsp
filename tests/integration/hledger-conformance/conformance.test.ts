@@ -474,6 +474,33 @@ describeConformance('hledger conformance', () => {
     });
   });
 
+  // ─── Number formats ───────────────────────────────────────────────
+
+  describe('number formats', () => {
+    test('hledger and LSP agree: leading-dot and scientific amounts parse and balance', () => {
+      const filePath = path.join(validDir, 'number-formats.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(true);
+
+      const result = validator.validate(doc, parsed, {
+        settings: {
+          validation: { ...disableAll(), balance: true, missingAmounts: true },
+        },
+      });
+      expect(result.diagnostics).toEqual([]);
+
+      // The values hledger prints for these amounts.
+      const [first, second, third] = parsed.transactions;
+      expect(first.postings[0].amount!.quantity).toBeCloseTo(0.01, 10);
+      expect(second.postings.map(p => p.amount!.quantity)).toEqual([0.1, -0.1]);
+      expect(third.postings[0].amount!.quantity).toBeCloseTo(105, 10);
+      expect(third.postings[1].amount!.quantity).toBeCloseTo(3.1415926, 10);
+      expect(third.postings[2].amount!.quantity).toBeCloseTo(1000, 10);
+    });
+  });
+
   // ─── Conversion postings and cost inference ───────────────────────
 
   describe('conversion postings', () => {

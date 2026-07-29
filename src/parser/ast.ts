@@ -949,9 +949,30 @@ function parseCost(text: string, commodities?: Map<string, Commodity>): { amount
 }
 
 
+/**
+ * Supply the leading zero of a number that starts with its decimal mark.
+ *
+ * hledger accepts `.01 EUR` and `$.50`, but the amount patterns below all expect a
+ * digit to come first, so such amounts parsed to nothing at all and their postings
+ * looked like they were missing an amount. Rewriting the patterns instead would be
+ * fragile: the commodity-symbol class `[^\d\s+-]+` happily swallows the dot in
+ * `$.50`, giving a symbol of `$.`.
+ *
+ * Only `.` is treated this way. hledger does not read a leading comma as a decimal
+ * mark — it prints `,5` back unchanged, taking the comma for a symbol.
+ *
+ * A mark that follows a digit or another separator is not starting a number, so
+ * those are left alone. That matters for malformed input like `1,0,.0`: rewriting
+ * it to `1,0,0.0` would change the value the parser settles on, and such numbers
+ * are ones hledger rejects outright ("invalid use of separator").
+ */
+function withImpliedLeadingZero(amountStr: string): string {
+  return amountStr.replace(/(^|[^\d.,])\.(\d)/, '$10.$2');
+}
+
 // Parse Agount and Helpers
 export function parseAmount(amountStr: string, decimalMark?: DecimalMark, commodities?: Map<string, Commodity>): Amount | null {
-  const trimmed = amountStr.trim();
+  const trimmed = withImpliedLeadingZero(amountStr.trim());
   if (!trimmed) return null;
 
   // Regex to split commodity and amount
@@ -981,7 +1002,7 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark, commod
       // Quoted symbol on right (e.g. 9 "WEGE3", -3 "VALE3").
       // hledger requires quotes for symbols containing digits/spaces (B3 tickers).
       // The stored commodity is the unquoted content.
-      pattern: /^([+-]?\s*\d[\d.,\s]*?)\s*"([^"]+)"$/,
+      pattern: /^([+-]?\s*\d[\d.,\s]*?(?:(?<=\d)[eE][+-]?\d+)?)\s*"([^"]+)"$/,
       handler: (m: RegExpMatchArray) => {
         const rawAmount = m[1];
         const { decimalMark: mark } = detectNumberFormat(rawAmount, effectiveDecimalMark(m[2]));
@@ -991,7 +1012,7 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark, commod
     },
     {
       // Quoted symbol on left (e.g. "WEGE3" 9, "My Stock" -2).
-      pattern: /^([+-]?)\s*"([^"]+)"\s*([+-]?\s*\d[\d.,\s]*)$/,
+      pattern: /^([+-]?)\s*"([^"]+)"\s*([+-]?\s*\d[\d.,\s]*(?:(?<=\d)[eE][+-]?\d+)?)$/,
       handler: (m: RegExpMatchArray) => {
         const sign = m[1];
         const rawAmount = m[3];
@@ -1003,7 +1024,7 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark, commod
     },
     {
       // Symbol on left, with sign prefix (e.g. -$100, +$100, - $100, + $100)
-      pattern: /^([+-])\s*([^\d\s+-]+)\s*([+-]?\d[\d.,\s]*)$/,
+      pattern: /^([+-])\s*([^\d\s+-]+)\s*([+-]?\d[\d.,\s]*(?:(?<=\d)[eE][+-]?\d+)?)$/,
       handler: (m: RegExpMatchArray) => {
         const sign = m[1];
         const rawAmount = m[3];
@@ -1015,7 +1036,7 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark, commod
     },
     {
       // Symbol on left
-      pattern: /^([^\d\s+-]+)\s*([+-]?\s*\d[\d.,\s]*)$/,
+      pattern: /^([^\d\s+-]+)\s*([+-]?\s*\d[\d.,\s]*(?:(?<=\d)[eE][+-]?\d+)?)$/,
       handler: (m: RegExpMatchArray) => {
         const rawAmount = m[2];
         const { decimalMark: mark } = detectNumberFormat(rawAmount, effectiveDecimalMark(m[1]));
@@ -1025,7 +1046,7 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark, commod
     },
     {
       // Symbol on right
-      pattern: /^([+-]?\s*\d[\d.,\s]*)\s*([^\d\s]+)$/,
+      pattern: /^([+-]?\s*\d[\d.,\s]*(?:(?<=\d)[eE][+-]?\d+)?)\s*([^\d\s]+)$/,
       handler: (m: RegExpMatchArray) => {
         const rawAmount = m[1];
         const { decimalMark: mark } = detectNumberFormat(rawAmount, effectiveDecimalMark(m[2]));
@@ -1035,7 +1056,7 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark, commod
     },
     {
       // No symbol
-      pattern: /^([+-]?\s*\d[\d.,\s]*)$/,
+      pattern: /^([+-]?\s*\d[\d.,\s]*(?:(?<=\d)[eE][+-]?\d+)?)$/,
       handler: (m: RegExpMatchArray) => {
         const rawAmount = m[1];
         const { decimalMark: mark } = detectNumberFormat(rawAmount, effectiveDecimalMark(''));
@@ -1077,6 +1098,19 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark, commod
 }
 
 /**
+ * Split a written number into its mantissa and decimal exponent.
+ *
+ * Scientific notation (`1.05e2`, `31415926e-7`, `1E+3`) has to be separated before
+ * the separator analysis below, which would otherwise take the `e` for a digit
+ * group separator and strip it along with the exponent's digits.
+ */
+function splitExponent(numStr: string): { mantissa: string, exponent: number } {
+  const match = numStr.trim().match(/^(.*?)[eE]([+-]?\d+)$/);
+  if (!match) return { mantissa: numStr, exponent: 0 };
+  return { mantissa: match[1], exponent: parseInt(match[2], 10) };
+}
+
+/**
  * Helper to detect decimal mark and thousands separator from a number string.
  */
 function detectNumberFormat(rawNumStr: string, defaultDecimalMark?: DecimalMark): { decimalMark: DecimalMark, thousandsSeparator: ThousandsSeparator } {
@@ -1085,7 +1119,7 @@ function detectNumberFormat(rawNumStr: string, defaultDecimalMark?: DecimalMark)
   // make the digit-group check below see a 4-character group and miss the
   // ambiguity, silently reading "1,000" as 1. Only the outer whitespace is
   // stripped — interior spaces are legal digit group separators ("1 000 000").
-  const numStr = rawNumStr.trim();
+  const numStr = splitExponent(rawNumStr.trim()).mantissa;
 
   let decimalMark: DecimalMark | undefined;
 
@@ -1179,7 +1213,13 @@ function detectNumberFormat(rawNumStr: string, defaultDecimalMark?: DecimalMark)
  *             determined there is no decimal mark (all separators are thousands).
  *             If undefined, the function will attempt to auto-detect.
  */
-function parseNumberWithFormat(numStr: string, mark: string | 'none' | undefined): number {
+function parseNumberWithFormat(rawNumStr: string, mark: string | 'none' | undefined): number {
+  const { mantissa, exponent } = splitExponent(rawNumStr);
+  const value = parseMantissaWithFormat(mantissa, mark);
+  return exponent === 0 ? value : value * Math.pow(10, exponent);
+}
+
+function parseMantissaWithFormat(numStr: string, mark: string | 'none' | undefined): number {
   if (mark === 'none') {
     // No decimal mark — all separators are thousands separators.
     // Strip everything that isn't a digit or sign.
