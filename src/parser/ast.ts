@@ -696,16 +696,21 @@ export function parsePosting(line: string, transactionDate?: string, commodities
   if (!afterAccount) return posting;
 
   // Parse order: amount [@ cost | @@ cost] [= assertion]
-  // First, split on assertion (=)
-  const assertionMatch = afterAccount.match(/=\s*(.+)$/);
+  // First, split on assertion (= single-commodity, == total across commodities).
+  // The subaccount-inclusive forms (=* and ==*) are not supported: the trailing
+  // `*` makes parseAmount fail, so they record no assertion at all.
+  const assertionMatch = afterAccount.match(/(==?)\s*(.+)$/);
   const beforeAssertion = assertionMatch
     ? afterAccount.substring(0, assertionMatch.index ?? 0).trim()
     : afterAccount;
 
   if (assertionMatch) {
-    const assertionPart = assertionMatch[1].trim();
+    const assertionPart = assertionMatch[2].trim();
     const assertionAmount = parseAmount(assertionPart, undefined, commodities);
-    if (assertionAmount) posting.assertion = assertionAmount;
+    if (assertionAmount) {
+      posting.assertion = assertionAmount;
+      if (assertionMatch[1] === '==') posting.assertionTotal = true;
+    }
   }
 
   // Strip lot annotations before parsing amount and cost.
