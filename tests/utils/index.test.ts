@@ -6,6 +6,7 @@ import {
   extractAccountFromPosting,
   extractTags,
   getIndentationLevel,
+  normalizeDate
 } from '../../src/utils';
 
 describe('Utility Functions', () => {
@@ -171,4 +172,17 @@ describe('Utility Functions', () => {
     });
   });
 
+});
+
+describe('normalizeDate with dot separators', () => {
+  test('normalizes dot-separated dates like the other separators', () => {
+    expect(normalizeDate('2024.01.05')).toBe('2024-01-05');
+    expect(normalizeDate('2024.1.5')).toBe('2024-01-05');
+    expect(normalizeDate('2024/1/5')).toBe('2024-01-05');
+    expect(normalizeDate('2024-01-05')).toBe('2024-01-05');
+  });
+
+  test('leaves a mixed-separator date alone', () => {
+    expect(normalizeDate('2024.01-05')).toBe('2024.01-05');
+  });
 });

@@ -69,3 +69,34 @@ describe('validateDateFormat', () => {
         expect(diags[0].message).toContain('day must be 1-31');
     });
 });
+
+describe('dot-separated dates', () => {
+    // hledger accepts `.` alongside `-` and `/`, with 1- or 2-digit month and day:
+    // `2024.01.05`, `2024.1.5`. These parsed into transactions but then failed
+    // validation, so a perfectly valid journal was covered in "Invalid date format"
+    // errors — a false positive the corpus never covered.
+    it.each([
+        ['2024.01.05', '2024-01-05T00:00:00.000Z'],
+        ['2024.1.5', '2024-01-05T00:00:00.000Z'],
+        ['2011.5.5', '2011-05-05T00:00:00.000Z'],
+    ])('parses %s as %s', (input, expected) => {
+        expect(parseDate(input)?.toISOString()).toBe(expected);
+    });
+
+    it.each(['2024.01.05', '2024.1.5', '2024.2.29'])('accepts %s', (date) => {
+        expect(validateDateFormat(tx(date), [date])).toEqual([]);
+    });
+
+    it('still rejects a non-existent dot date', () => {
+        const diags = validateDateFormat(tx('2001.2.29'), ['2001.2.29']);
+        expect(diags).toHaveLength(1);
+        expect(diags[0].message).toContain('date does not exist in calendar');
+    });
+
+    // hledger requires one separator throughout: `2024-01/05` is rejected.
+    it.each(['2024-01/05', '2024.01-05', '2024/01.05'])('rejects mixed separators in %s', (date) => {
+        const diags = validateDateFormat(tx(date), [date]);
+        expect(diags).toHaveLength(1);
+        expect(diags[0].message).toContain('Invalid date format');
+    });
+});
