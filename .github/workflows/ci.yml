@@ -30,6 +30,10 @@ jobs:
     - name: Install hledger
       if: runner.os != 'Windows'
       uses: ngalaiko/setup-hledger@v1
+      with:
+        # Conformance fixtures pin behaviour verified against this version;
+        # keep in step with the corpus (tests/integration/hledger-conformance/).
+        version: 1.52.1
 
     - name: Install dependencies
       run: npm ci
