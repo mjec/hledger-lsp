@@ -1,0 +1,2 @@
+commodity A
+  format 
