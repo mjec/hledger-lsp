@@ -1,6 +1,6 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import { ParsedDocument, Posting, Transaction, PeriodicTransaction } from '../../types';
-import { calculateTransactionBalance } from '../../utils/balanceCalculator';
+import { calculateTransactionBalance, commodityPrecisions, balanceTolerance } from '../../utils/balanceCalculator';
 import { formatAmount } from '../../utils/amountFormatter';
 import { getLineRange, getTransactionRange } from './utils';
 
@@ -28,8 +28,9 @@ function validateBalance(
 
   const diagnostics: Diagnostic[] = [];
   if (postingsWithExplicitAmounts === realPostings.length) {
+    const precisions = commodityPrecisions(postings);
     for (const [commodity, balance] of balances.entries()) {
-      if (Math.abs(balance) > 0.005) {
+      if (Math.abs(balance) > balanceTolerance(precisions.get(commodity) ?? 0)) {
         const formattedBalance = commodity
           ? formatAmount(balance, commodity, parsedDoc)
           : balance.toFixed(2);

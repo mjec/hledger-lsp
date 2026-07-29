@@ -5,6 +5,7 @@ import { ParsedDocument, Transaction, Posting } from '../../types';
 import { formatAmount } from '../../utils/amountFormatter';
 import { resolveIncludePath } from '../../utils/uri';
 import { getEffectiveDate, isFromDocument } from '../../utils/index';
+import { amountPrecision, balanceTolerance } from '../../utils/balanceCalculator';
 import { getTransactionRange } from './utils';
 
 export function findPostingRange(transaction: Transaction, posting: Posting, lines: string[]): { start: { line: number; character: number }; end: { line: number; character: number } } {
@@ -104,8 +105,12 @@ export function validateBalanceAssertions(
         return a.lineInFile - b.lineInFile;
     });
 
-    // Track running balances
+    // Track running balances and the max decimal precision seen per
+    // account+commodity. hledger compares assertions exactly (not at display
+    // precision), so the comparison tolerance only needs to absorb float
+    // noise: half a unit in the last place of the finest precision involved.
     const runningBalances = new Map<string, Map<string, number>>();
+    const runningPrecisions = new Map<string, Map<string, number>>();
 
     for (const { transaction, posting } of allPostings) {
         const account = posting.account;
@@ -114,12 +119,19 @@ export function validateBalanceAssertions(
         if (posting.amount) {
             if (!runningBalances.has(account)) {
                 runningBalances.set(account, new Map());
+                runningPrecisions.set(account, new Map());
             }
             const commodityBalances = runningBalances.get(account)!;
             const commodity = posting.amount.commodity || '';
             const currentBalance = commodityBalances.get(commodity) || 0;
             const newBalance = currentBalance + posting.amount.quantity;
             commodityBalances.set(commodity, newBalance);
+
+            const commodityPrecisions = runningPrecisions.get(account)!;
+            const precision = amountPrecision(posting.amount);
+            if (precision > (commodityPrecisions.get(commodity) ?? -1)) {
+                commodityPrecisions.set(commodity, precision);
+            }
         }
 
         // Check assertion (only for current document)
@@ -128,8 +140,9 @@ export function validateBalanceAssertions(
             const assertedAmount = posting.assertion.quantity;
             const actualBalance = runningBalances.get(account)?.get(assertedCommodity) || 0;
 
-            // Allow for small floating point errors
-            if (Math.abs(actualBalance - assertedAmount) > 0.005) {
+            const trackedPrecision = runningPrecisions.get(account)?.get(assertedCommodity) ?? 0;
+            const precision = Math.max(trackedPrecision, amountPrecision(posting.assertion));
+            if (Math.abs(actualBalance - assertedAmount) > balanceTolerance(precision)) {
                 const range = findPostingRange(transaction, posting, lines);
                 const expectedFormatted = formatAmount(assertedAmount, assertedCommodity, parsedDoc);
                 const actualFormatted = formatAmount(actualBalance, assertedCommodity, parsedDoc);

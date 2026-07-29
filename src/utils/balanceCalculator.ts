@@ -2,7 +2,60 @@
  * Utilities for calculating transaction balances
  */
 
-import { Transaction } from '../types';
+import { Amount, Posting, Transaction } from '../types';
+
+/**
+ * Number of decimal places an amount was written with.
+ * The parser records this in format.precision; no decimal mark means 0.
+ */
+export function amountPrecision(amount: Amount): number {
+  return amount.format?.precision ?? 0;
+}
+
+// Beyond ~10 decimal places, float64 arithmetic noise approaches the
+// half-ULP tolerance itself, so we stop tightening the comparison there.
+const MAX_COMPARISON_PRECISION = 10;
+
+/**
+ * Comparison tolerance for balance checks at a given decimal precision.
+ *
+ * hledger balances a transaction iff the residue rounds to zero at the
+ * commodity's precision, i.e. |residue| <= 0.5 * 10^-p (half a unit in the
+ * last place). A small constant absorbs binary floating-point noise.
+ */
+export function balanceTolerance(precision: number): number {
+  const p = Math.min(precision, MAX_COMPARISON_PRECISION);
+  return 0.5 * Math.pow(10, -p) + 1e-10;
+}
+
+/**
+ * Max decimal precision per commodity across a transaction's postings, as
+ * used for balance checking: posting amounts count toward their own
+ * commodity, except that a posting with a cost participates in the cost's
+ * commodity instead (matching calculateTransactionBalance). This mirrors
+ * hledger, where balancing precision is transaction-local — journal-wide or
+ * declared commodity precision does not affect it.
+ */
+export function commodityPrecisions(postings: Posting[]): Map<string, number> {
+  const precisions = new Map<string, number>();
+  const bump = (commodity: string, p: number) => {
+    const current = precisions.get(commodity);
+    if (current === undefined || p > current) {
+      precisions.set(commodity, p);
+    }
+  };
+
+  for (const posting of postings) {
+    if (posting.virtual === 'unbalanced' || !posting.amount) continue;
+    if (posting.cost) {
+      bump(posting.cost.amount.commodity || '', amountPrecision(posting.cost.amount));
+    } else {
+      bump(posting.amount.commodity || '', amountPrecision(posting.amount));
+    }
+  }
+
+  return precisions;
+}
 
 /**
  * Calculate transaction balance grouped by commodity, handling cost conversions

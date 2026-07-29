@@ -10,6 +10,7 @@
 import { Posting, ParsedDocument, Amount } from '../types';
 import { parseAmount } from '../parser/ast';
 import { formatAmount } from '../utils/amountFormatter';
+import { amountPrecision, balanceTolerance } from '../utils/balanceCalculator';
 import { FormattingOptions } from '../server/settings';
 
 /**
@@ -80,9 +81,10 @@ export function isAmountRoundTripSafe(
     return false; // Cannot parse back
   }
 
-  // Allow small floating point errors (< 0.005 to handle 2 decimal precision)
+  // A faithful round-trip differs only by float noise below the amount's own
+  // precision; a larger difference means formatting would change the value.
   const quantityDifference = Math.abs(amount.quantity - reparsedAmount.quantity);
-  if (quantityDifference > 0.005) {
+  if (quantityDifference > balanceTolerance(amountPrecision(amount))) {
     return false; // Value would change
   }
 
@@ -164,7 +166,7 @@ export function getFormatUnsafeReason(
   }
 
   const quantityDifference = Math.abs(amount.quantity - reparsedAmount.quantity);
-  if (quantityDifference > 0.005) {
+  if (quantityDifference > balanceTolerance(amountPrecision(amount))) {
     return {
       code: 'format-value-changed',
       message: `Cannot safely format amount: value would change from ${amount.quantity} to ${reparsedAmount.quantity}. This may indicate a format mismatch (e.g., thousand separator vs decimal mark).`

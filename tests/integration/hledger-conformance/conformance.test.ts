@@ -90,6 +90,50 @@ describeConformance('hledger conformance', () => {
     });
   });
 
+  // ─── Precision semantics ──────────────────────────────────────────
+
+  describe('precision semantics', () => {
+    test('hledger and LSP agree: 8-decimal-place imbalance is an error', () => {
+      const filePath = path.join(errorsDir, 'precision-imbalance.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      // Ground truth
+      const hledgerResult = runHledgerCheck(filePath);
+      expect(hledgerResult.success).toBe(false);
+
+      const result = validator.validate(doc, parsed, {
+        settings: {
+          validation: {
+            ...disableAll(),
+            balance: true,
+          },
+        },
+      });
+      expect(result.diagnostics.length).toBeGreaterThan(0);
+    });
+
+    test('hledger and LSP agree: assertions are compared exactly, not at display precision', () => {
+      const filePath = path.join(errorsDir, 'precision-assertion.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      // Ground truth: 100.004 USD ≠ asserted 100 USD
+      const hledgerResult = runHledgerCheck(filePath);
+      expect(hledgerResult.success).toBe(false);
+
+      const result = validator.validate(doc, parsed, {
+        settings: {
+          validation: {
+            ...disableAll(),
+            balanceAssertions: true,
+          },
+        },
+      });
+      expect(result.diagnostics.length).toBeGreaterThan(0);
+    });
+  });
+
   // ─── Balance checks (balanced — multi-commodity) ─────────────────
 
   describe('balance checks (balanced — multi-commodity)', () => {
@@ -478,6 +522,7 @@ describeConformance('hledger conformance', () => {
       'costs-unit.j',
       'costs-total.j',
       'vat.journal',
+      'precision-cost-residue.j',
     ];
 
     test.each(parseableFixtures)('%s passes both hledger and LSP', (filename) => {
