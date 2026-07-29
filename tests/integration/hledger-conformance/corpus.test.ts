@@ -38,7 +38,11 @@ const describeCorpus = isHledgerAvailable() ? describe : describe.skip;
 // 2026-07-29: 87.5% after parsing leading-dot and scientific-notation amounts.
 // 2026-07-29: 88.3% after excluding cost precision from the balance tolerance.
 // 2026-07-29: 88.6% after fixing indented `#` and abutting status markers.
-const MIN_AGREEMENT = 0.88;
+// 2026-07-29: 89.4% after parsing lot annotations after a cost, and costs on
+// balance assertions. One false positive left: assertions-18.j needs
+// multi-commodity amount inference, which the one-Amount-per-posting model
+// cannot express.
+const MIN_AGREEMENT = 0.89;
 
 interface CaseResult {
   file: string;

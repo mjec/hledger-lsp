@@ -803,11 +803,16 @@ export function parsePosting(line: string, transactionDate?: string, commodities
     : afterAccount;
 
   if (assertionMatch) {
-    const assertionPart = assertionMatch[2].trim();
-    const assertionAmount = parseAmount(assertionPart, undefined, commodities);
+    // The asserted balance may itself carry a cost (`= €1 @ $1`), which has to come
+    // off before the amount will parse. hledger expands such an assignment into
+    // conversion postings; that expansion is not modelled here, but recording the
+    // assertion keeps the posting from being mistaken for one missing an amount.
+    const { amountPart, cost } = parseCost(assertionMatch[2].trim(), commodities);
+    const assertionAmount = parseAmount(amountPart, undefined, commodities);
     if (assertionAmount) {
       posting.assertion = assertionAmount;
       if (assertionMatch[1] === '==') posting.assertionTotal = true;
+      if (cost) posting.assertionCost = cost;
     }
   }
 
@@ -890,19 +895,13 @@ function stripLotAnnotations(text: string): { text: string; lotAnnotation?: stri
   // Find the first annotation token position, then check if the text before it
   // can be a valid amount (or amount+cost). Collect all consecutive tokens from
   // that point as the lot annotation.
-  let firstMatch: RegExpExecArray | null = null;
+  // The first annotation token starts the annotation region. Annotations may sit on
+  // either side of the cost marker — hledger's own output puts them after it, as in
+  // `10 AAPL @ $100 {$100} [2026-01-01] (lot A)` — so an `@` before the token is not
+  // a reason to stop. Treating it as one left the cost marker glued to the
+  // annotation, so the amount failed to parse and the posting looked amount-less.
   annotationToken.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = annotationToken.exec(text)) !== null) {
-    // Only consider this a lot annotation if the text before it (trimmed) could
-    // plausibly be an amount — i.e. it doesn't end with @@ or @, which would
-    // mean we've already passed the cost marker. Stop at the first candidate.
-    const before = text.substring(0, m.index).trimEnd();
-    // Skip if this is inside the cost portion (after @ marker)
-    if (/@/.test(before)) break;
-    firstMatch = m;
-    break;
-  }
+  const firstMatch: RegExpExecArray | null = annotationToken.exec(text);
 
   if (!firstMatch) return { text };
 

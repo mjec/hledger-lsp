@@ -474,6 +474,48 @@ describeConformance('hledger conformance', () => {
     });
   });
 
+  // ─── Lot annotations and assertion costs ──────────────────────────
+
+  describe('lot annotations', () => {
+    test('hledger and LSP agree: annotations may sit on either side of the cost', () => {
+      const filePath = path.join(validDir, 'lot-annotation-after-cost.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(true);
+
+      const result = validator.validate(doc, parsed, {
+        settings: { validation: { ...disableAll(), balance: true, missingAmounts: true } },
+      });
+      expect(result.diagnostics).toEqual([]);
+
+      // hledger auto-balances the cash postings to $-1000 and $-500.
+      const cash = parsed.transactions.map(t => t.postings[1].amount!.quantity);
+      expect(cash).toEqual([-1000, -500]);
+    });
+  });
+
+  describe('assertion costs', () => {
+    test('hledger and LSP agree: an assertion may carry a cost', () => {
+      const filePath = path.join(validDir, 'assertion-with-cost.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(true);
+
+      // The asserted balance and its cost are both recorded, so the posting is an
+      // assignment rather than one missing an amount.
+      const asserting = parsed.transactions[1].postings[0];
+      expect(asserting.assertion!.quantity).toBe(1);
+      expect(asserting.assertionCost!.amount.commodity).toBe('$');
+
+      const result = validator.validate(doc, parsed, {
+        settings: { validation: { ...disableAll(), balance: true, missingAmounts: true, balanceAssertions: true } },
+      });
+      expect(result.diagnostics).toEqual([]);
+    });
+  });
+
   // ─── Account name characters ──────────────────────────────────────
 
   describe('account name characters', () => {
