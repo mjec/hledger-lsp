@@ -1313,7 +1313,11 @@ describeConformance('hledger conformance', () => {
   describe('dot-separated dates', () => {
     test('parser should handle dot-separated dates (2024.01.01)', () => {
       // hledger accepts `.` as a date separator alongside `-` and `/`.
-      // The LSP parser only recognizes `-` and `/`.
+      //
+      // This test used to assert only the transaction count, which it met while the
+      // validator still rejected every one of those dates as malformed — a false
+      // positive on a valid journal that survived precisely because nothing here
+      // looked at the diagnostics. It now checks them.
       const filePath = path.join(validDir, 'dot-dates.journal');
       const { doc } = createDoc(filePath);
       const parsed = parser.parse(doc);
@@ -1327,6 +1331,26 @@ describeConformance('hledger conformance', () => {
 
       // LSP should also find transactions
       expect(parsed.transactions.length).toBe(2);
+
+      const result = validator.validate(doc, parsed, {
+        settings: { validation: { ...disableAll(), invalidDates: true, dateOrdering: true } },
+      });
+      expect(result.diagnostics).toEqual([]);
+    });
+
+    test('a dot-separated date that does not exist is still reported', () => {
+      const filePath = path.join(errorsDir, 'dot-date-nonexistent.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(false);
+
+      const result = validator.validate(doc, parsed, {
+        settings: { validation: { ...disableAll(), invalidDates: true } },
+      });
+      expect(result.diagnostics.map(d => d.message)).toContainEqual(
+        expect.stringContaining('date does not exist in calendar')
+      );
     });
   });
 

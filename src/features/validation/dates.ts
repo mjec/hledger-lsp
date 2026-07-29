@@ -3,8 +3,10 @@ import { Transaction } from '../../types';
 import { isFromDocument } from '../../utils/index';
 import { getTransactionRange } from './utils';
 
-// YYYY-M-D or YYYY/M/D, with a consistent separator and 1- or 2-digit month/day.
-const DATE_PATTERN = /^(\d{4})([-/])(\d{1,2})\2(\d{1,2})$/;
+// YYYY-M-D, YYYY/M/D or YYYY.M.D, with a consistent separator and 1- or 2-digit
+// month and day. hledger accepts all three separators but requires the same one
+// throughout, which the backreference enforces: `2024-01/05` is rejected.
+const DATE_PATTERN = /^(\d{4})([-/.])(\d{1,2})\2(\d{1,2})$/;
 
 /**
  * Split a date string into its numeric components, or null if it is not a

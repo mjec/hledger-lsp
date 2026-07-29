@@ -116,11 +116,14 @@ export function getIndentationLevel(line: string): number {
  * Normalize a date string to YYYY-MM-DD format for consistent comparison.
  * Handles dates with different separators and single/double digit months/days.
  *
- * @param dateStr Date string in various formats (YYYY-MM-DD, YYYY/MM/DD, YYYY/M/D, etc.)
+ * hledger allows `-`, `/` or `.` as the separator, but the same one throughout, so
+ * the backreference leaves a mixed-separator date untouched.
+ *
+ * @param dateStr Date string in various formats (YYYY-MM-DD, YYYY/MM/DD, YYYY.M.D, etc.)
  * @returns Normalized date in YYYY-MM-DD format
  */
 export function normalizeDate(dateStr: string): string {
-  const match = dateStr.match(/^(\d{4})([-/])(\d{1,2})\2(\d{1,2})$/);
+  const match = dateStr.match(/^(\d{4})([-/.])(\d{1,2})\2(\d{1,2})$/);
   if (match) {
     const year = match[1];
     const month = match[3].padStart(2, '0');
