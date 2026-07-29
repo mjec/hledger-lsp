@@ -37,6 +37,7 @@ const describeCorpus = isHledgerAvailable() ? describe : describe.skip;
 // duplicate a conversion posting pair.
 // 2026-07-29: 87.5% after parsing leading-dot and scientific-notation amounts.
 // 2026-07-29: 88.3% after excluding cost precision from the balance tolerance.
+// 2026-07-29: 88.6% after fixing indented `#` and abutting status markers.
 const MIN_AGREEMENT = 0.88;
 
 interface CaseResult {

@@ -54,7 +54,15 @@ describe('Utility Functions', () => {
       expect(isComment('; This is a comment')).toBe(true);
       expect(isComment('# This is also a comment')).toBe(true);
       expect(isComment('  ; indented comment')).toBe(true);
-      expect(isComment('  # indented comment')).toBe(true);
+    });
+
+    test('should not treat an indented hash as a comment', () => {
+      // Previously expected to be a comment. hledger 1.52.1 only opens a comment
+      // with `#` at the very start of a line: indented, it is part of an account
+      // name. `hledger accounts` on a journal containing `  # indented comment`
+      // lists an account called exactly that.
+      expect(isComment('  # indented comment')).toBe(false);
+      expect(isComment('  #a')).toBe(false);
     });
 
     test('should reject non-comment lines', () => {
