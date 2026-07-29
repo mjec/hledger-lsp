@@ -29,11 +29,22 @@ jobs:
 
     - name: Install hledger
       if: runner.os != 'Windows'
-      uses: ngalaiko/setup-hledger@v1
-      with:
-        # Conformance fixtures pin behaviour verified against this version;
-        # keep in step with the corpus (tests/integration/hledger-conformance/).
-        version: 1.52.1
+      # Conformance fixtures pin behaviour verified against this version;
+      # keep in step with the corpus (tests/integration/hledger-conformance/).
+      # Installed from the official release binaries directly because
+      # ngalaiko/setup-hledger@v1 only supports a stale version whitelist.
+      env:
+        HLEDGER_VERSION: 1.52.1
+      run: |
+        case "${{ runner.os }}" in
+          Linux) asset=hledger-linux-x64.tar.gz ;;
+          macOS) asset=hledger-mac-arm64.tar.gz ;;
+        esac
+        mkdir -p "$HOME/.local/bin"
+        curl -sSL "https://github.com/simonmichael/hledger/releases/download/${HLEDGER_VERSION}/${asset}" \
+          | tar xz -C "$HOME/.local/bin" hledger
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        "$HOME/.local/bin/hledger" --version
 
     - name: Install dependencies
       run: npm ci
