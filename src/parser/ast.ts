@@ -976,7 +976,14 @@ export function parseAmount(amountStr: string, decimalMark?: DecimalMark, commod
 /**
  * Helper to detect decimal mark and thousands separator from a number string.
  */
-function detectNumberFormat(numStr: string, defaultDecimalMark?: DecimalMark): { decimalMark: DecimalMark, thousandsSeparator: ThousandsSeparator } {
+function detectNumberFormat(rawNumStr: string, defaultDecimalMark?: DecimalMark): { decimalMark: DecimalMark, thousandsSeparator: ThousandsSeparator } {
+  // Amount patterns capture the number greedily over `[\d.,\s]`, so the raw
+  // string can carry trailing whitespace ("1,000 " from "1,000 EUR"). That would
+  // make the digit-group check below see a 4-character group and miss the
+  // ambiguity, silently reading "1,000" as 1. Only the outer whitespace is
+  // stripped — interior spaces are legal digit group separators ("1 000 000").
+  const numStr = rawNumStr.trim();
+
   let decimalMark: DecimalMark | undefined;
 
   const lastDot = numStr.lastIndexOf('.');

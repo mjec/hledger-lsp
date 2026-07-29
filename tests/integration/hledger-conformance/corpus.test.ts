@@ -29,7 +29,9 @@ const describeCorpus = isHledgerAvailable() ? describe : describe.skip;
 
 // Ratchet: raise as divergences get fixed; never lower.
 // Baseline 2026-07-29 against hledger 1.52.1: 75.8%
-const MIN_AGREEMENT = 0.75;
+// 2026-07-29: 78.0% after fixing UTC/local date parsing and honouring a
+// declared decimal mark for ambiguous digit groups.
+const MIN_AGREEMENT = 0.78;
 
 interface CaseResult {
   file: string;

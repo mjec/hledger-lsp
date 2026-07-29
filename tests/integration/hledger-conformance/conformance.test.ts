@@ -425,6 +425,53 @@ describeConformance('hledger conformance', () => {
       const hasError = result.diagnostics.length > 0 || parsed.transactions.length === 0;
       expect(hasError).toBe(true);
     });
+
+    test('hledger and LSP agree: Feb 29 in a non-leap year is an error', () => {
+      // The month and day are individually in range, so this is only caught by
+      // checking the day against the real length of that month.
+      const filePath = path.join(errorsDir, 'nonexistent-date.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      const hledgerResult = runHledgerCheck(filePath);
+      expect(hledgerResult.success).toBe(false);
+
+      const result = validator.validate(doc, parsed, {
+        settings: {
+          validation: {
+            ...disableAll(),
+            invalidDates: true,
+          },
+        },
+      });
+
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0].message).toContain('date does not exist in calendar');
+    });
+
+    test('hledger and LSP agree: single-digit month/day dates are valid', () => {
+      // Regression: "2011/5/5" is not an ISO date string, so `new Date()` parsed
+      // it as local time and the UTC calendar day shifted, making valid dates
+      // look non-existent in any timezone with a non-zero offset.
+      const filePath = path.join(validDir, 'single-digit-dates.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      const hledgerResult = runHledgerCheck(filePath);
+      expect(hledgerResult.success).toBe(true);
+
+      const result = validator.validate(doc, parsed, {
+        settings: {
+          validation: {
+            ...disableAll(),
+            invalidDates: true,
+          },
+        },
+      });
+
+      expect(parsed.transactions).toHaveLength(4);
+      expect(result.diagnostics).toEqual([]);
+    });
   });
 
   // ─── Valid journals (no false positives) ─────────────────────────
@@ -1099,6 +1146,31 @@ describeConformance('hledger conformance', () => {
         .find(p => p.account === 'expenses:car');
       expect(carPosting?.amount).toBeDefined();
       expect(carPosting!.amount!.quantity).toBe(1000);
+    });
+
+    test('a declared decimal mark resolves an ambiguous comma as a group separator', () => {
+      // "1,000" alone is ambiguous, and hledger reads it as 1.000 == 1 when
+      // nothing is declared. With `commodity 1,000.00 EUR` fixing "." as the
+      // decimal mark, the comma groups digits instead and the entry balances.
+      const filePath = path.join(validDir, 'declared-decimal-mark.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      const hledgerResult = runHledgerCheck(filePath);
+      expect(hledgerResult.success).toBe(true);
+
+      const quantities = parsed.transactions[0].postings.map(p => p.amount?.quantity);
+      expect(quantities).toEqual([1000, -1000]);
+
+      const result = validator.validate(doc, parsed, {
+        settings: {
+          validation: {
+            ...disableAll(),
+            balance: true,
+          },
+        },
+      });
+      expect(result.diagnostics).toEqual([]);
     });
 
     test('Cody.journal: $18,000,000 should be parsed as 18 million', () => {
