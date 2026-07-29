@@ -157,7 +157,6 @@ export class FoldingRangesProvider {
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const trimmed = line.trim();
 
       if (isComment(line)) {
         // Start a new comment block if not already in one
