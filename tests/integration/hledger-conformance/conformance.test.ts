@@ -474,6 +474,28 @@ describeConformance('hledger conformance', () => {
     });
   });
 
+  // ─── Account name characters ──────────────────────────────────────
+
+  describe('account name characters', () => {
+    test('hledger and LSP agree on which lines are postings and which are comments', () => {
+      const filePath = path.join(validDir, 'account-name-chars.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(true);
+
+      // hledger lists exactly these three accounts for this journal.
+      expect(runHledgerAccounts(filePath).sort()).toEqual(['#a', 'b*', 'c']);
+      expect(parsed.transactions[0].postings.map(p => p.account)).toEqual(['#a', 'b*', 'c']);
+      expect(parsed.transactions[0].postings[2].status).toBe('cleared');
+
+      const result = validator.validate(doc, parsed, {
+        settings: { validation: { ...disableAll(), balance: true, missingAmounts: true } },
+      });
+      expect(result.diagnostics).toEqual([]);
+    });
+  });
+
   // ─── Cost precision and balance tolerance ─────────────────────────
 
   describe('cost precision', () => {

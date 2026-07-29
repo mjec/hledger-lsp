@@ -33,8 +33,12 @@ export function isPosting(line: string): boolean {
  * Check if a line is a comment
  */
 export function isComment(line: string): boolean {
-  const trimmed = line.trim();
-  return trimmed.startsWith(';') || trimmed.startsWith('#');
+  // `;` opens a comment anywhere, including indented within a transaction, where
+  // it attaches to the posting above. `#` only opens one at the very start of a
+  // line: indented, it belongs to an account name — hledger reads `  #a  1` as a
+  // posting to the account `#a`, and `  # looks like a comment` as an account
+  // called exactly that. So this must see the raw line, not a trimmed one.
+  return line.trimStart().startsWith(';') || line.startsWith('#');
 }
 
 /**

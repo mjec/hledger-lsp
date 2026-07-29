@@ -131,7 +131,7 @@ export class FormattingProvider {
         formattedLines.push(this.formatDirective(trimmed));
       } else if (trimmed === '') {
         formattedLines.push('');
-      } else if (isComment(trimmed)) {
+      } else if (isComment(line)) {
         formattedLines.push(trimmed);
       } else {
         // Unknown line type, preserve as-is
@@ -414,7 +414,7 @@ export class FormattingProvider {
     let postingIndex = 0;
     for (let line of lines) {
       const trimmed = line.trim();
-      if (isComment(trimmed) || trimmed === '') {
+      if (isComment(line) || trimmed === '') {
         formattedLines.push(line.trimEnd());
       } else {
         if (!postingHasInlayHintsArray[postingIndex]) {
