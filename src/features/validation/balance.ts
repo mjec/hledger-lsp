@@ -19,15 +19,19 @@ function validateBalance(
   const balances = calculateTransactionBalance(tempTransaction);
 
   const realPostings = postings.filter(p => p.virtual !== 'unbalanced');
-  let postingsWithExplicitAmounts = 0;
-  for (const posting of realPostings) {
-    if (posting.amount && !posting.amount.inferred) {
-      postingsWithExplicitAmounts++;
-    }
-  }
+
+  // Only check a transaction whose every amount is pinned down. An auto-balanced
+  // posting is by definition whatever makes the sum zero, so there is nothing to
+  // report. A balance *assignment* is different: its amount comes from the
+  // asserted balance, so a transaction built only from assignments can genuinely
+  // fail to balance, and hledger reports it.
+  const hasDeterminedAmount = (posting: Posting): boolean =>
+    Boolean(posting.amount && (!posting.amount.inferred || posting.isBalanceAssignment));
+
+  const postingsWithDeterminedAmounts = realPostings.filter(hasDeterminedAmount).length;
 
   const diagnostics: Diagnostic[] = [];
-  if (postingsWithExplicitAmounts === realPostings.length) {
+  if (postingsWithDeterminedAmounts === realPostings.length) {
     const precisions = commodityPrecisions(postings);
     for (const [commodity, balance] of balances.entries()) {
       if (Math.abs(balance) > balanceTolerance(precisions.get(commodity) ?? 0)) {

@@ -144,6 +144,28 @@ export function validateBalanceAssertions(
                     message: `Balance assertion failed for ${account}: expected ${expectedFormatted}, but calculated ${actualFormatted}`,
                     source: 'hledger'
                 });
+                continue;
+            }
+
+            // `==` asserts the balance across all commodities, so every other
+            // commodity the account holds must be zero.
+            if (posting.assertionTotal) {
+                const otherCommodities = runningBalances.get(account) ?? new Map<string, number>();
+
+                for (const [commodity, balance] of otherCommodities.entries()) {
+                    if (commodity === assertedCommodity) continue;
+
+                    const otherPrecision = runningPrecisions.get(account)?.get(commodity) ?? 0;
+                    if (Math.abs(balance) <= balanceTolerance(otherPrecision)) continue;
+
+                    diagnostics.push({
+                        severity: DiagnosticSeverity.Error,
+                        range: findPostingRange(transaction, posting, lines),
+                        message: `Balance assertion failed for ${account}: total assertion expects no other commodities, ` +
+                            `but calculated ${formatAmount(balance, commodity, parsedDoc)}`,
+                        source: 'hledger'
+                    });
+                }
             }
         }
     }

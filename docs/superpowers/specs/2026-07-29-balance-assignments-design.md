@@ -112,20 +112,58 @@ Transactions in journal order; per transaction:
 3. **Fold** every posting's amount into the running balances, once.
 
 Ordering reuses the cross-file ordering already implemented in `assertions.ts`,
-extracted to a shared helper so the pre-pass and the assertion check cannot
-drift. The pre-pass orders whole *transactions* rather than individual postings:
-posting-date reordering only matters for assertions, and rule 8 forbids combining
-a posting date with an assignment.
+extracted to `journalOrder.ts` so the pre-pass and the assertion check cannot
+drift.
+
+**Correction (found during implementation).** This section first ordered whole
+*transactions*, on the assumption that posting-date reordering only affected
+assertion checking. hledger disproves that: in corpus `assertions-13.j` it infers
+`[a] = -10` as **0**, because a posting carrying `date:2011/1/1` in the *2015*
+transaction is counted first. Inference therefore walks individual postings in
+effective-date order, exactly like the assertion check.
+
+Three further consequences, each verified against hledger:
+
+- **A transaction's assignments are resolved together, when the walk first reaches
+  any of its postings** — not its first assignment. Resolving later would mean
+  earlier postings of the same transaction had already been folded into the
+  running balances and would be counted twice.
+- **Auto-balancing must never claim an assignment posting.** The parser's
+  `inferAmountsForPostings` treats a posting with an assertion and no amount as
+  the lone amount-less posting and auto-balances it, which hides the assignment
+  entirely. It now skips a group containing an unresolved assignment: that
+  posting's amount belongs to the assignment, and the group cannot be balanced
+  while it is unknown.
+- **Cost inference has to be retried too.** Resolving assignments can complete a
+  transaction the parser had to skip, so `inferCosts` runs again afterwards.
+  Without it, two assignments in different commodities (`c = 50 B` / `c = 50 A`)
+  look unbalanced in both, where hledger infers a total cost and prints
+  `c 50 B @@ 50 A`.
+
+**Also deferred.** hledger rejects a balance assignment on an account that a
+*matched* auto-posting rule generates postings to ("Balance assignments and auto
+postings may not be combined"). The LSP parses auto-posting rules but never
+applies them, so detecting this needs rule-matching machinery that belongs to the
+auto-postings work. Corpus `auto-postings-07.j` is left as a reported missed
+error; it had previously been an accidental agreement, passing only because the
+assignment produced a bogus "postings without amounts" diagnostic.
 
 ### Testing
 
 Unit tests per rule above, plus conformance fixtures run against the real
-hledger CLI. Corpus expectation: the six false positives
-`assertions-08/-10/-11/-13/-15.j` (not `-28`, which needs deferred
-assignment-with-cost) plus the `assertions-12.j` missed error, and
-`virtual-postings-05.j` should fall out of the per-group auto-balancing.
+hledger CLI.
 
-`assertions-10.j`'s last transaction needs *cost* inference on top of assignment
-inference (`c = 50 B` becomes `50 B @@ 50 A`), which belongs to cluster 3. If
-resolving its assignments exposes a new imbalance report, that is a known
-follow-on, not a regression to fix here.
+## Outcome
+
+Corpus agreement 78.03% → 81.44%; false positives 30 → 22, missed errors 28 → 27,
+no new false positives. Ten corpus files changed to agreeing:
+
+- `assertions-08/-10/-11/-13/-15.j` — the assignment false positives in scope.
+- `assertions-12.j`, `assertions-17.j` — missed errors now reported (the posting-date
+  prohibition, and a total-assertion failure).
+- `assertions-27.j`, `precision-09.j` — also assignment-based; fixed in passing.
+- `virtual-postings-05.j` — fell out of per-group auto-balancing, as expected.
+
+`assertions-28.j` still diverges: it needs assignment-with-cost (`= €1 @ $1`),
+which is deferred above. `auto-postings-07.j` is the newly honest missed error
+described in the design section.

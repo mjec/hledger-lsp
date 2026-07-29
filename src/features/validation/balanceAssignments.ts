@@ -1,7 +1,7 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import { URI } from 'vscode-uri';
 import { ParsedDocument, Posting, Transaction } from '../../types';
-import { inferAmountsForPostings, isBalanceAssignmentPosting } from '../../parser/ast';
+import { inferAmountsForPostings, inferCosts, isBalanceAssignmentPosting } from '../../parser/ast';
 import { buildIncludePositionMap, orderPostings } from './journalOrder';
 import { findPostingRange } from './assertions';
 
@@ -137,6 +137,12 @@ export function resolveBalanceAssignments(
                 // Resolving assignments may leave exactly one amount-less posting in
                 // a balancing group, which can now be auto-balanced.
                 inferAmountsForPostings(transaction.postings);
+                // Both of the above can complete a transaction that the parser had to
+                // skip, so the inferences the parser makes from complete amounts have
+                // to be retried: a two-commodity transaction gets its total cost here
+                // (hledger prints `c 50 B @@ 50 A` for two assignments in different
+                // commodities), without which it would look unbalanced in both.
+                inferCosts(transaction);
             }
         }
 
