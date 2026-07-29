@@ -14,25 +14,56 @@ describe('Validator with Posting Dates', () => {
 
   describe('Balance assertions with posting dates', () => {
     test('assertion passes when posting date is after transaction date', () => {
+      // The asserting posting states an amount, so this is a balance assertion
+      // rather than an assignment, and the assertion precedes the comment so it is
+      // actually parsed. An earlier version of this test wrote `; date:... = $90`,
+      // putting the assertion inside the comment, so nothing was asserted and the
+      // test passed no matter what the validator did.
+      // hledger 1.52.1 accepts this journal, and reports "calculated $90" if the
+      // asserted figure is changed — confirming the assertion is evaluated at the
+      // effective date 01-16, where checking holds $100 - $10.
       const content = `
 2024-01-15 Deposit
     assets:checking  $100
     income:salary
 
 2024-01-10 Purchase (entered late)
-    expenses:food  $10  ; date:2024-01-16
-    assets:checking      ; date:2024-01-16  = $90
+    expenses:food     $10   ; date:2024-01-16
+    assets:checking  $-10 = $90  ; date:2024-01-16
 `;
 
       const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
       const parsedDoc = parser.parse(doc);
       const result = validator.validate(doc, parsedDoc);
 
-      // Assertion should pass: at effective date 01-16, balance is $100 - $10 = $90
       const assertionErrors = result.diagnostics.filter((d: Diagnostic) =>
         d.message.includes('Balance assertion failed')
       );
       expect(assertionErrors).toHaveLength(0);
+    });
+
+    test('assertion evaluated at a later posting date fails when the figure is wrong', () => {
+      // The counterpart to the test above: it is what proves the assertion is
+      // really being evaluated. hledger reports "asserted $999 / calculated $90".
+      const content = `
+2024-01-15 Deposit
+    assets:checking  $100
+    income:salary
+
+2024-01-10 Purchase (entered late)
+    expenses:food     $10   ; date:2024-01-16
+    assets:checking  $-10 = $999  ; date:2024-01-16
+`;
+
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsedDoc = parser.parse(doc);
+      const result = validator.validate(doc, parsedDoc);
+
+      const assertionErrors = result.diagnostics.filter((d: Diagnostic) =>
+        d.message.includes('Balance assertion failed')
+      );
+      expect(assertionErrors).toHaveLength(1);
+      expect(assertionErrors[0].message).toContain('$90');
     });
 
     test('assertion fails when effective date ordering differs from transaction ordering', () => {
