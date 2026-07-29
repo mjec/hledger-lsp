@@ -20,6 +20,7 @@ import { HledgerParser } from '../../../src/parser';
 import { Validator } from '../../../src/features/validator';
 import { calculateRunningBalances } from '../../../src/utils/runningBalanceCalculator';
 import { defaultSettings } from '../../../src/server/settings';
+import { normalizeDate } from '../../../src/utils/index';
 import {
   isHledgerAvailable,
   runHledgerCheck,
@@ -1305,6 +1306,31 @@ describeConformance('hledger conformance', () => {
       // LSP should also see only 2 transactions
       expect(parsed.transactions.length).toBe(2);
       expect([...parsed.accounts.keys()]).not.toContain('income:bonus');
+    });
+  });
+
+  // ─── Year-less dates and the Y directive ──────────────────────────
+
+  describe('the Y directive', () => {
+    test('hledger and LSP agree on the year a year-less date resolves to', () => {
+      const filePath = path.join(validDir, 'year-directive.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(true);
+
+      // The dates hledger prints for this journal.
+      const resolved = parsed.transactions
+        .map(t => normalizeDate(t.date))
+        .sort();
+      expect(resolved).toEqual([
+        '2010-01-05', '2010-02-06', '2010-03-07', '2015-04-08', '2024-03-03',
+      ]);
+
+      const result = validator.validate(doc, parsed, {
+        settings: { validation: { ...disableAll(), invalidDates: true, balance: true } },
+      });
+      expect(result.diagnostics).toEqual([]);
     });
   });
 

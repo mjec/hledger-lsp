@@ -16,14 +16,14 @@ function splitComment(line: string): { content: string; comment: string } | null
  * Parse a transaction starting at startLine within lines array.
  * This is a pure helper extracted from HledgerParser.
  */
-export function parseTransaction(lines: string[], startLine: number, commodities?: Map<string, Commodity>): Transaction | null {
+export function parseTransaction(lines: string[], startLine: number, commodities?: Map<string, Commodity>, defaultYear?: string): Transaction | null {
   if (!lines || lines.length === 0) {
     return null;
   }
 
   const headerLine = lines[0];
   if (!isTransactionHeader(headerLine)) return null;
-  const header = parseTransactionHeader(headerLine);
+  const header = parseTransactionHeader(headerLine, defaultYear);
   if (!header) return null;
 
   const postings: Posting[] = [];
@@ -614,14 +614,14 @@ export function processPriceDirective(
 }
 
 // Parse Transaction Header and Helpers
-export function parseTransactionHeader(line: string): { date: string; effectiveDate?: string; status?: 'cleared' | 'pending' | 'unmarked'; code?: string; description: string; payee: string; note: string; comment?: string; tags?: Record<string, string> } | null {
+export function parseTransactionHeader(line: string, defaultYear?: string): { date: string; effectiveDate?: string; status?: 'cleared' | 'pending' | 'unmarked'; code?: string; description: string; payee: string; note: string; comment?: string; tags?: Record<string, string> } | null {
   const trimmed = line.trim();
 
-  const dateRes = parseDate(trimmed);
+  const dateRes = parseDate(trimmed, defaultYear);
   if (!dateRes) return null;
   let rest = dateRes.rest;
 
-  const effDateRes = parseEffectiveDate(rest);
+  const effDateRes = parseEffectiveDate(rest, defaultYear);
   rest = effDateRes.rest;
 
   const statusRes = parseStatus(rest);
@@ -654,8 +654,10 @@ function parseDate(line: string, defaultYear?: string): { date: string, rest: st
     return { date: dateStr, rest: line.substring(dateStr.length).trim() };
   }
 
-  // Try short date: M/D, M-D (no dot — dot would be ambiguous with decimals)
-  const shortMatch = line.match(/^(\d{1,2})([-/])(\d{1,2})(?=[\s=*!(]|$)/);
+  // Try short date: M/D, M-D, M.D. The dot form is fine here because this only
+  // runs at the start of a transaction header, where hledger reads a bare `1.5`
+  // as a year-less date rather than an amount.
+  const shortMatch = line.match(/^(\d{1,2})([-/.])(\d{1,2})(?=[\s=*!(]|$)/);
   if (shortMatch) {
     const year = defaultYear || new Date().getFullYear().toString();
     // Zero-pad month and day for consistent date format
@@ -677,8 +679,8 @@ function parseEffectiveDate(line: string, defaultYear?: string): { effectiveDate
     return { effectiveDate: dateStr, rest: line.substring(fullMatch[0].length).trim() };
   }
 
-  // Short date: =M/D, =M-D
-  const shortMatch = line.match(/^=(\d{1,2})([-/])(\d{1,2})(?=\s|$)/);
+  // Short date: =M/D, =M-D, =M.D
+  const shortMatch = line.match(/^=(\d{1,2})([-/.])(\d{1,2})(?=\s|$)/);
   if (shortMatch) {
     const year = defaultYear || new Date().getFullYear().toString();
     const month = shortMatch[1].padStart(2, '0');
@@ -847,7 +849,7 @@ function parsePostingDate(dateStr: string, transactionDate?: string): string | n
   }
 
   // Partial date: MM-DD or MM/DD or M-D or M/D (needs transaction year)
-  const partialDateMatch = dateStr.match(/^(\d{1,2})[-/](\d{1,2})$/);
+  const partialDateMatch = dateStr.match(/^(\d{1,2})[-/.](\d{1,2})$/);
   if (partialDateMatch && transactionDate) {
     const txYear = transactionDate.substring(0, 4);
     const month = partialDateMatch[1].padStart(2, '0');

@@ -16,8 +16,11 @@ export function isTransactionHeader(line: string): boolean {
   if (!trimmed) return false;
 
   // Full date (YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD) — no lookahead needed, unambiguous
-  // Short date (M/D, M-D) — requires lookahead to avoid false positives
-  const datePattern = /^(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/]\d{1,2}(?=[\s=*!(]|$))/;
+  // Short date (M/D, M-D, M.D) — requires lookahead to avoid false positives.
+  // The dot form is accepted here even though `1.5` also looks like an amount: this
+  // only ever runs against a line's start, where hledger reads it as a year-less
+  // date. Excluding it made such transactions vanish from the parse entirely.
+  const datePattern = /^(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}(?=[\s=*!(]|$))/;
   return datePattern.test(trimmed);
 }
 

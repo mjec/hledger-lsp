@@ -66,6 +66,9 @@ export class HledgerParser {
     const accounts = new Map<string, Account>();
     const payees = new Map<string, Payee>();
     const commodities = new Map<string, Commodity>();
+    // `Y 2010` sets the year for year-less dates in the entries that follow it, and a
+    // later Y replaces it. Tracked while scanning because it is positional.
+    let defaultYear: string | undefined;
     const tags = new Map<string, Tag>();
 
     let i = 0;
@@ -181,6 +184,16 @@ export class HledgerParser {
         continue;
       }
 
+      // `Y YYYY` sets the default year for year-less dates that follow. It is not in
+      // the directive list (it takes no name and has no subdirectives), so it is
+      // matched here, at the start of a line as hledger requires.
+      const yearDirective = line.match(/^Y\s+(\d{4})\s*(?:;.*)?$/);
+      if (yearDirective) {
+        defaultYear = yearDirective[1];
+        i++;
+        continue;
+      }
+
       // Parse transaction
       if (isTransactionHeader(line)) {
 
@@ -189,7 +202,7 @@ export class HledgerParser {
         const endLine = i;
         const transactionLines = lines.slice(startLine, endLine);
 
-        const transaction = ast.parseTransaction(transactionLines, startLine, commodities);
+        const transaction = ast.parseTransaction(transactionLines, startLine, commodities, defaultYear);
         if (transaction) {
           transaction.sourceUri = uri;
           transactions.push(transaction);
