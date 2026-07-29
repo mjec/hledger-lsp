@@ -35,7 +35,8 @@ import {
   validateBalanceAssignmentRules,
   validateIncludeDirectives,
   validateFormatMismatch,
-  validateUndeclaredItems
+  validateUndeclaredItems,
+  validateCommodityDirectives
 } from './validation/index';
 
 export { ValidationResult, ValidatorOptions };
@@ -206,6 +207,15 @@ export class Validator {
             source: 'hledger'
           });
         }
+      }
+    }
+
+    // Check commodity directive syntax
+    if (isEnabled('commodityDirectives')) {
+      try {
+        diagnostics.push(...validateCommodityDirectives(lines));
+      } catch (e) {
+        validatorLog.error('commodity directive check failed', e);
       }
     }
 

@@ -67,6 +67,7 @@ function disableAll(): typeof defaultSettings.validation {
     futureDates: false,
     emptyDescriptions: false,
     formatMismatch: false,
+    commodityDirectives: false,
     includeFiles: false,
     circularIncludes: false,
     markAllUndeclaredInstances: true,
@@ -100,6 +101,9 @@ describeCorpus('hledger corpus differential', () => {
             balanceAssertions: true,
             missingAmounts: true,
             invalidDates: true,
+            // hledger's parseable check rejects a malformed commodity directive,
+            // so its LSP equivalent belongs in this set.
+            commodityDirectives: true,
           },
         },
       });

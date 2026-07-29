@@ -10,3 +10,4 @@ export * from './journalOrder';
 export * from './includes';
 export * from './formatting';
 export * from './undeclared';
+export * from './directives';
