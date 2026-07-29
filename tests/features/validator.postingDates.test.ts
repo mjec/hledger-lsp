@@ -36,6 +36,35 @@ describe('Validator with Posting Dates', () => {
     });
 
     test('assertion fails when effective date ordering differs from transaction ordering', () => {
+      // The asserting posting states an amount, so this is a balance assertion.
+      // hledger 1.52.1 reports "asserted balance is $10 but calculated $15",
+      // because the $5 posting dated 2012 is counted first.
+      const content = `
+2013-01-01 Opening
+    a   $10  = $10
+    b
+
+2013-01-02 Backdated posting
+    a   $5   ; date:2012-01-01
+    c
+`;
+
+      const doc = TextDocument.create('file:///test.journal', 'hledger', 1, content);
+      const parsedDoc = parser.parse(doc);
+      const result = validator.validate(doc, parsedDoc);
+
+      const assertionErrors = result.diagnostics.filter((d: Diagnostic) =>
+        d.message.includes('Balance assertion failed')
+      );
+      expect(assertionErrors.length).toBeGreaterThan(0);
+      expect(assertionErrors[0].message).toContain('expected $10');
+    });
+
+    test('a balance assignment may not carry a custom posting date', () => {
+      // Previously this journal was expected to produce a failed *assertion*. It
+      // is a balance *assignment* (no amount stated), and hledger 1.52.1 rejects
+      // the combination outright rather than evaluating it:
+      //   "Balance assignments and custom posting dates may not be combined."
       const content = `
 2024-01-15 Deposit
     assets:checking  $100
@@ -50,12 +79,12 @@ describe('Validator with Posting Dates', () => {
       const parsedDoc = parser.parse(doc);
       const result = validator.validate(doc, parsedDoc);
 
-      // Assertion should fail: at effective date 01-14, balance is $0 (deposit hasn't happened yet)
-      const assertionErrors = result.diagnostics.filter((d: Diagnostic) =>
-        d.message.includes('Balance assertion failed')
+      expect(result.diagnostics.map((d: Diagnostic) => d.message)).toContainEqual(
+        expect.stringContaining('Balance assignments and custom posting dates may not be combined')
       );
-      expect(assertionErrors.length).toBeGreaterThan(0);
-      expect(assertionErrors[0].message).toContain('expected $100');
+      expect(result.diagnostics.filter((d: Diagnostic) =>
+        d.message.includes('Balance assertion failed')
+      )).toHaveLength(0);
     });
 
     test('hledger documentation example - bank clearing date', () => {

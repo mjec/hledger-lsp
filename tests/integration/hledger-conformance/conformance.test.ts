@@ -474,6 +474,112 @@ describeConformance('hledger conformance', () => {
     });
   });
 
+  // ─── Balance assignments ──────────────────────────────────────────
+
+  describe('balance assignments', () => {
+    test('hledger and LSP agree: assignments infer amounts and balance', () => {
+      const filePath = path.join(validDir, 'balance-assignment.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(true);
+
+      const result = validator.validate(doc, parsed, {
+        settings: {
+          validation: {
+            ...disableAll(),
+            balance: true,
+            missingAmounts: true,
+            balanceAssertions: true,
+          },
+        },
+      });
+      expect(result.diagnostics).toEqual([]);
+    });
+
+    test('hledger and LSP agree: assignments across virtual balancing groups', () => {
+      const filePath = path.join(validDir, 'balance-assignment-virtual.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(true);
+
+      const result = validator.validate(doc, parsed, {
+        settings: {
+          validation: {
+            ...disableAll(),
+            balance: true,
+            missingAmounts: true,
+            balanceAssertions: true,
+          },
+        },
+      });
+      expect(result.diagnostics).toEqual([]);
+    });
+
+    test('hledger and LSP agree: an assignment may not carry a posting date', () => {
+      const filePath = path.join(errorsDir, 'assignment-posting-date.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(false);
+
+      const result = validator.validate(doc, parsed, {
+        settings: { validation: { ...disableAll(), balanceAssertions: true } },
+      });
+      expect(result.diagnostics.map(d => d.message)).toContainEqual(
+        expect.stringContaining('Balance assignments and custom posting dates may not be combined')
+      );
+    });
+
+    test('hledger and LSP agree: a transaction of only assignments can be unbalanced', () => {
+      const filePath = path.join(errorsDir, 'assignment-imbalance.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(false);
+
+      const result = validator.validate(doc, parsed, {
+        settings: { validation: { ...disableAll(), balance: true } },
+      });
+      expect(result.diagnostics.map(d => d.message)).toContainEqual(
+        expect.stringContaining('does not balance')
+      );
+    });
+  });
+
+  // ─── Total balance assertions ─────────────────────────────────────
+
+  describe('total balance assertions', () => {
+    test('hledger and LSP agree: == holds when no other commodity is present', () => {
+      const filePath = path.join(validDir, 'total-assertion.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(true);
+
+      const result = validator.validate(doc, parsed, {
+        settings: { validation: { ...disableAll(), balanceAssertions: true } },
+      });
+      expect(result.diagnostics).toEqual([]);
+    });
+
+    test('hledger and LSP agree: == fails when another commodity is non-zero', () => {
+      const filePath = path.join(errorsDir, 'total-assertion-other-commodity.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(false);
+
+      const result = validator.validate(doc, parsed, {
+        settings: { validation: { ...disableAll(), balanceAssertions: true } },
+      });
+      expect(result.diagnostics.map(d => d.message)).toContainEqual(
+        expect.stringContaining('Balance assertion failed')
+      );
+    });
+  });
+
   // ─── Valid journals (no false positives) ─────────────────────────
 
   describe('valid journals (no false positives)', () => {

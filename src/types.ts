@@ -37,6 +37,8 @@ export interface Posting {
   lotAnnotation?: string; // Raw lot annotation text, e.g. "{$1} [2026-01-01] (mylot)" or "{2026-01-01, \"label\", $1}"
   cost?: Cost;
   assertion?: Amount;
+  assertionTotal?: boolean; // true for `==` (asserts all commodities, not just the named one)
+  isBalanceAssignment?: boolean; // amount was inferred from an assertion with no stated amount
   comment?: string;
   tags?: Record<string, string>;
   line?: number; // 0-based line number where this posting appears

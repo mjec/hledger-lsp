@@ -3,10 +3,10 @@ import { URI } from 'vscode-uri';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ParsedDocument, Transaction, Posting } from '../../types';
 import { formatAmount } from '../../utils/amountFormatter';
-import { resolveIncludePath } from '../../utils/uri';
 import { getEffectiveDate, isFromDocument } from '../../utils/index';
 import { amountPrecision, balanceTolerance } from '../../utils/balanceCalculator';
 import { getTransactionRange } from './utils';
+import { buildIncludePositionMap, transactionOrderPosition } from './journalOrder';
 
 export function findPostingRange(transaction: Transaction, posting: Posting, lines: string[]): { start: { line: number; character: number }; end: { line: number; character: number } } {
     if (transaction.line !== undefined) {
@@ -43,16 +43,9 @@ export function validateBalanceAssertions(
 
     const baseUri = URI.parse(document.uri);
 
-    // Build a map from included file URI to the include directive's line number
-    // This determines the ordering position for transactions from included files
-    const includePositionMap = new Map<string, number>();
-    for (const directive of parsedDoc.directives) {
-        if (directive.type === 'include' && directive.line !== undefined) {
-            // Resolve the include path to get the actual file URI
-            const resolvedUri = resolveIncludePath(directive.value, baseUri);
-            includePositionMap.set(resolvedUri.toString(), directive.line);
-        }
-    }
+    // Ordering position per source file; shared with the balance-assignment
+    // pre-pass so the two cannot disagree about journal order.
+    const includePositionMap = buildIncludePositionMap(parsedDoc, baseUri);
 
     // Extract all postings with effective dates and ordering info
     interface PostingWithContext {
@@ -66,17 +59,7 @@ export function validateBalanceAssertions(
     const allPostings: PostingWithContext[] = [];
 
     for (const transaction of transactions) {
-        // Determine the order position for this transaction
-        let orderPosition: number;
-        const txnSourceUri = transaction.sourceUri?.toString() || '';
-
-        if (txnSourceUri === documentUri) {
-            // Transaction is in the root file - use its own line number
-            orderPosition = transaction.line ?? 0;
-        } else {
-            // Transaction is from an included file - use the include directive's line
-            orderPosition = includePositionMap.get(txnSourceUri) ?? 0;
-        }
+        const orderPosition = transactionOrderPosition(transaction, documentUri, includePositionMap);
 
         const lineInFile = transaction.line ?? 0;
 
@@ -134,6 +117,14 @@ export function validateBalanceAssertions(
             }
         }
 
+        // A balance assignment's amount was inferred *to* satisfy its assertion,
+        // so the assertion holds by construction and hledger never reports it.
+        // Re-checking it here would also disagree with the inference, which sees
+        // the balance before the transaction's auto-balanced postings exist.
+        if (posting.isBalanceAssignment) {
+            continue;
+        }
+
         // Check assertion (only for current document)
         if (posting.assertion && isFromDocument(transaction, documentUri)) {
             const assertedCommodity = posting.assertion.commodity || '';
@@ -153,6 +144,28 @@ export function validateBalanceAssertions(
                     message: `Balance assertion failed for ${account}: expected ${expectedFormatted}, but calculated ${actualFormatted}`,
                     source: 'hledger'
                 });
+                continue;
+            }
+
+            // `==` asserts the balance across all commodities, so every other
+            // commodity the account holds must be zero.
+            if (posting.assertionTotal) {
+                const otherCommodities = runningBalances.get(account) ?? new Map<string, number>();
+
+                for (const [commodity, balance] of otherCommodities.entries()) {
+                    if (commodity === assertedCommodity) continue;
+
+                    const otherPrecision = runningPrecisions.get(account)?.get(commodity) ?? 0;
+                    if (Math.abs(balance) <= balanceTolerance(otherPrecision)) continue;
+
+                    diagnostics.push({
+                        severity: DiagnosticSeverity.Error,
+                        range: findPostingRange(transaction, posting, lines),
+                        message: `Balance assertion failed for ${account}: total assertion expects no other commodities, ` +
+                            `but calculated ${formatAmount(balance, commodity, parsedDoc)}`,
+                        source: 'hledger'
+                    });
+                }
             }
         }
     }

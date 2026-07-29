@@ -357,16 +357,52 @@ export function parseMultiplierAmount(amountStr: string, commodities?: Map<strin
 }
 
 /**
- * Infer amounts for a list of postings (used by both regular transactions and periodic transactions).
- * At most one posting may omit an amount; the inferred amount balances to zero.
+ * The balancing group a posting belongs to, or null for `(unbalanced)` postings,
+ * which never participate in balancing.
+ *
+ * hledger balances real postings among themselves and `[balanced virtual]`
+ * postings among themselves, so each group independently gets at most one
+ * inferred amount.
  */
-function inferAmountsForPostings(postings: Posting[]): void {
-  // Find real (non-unbalanced-virtual) postings without amounts
+/**
+ * A balance assignment: the posting asserts a balance but states no amount, so
+ * its amount is derived from that assertion rather than from balancing.
+ */
+export function isBalanceAssignmentPosting(posting: Posting): boolean {
+  return posting.assertion !== undefined && posting.amount === undefined;
+}
+
+export function balancingGroupOf(posting: Posting): 'real' | 'balanced' | null {
+  if (posting.virtual === 'unbalanced') return null;
+  return posting.virtual === 'balanced' ? 'balanced' : 'real';
+}
+
+/**
+ * Infer amounts for a list of postings (used by both regular transactions and periodic transactions).
+ * Within each balancing group, at most one posting may omit an amount; the
+ * inferred amount balances that group to zero.
+ */
+export function inferAmountsForPostings(postings: Posting[]): void {
+  for (const group of ['real', 'balanced'] as const) {
+    inferAmountForGroup(postings.filter(p => balancingGroupOf(p) === group));
+  }
+}
+
+/**
+ * Infer the single missing amount within one balancing group. The postings are
+ * the same objects as in the transaction, so assigning to them mutates it.
+ */
+function inferAmountForGroup(postings: Posting[]): void {
+  // A posting with an assertion but no amount is a balance assignment: its amount
+  // comes from the asserted balance, which needs the account's running balance and
+  // so is resolved later, by resolveBalanceAssignments. Auto-balancing must not
+  // claim such a posting, and cannot balance the group while one is outstanding —
+  // its amount is still unknown, so the sum would be wrong.
+  if (postings.some(isBalanceAssignmentPosting)) return;
+
   const postingsWithoutAmounts: number[] = [];
   for (let i = 0; i < postings.length; i++) {
-    const p = postings[i];
-    if (p.virtual === 'unbalanced') continue;
-    if (!p.amount) {
+    if (!postings[i].amount) {
       postingsWithoutAmounts.push(i);
     }
   }
@@ -379,7 +415,6 @@ function inferAmountsForPostings(postings: Posting[]): void {
   for (let i = 0; i < postings.length; i++) {
     if (i === targetIndex) continue;
     const posting = postings[i];
-    if (posting.virtual === 'unbalanced') continue;
     if (!posting.amount) continue;
 
     if (posting.cost) {
@@ -696,16 +731,21 @@ export function parsePosting(line: string, transactionDate?: string, commodities
   if (!afterAccount) return posting;
 
   // Parse order: amount [@ cost | @@ cost] [= assertion]
-  // First, split on assertion (=)
-  const assertionMatch = afterAccount.match(/=\s*(.+)$/);
+  // First, split on assertion (= single-commodity, == total across commodities).
+  // The subaccount-inclusive forms (=* and ==*) are not supported: the trailing
+  // `*` makes parseAmount fail, so they record no assertion at all.
+  const assertionMatch = afterAccount.match(/(==?)\s*(.+)$/);
   const beforeAssertion = assertionMatch
     ? afterAccount.substring(0, assertionMatch.index ?? 0).trim()
     : afterAccount;
 
   if (assertionMatch) {
-    const assertionPart = assertionMatch[1].trim();
+    const assertionPart = assertionMatch[2].trim();
     const assertionAmount = parseAmount(assertionPart, undefined, commodities);
-    if (assertionAmount) posting.assertion = assertionAmount;
+    if (assertionAmount) {
+      posting.assertion = assertionAmount;
+      if (assertionMatch[1] === '==') posting.assertionTotal = true;
+    }
   }
 
   // Strip lot annotations before parsing amount and cost.
