@@ -1,6 +1,7 @@
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 import { HledgerParser } from '../../../src/parser/index';
+import { Validator } from '../../../src/features/validator';
 import {
     resolveBalanceAssignments,
     validateBalanceAssignmentRules
@@ -46,5 +47,37 @@ describe('validateBalanceAssignmentRules', () => {
         // A written amount makes this an assertion, not an assignment, so the
         // prohibition does not apply.
         expect(diagnose('2013/1/1\n  a  $5  =$5  ; date:2012/1/1\n  b\n')).toEqual([]);
+    });
+});
+
+describe('an invalid assignment does not cascade consequential errors', () => {
+    function allMessages(text: string): string[] {
+        const doc = TextDocument.create(URI_STRING, 'hledger', 1, text);
+        const parsed = new HledgerParser().parse(doc);
+        return new Validator().validate(doc, parsed, {
+            settings: { validation: { balance: true, balanceAssertions: true, missingAmounts: true } }
+        }).diagnostics.map(d => d.message);
+    }
+
+    // hledger refuses to resolve an assignment that carries a posting date, and
+    // reports only the prohibition. Inferring an amount anyway makes the
+    // transaction look unbalanced by the inferred figure — an error hledger never
+    // reports, caused entirely by an inference it declined to make.
+    const text = '2024-01-15 Deposit\n    assets:checking  $100\n    income:salary\n'
+        + '\n2024-01-10 Purchase\n    expenses:food  $10  ; date:2024-01-14\n'
+        + '    assets:checking  = $100  ; date:2024-01-14\n';
+
+    it('still reports the prohibition', () => {
+        expect(allMessages(text)).toContainEqual(
+            expect.stringContaining('Balance assignments and custom posting dates may not be combined')
+        );
+    });
+
+    it('does not report an imbalance caused by the refused inference', () => {
+        expect(allMessages(text).filter(m => m.includes('does not balance'))).toEqual([]);
+    });
+
+    it('does not report the posting as a missing amount either', () => {
+        expect(allMessages(text).filter(m => m.includes('without amounts'))).toEqual([]);
     });
 });

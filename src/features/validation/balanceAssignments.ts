@@ -64,18 +64,27 @@ function resolveAssignmentsInTransaction(transaction: Transaction, balances: Bal
 
     for (const posting of transaction.postings) {
         if (isBalanceAssignmentPosting(posting)) {
-            const assertion = posting.assertion!;
-            const commodity = assertion.commodity || '';
-            const priorBalance =
-                balanceOf(balances, posting.account, commodity) +
-                balanceOf(pending, posting.account, commodity);
-
-            posting.amount = {
-                quantity: assertion.quantity - priorBalance,
-                commodity,
-                inferred: true
-            };
             posting.isBalanceAssignment = true;
+
+            // hledger refuses to resolve an assignment carrying a custom posting
+            // date rather than choosing which balance to resolve against, so the
+            // amount is left unresolved here and validateBalanceAssignmentRules
+            // reports it. Inferring one anyway would make the transaction look
+            // unbalanced by exactly that figure — an error hledger never reports,
+            // caused solely by an inference it declined to make.
+            if (!posting.date) {
+                const assertion = posting.assertion!;
+                const commodity = assertion.commodity || '';
+                const priorBalance =
+                    balanceOf(balances, posting.account, commodity) +
+                    balanceOf(pending, posting.account, commodity);
+
+                posting.amount = {
+                    quantity: assertion.quantity - priorBalance,
+                    commodity,
+                    inferred: true
+                };
+            }
         }
 
         if (hasKnownAmount(posting)) {
