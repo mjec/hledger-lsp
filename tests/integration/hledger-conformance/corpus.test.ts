@@ -36,7 +36,8 @@ const describeCorpus = isHledgerAvailable() ? describe : describe.skip;
 // 2026-07-29: 86.0% after correcting cost inference and ignoring costs that
 // duplicate a conversion posting pair.
 // 2026-07-29: 87.5% after parsing leading-dot and scientific-notation amounts.
-const MIN_AGREEMENT = 0.87;
+// 2026-07-29: 88.3% after excluding cost precision from the balance tolerance.
+const MIN_AGREEMENT = 0.88;
 
 interface CaseResult {
   file: string;

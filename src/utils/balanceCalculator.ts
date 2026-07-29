@@ -29,28 +29,42 @@ export function balanceTolerance(precision: number): number {
 }
 
 /**
- * Max decimal precision per commodity across a transaction's postings, as
- * used for balance checking: posting amounts count toward their own
- * commodity, except that a posting with a cost participates in the cost's
- * commodity instead (matching calculateTransactionBalance). This mirrors
- * hledger, where balancing precision is transaction-local — journal-wide or
- * declared commodity precision does not affect it.
+ * Max decimal precision per commodity across a transaction's postings, as used for
+ * balance checking. Transaction-local, mirroring hledger: journal-wide or declared
+ * commodity precision does not affect balancing.
+ *
+ * A commodity's precision comes from the amounts *postings* state in it. The
+ * precision of a **cost** is deliberately not counted: writing a rate to more
+ * decimal places than the amounts it converts must not tighten the tolerance.
+ * hledger accepts `1C @ $1.0049` against `$-1.00` — a $0.0049 residue, inside half
+ * a unit of the posting's 2 places — but rejects the same residue against
+ * `$-1.0000`. A cost is consulted only for a commodity that no posting states,
+ * which otherwise would have no precision at all.
  */
 export function commodityPrecisions(postings: Posting[]): Map<string, number> {
-  const precisions = new Map<string, number>();
-  const bump = (commodity: string, p: number) => {
-    const current = precisions.get(commodity);
+  const fromPostings = new Map<string, number>();
+  const fromCosts = new Map<string, number>();
+
+  const bump = (into: Map<string, number>, commodity: string, p: number) => {
+    const current = into.get(commodity);
     if (current === undefined || p > current) {
-      precisions.set(commodity, p);
+      into.set(commodity, p);
     }
   };
 
   for (const posting of postings) {
     if (posting.virtual === 'unbalanced' || !posting.amount) continue;
     if (posting.cost) {
-      bump(posting.cost.amount.commodity || '', amountPrecision(posting.cost.amount));
+      bump(fromCosts, posting.cost.amount.commodity || '', amountPrecision(posting.cost.amount));
     } else {
-      bump(posting.amount.commodity || '', amountPrecision(posting.amount));
+      bump(fromPostings, posting.amount.commodity || '', amountPrecision(posting.amount));
+    }
+  }
+
+  const precisions = new Map(fromPostings);
+  for (const [commodity, precision] of fromCosts.entries()) {
+    if (!precisions.has(commodity)) {
+      precisions.set(commodity, precision);
     }
   }
 

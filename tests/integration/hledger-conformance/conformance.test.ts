@@ -474,6 +474,38 @@ describeConformance('hledger conformance', () => {
     });
   });
 
+  // ─── Cost precision and balance tolerance ─────────────────────────
+
+  describe('cost precision', () => {
+    test('hledger and LSP agree: a high-precision rate does not tighten the tolerance', () => {
+      const filePath = path.join(validDir, 'cost-precision-tolerance.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(true);
+
+      const result = validator.validate(doc, parsed, {
+        settings: { validation: { ...disableAll(), balance: true } },
+      });
+      expect(result.diagnostics).toEqual([]);
+    });
+
+    test('hledger and LSP agree: the residue is reported once the postings are precise enough', () => {
+      const filePath = path.join(errorsDir, 'cost-precision-too-coarse.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(false);
+
+      const result = validator.validate(doc, parsed, {
+        settings: { validation: { ...disableAll(), balance: true } },
+      });
+      expect(result.diagnostics.map(d => d.message)).toContainEqual(
+        expect.stringContaining('does not balance')
+      );
+    });
+  });
+
   // ─── Number formats ───────────────────────────────────────────────
 
   describe('number formats', () => {
