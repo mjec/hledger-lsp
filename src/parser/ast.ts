@@ -1,6 +1,7 @@
 import { URI } from 'vscode-uri';
 import { Transaction, Posting, Amount, Account, Payee, Commodity, Tag, Directive, DecimalMark, ThousandsSeparator, Format, PeriodicTransaction, AutoPosting, AutoPostingEntry, MultiplierAmount, PriceDirective } from '../types';
 import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment, stripQuotes } from '../utils/index';
+import { balanceTolerance, commodityPrecisions } from '../utils/balanceCalculator';
 
 function splitComment(line: string): { content: string; comment: string } | null {
   // Use [^\r\n]* instead of .* to handle both LF and CRLF line endings.
@@ -80,6 +81,30 @@ export function parseTransaction(lines: string[], startLine: number, commodities
 }
 
 /**
+ * Whether every commodity in these postings already sums to zero, ignoring costs.
+ *
+ * Used to decide whether a cost needs inferring at all. Callers guarantee that no
+ * posting carries an explicit cost, so the written amounts are the whole story.
+ */
+function balancesInEveryCommodity(postings: Posting[]): boolean {
+  const sums = new Map<string, number>();
+
+  for (const posting of postings) {
+    if (!posting.amount) return false;
+    const commodity = posting.amount.commodity || '';
+    sums.set(commodity, (sums.get(commodity) ?? 0) + posting.amount.quantity);
+  }
+
+  const precisions = commodityPrecisions(postings);
+
+  for (const [commodity, sum] of sums.entries()) {
+    if (Math.abs(sum) > balanceTolerance(precisions.get(commodity) ?? 0)) return false;
+  }
+
+  return true;
+}
+
+/**
  * Infer costs for two-commodity transactions without explicit cost notation.
  *
  * According to hledger docs, when a transaction has:
@@ -111,6 +136,15 @@ export function inferCosts(transaction: Transaction): void {
 
   // Must have exactly 2 commodities
   if (commodities.size !== 2) return;
+
+  // A cost is only inferred to make an otherwise unbalanced transaction balance.
+  // When every commodity already sums to zero there is nothing to infer, and
+  // hledger prints such a transaction with no `@` at all. This matters for
+  // conversion postings (`equity:conversion` pairs), which balance each commodity
+  // on their own: inferring here produced a cost of zero, and applying it removed
+  // the first posting's amount from the balance and reported the remainder of its
+  // commodity as an imbalance.
+  if (balancesInEveryCommodity(transaction.postings)) return;
 
   // Get first posting's commodity
   const firstCommodity = transaction.postings[0].amount!.commodity || '';
