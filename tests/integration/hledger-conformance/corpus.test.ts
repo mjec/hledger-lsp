@@ -42,7 +42,9 @@ const describeCorpus = isHledgerAvailable() ? describe : describe.skip;
 // balance assertions. One false positive left: assertions-18.j needs
 // multi-commodity amount inference, which the one-Amount-per-posting model
 // cannot express.
-const MIN_AGREEMENT = 0.89;
+// 2026-07-29: 92.1% after requiring opposite signs to infer a cost, balancing
+// each group separately, and checking commodity directive syntax.
+const MIN_AGREEMENT = 0.92;
 
 interface CaseResult {
   file: string;
