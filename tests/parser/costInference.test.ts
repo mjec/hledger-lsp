@@ -61,3 +61,52 @@ describe('cost inference only happens when a cost is needed', () => {
         expect(ps.filter(p => p.cost?.amount.quantity === 0)).toEqual([]);
     });
 });
+
+describe('inferred cost shape depends on how many postings share the source commodity', () => {
+    // hledger prints a total cost when one posting carries the source commodity
+    // (`a €100 @@ $135`) but a unit rate when several do (`€99 @ $1.35` and
+    // `€1 @ $1.35`). A total cost on the first posting only would leave the others
+    // unconverted, showing up as a residue in the source commodity.
+    it('infers a total cost when a single posting carries the source commodity', () => {
+        const ps = postings('2011/01/01\n  a   €100\n  b  $-135\n');
+
+        expect(ps[0].cost).toMatchObject({ type: 'total', inferred: true });
+        expect(ps[0].cost!.amount.quantity).toBe(135);
+    });
+
+    it('infers a unit rate on every posting when several share the source commodity', () => {
+        // corpus costs-07.j: the rate is the total of the other commodity over the
+        // total of this one, 135/100.
+        const ps = postings('2011/01/01\n    expenses:foreign currency        €99\n'
+            + '    assets                         $-130\n'
+            + '    expenses:foreign currency         €1\n'
+            + '    assets                           $-5\n');
+
+        expect(ps[0].cost).toMatchObject({ type: 'unit', inferred: true });
+        expect(ps[0].cost!.amount.quantity).toBeCloseTo(1.35, 8);
+        expect(ps[2].cost).toMatchObject({ type: 'unit', inferred: true });
+        expect(ps[2].cost!.amount.quantity).toBeCloseTo(1.35, 8);
+        expect(ps[1].cost).toBeUndefined();
+        expect(ps[3].cost).toBeUndefined();
+    });
+});
+
+describe('cost inference needs a genuine exchange', () => {
+    // Nothing is being exchanged if one commodity already sums to zero, so there
+    // is no rate to infer and the transaction is simply unbalanced. hledger reports
+    // "the real postings' sum should be 0 but is: $10.00" here.
+    it('infers nothing when the other commodity already sums to zero', () => {
+        const ps = postings('2024-01-15 * Store\n    expenses:food  $50.00\n'
+            + '    expenses:food  €20.00\n    assets:checking  $-40.00\n'
+            + '    assets:checking  €-20.00\n');
+
+        expect(ps.every(p => p.cost === undefined)).toBe(true);
+    });
+
+    it('infers nothing when the source commodity sums to zero', () => {
+        const ps = postings('2024-01-15 * Store\n    a  €20.00\n    b  €-20.00\n'
+            + '    c  $50.00\n    d  $-40.00\n');
+
+        expect(ps.every(p => p.cost === undefined)).toBe(true);
+    });
+});

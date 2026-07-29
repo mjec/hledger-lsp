@@ -33,7 +33,9 @@ const describeCorpus = isHledgerAvailable() ? describe : describe.skip;
 // declared decimal mark for ambiguous digit groups.
 // 2026-07-29: 81.4% after implementing balance assignments, per-group
 // auto-balancing, and total (==) assertions.
-const MIN_AGREEMENT = 0.81;
+// 2026-07-29: 86.0% after correcting cost inference and ignoring costs that
+// duplicate a conversion posting pair.
+const MIN_AGREEMENT = 0.85;
 
 interface CaseResult {
   file: string;

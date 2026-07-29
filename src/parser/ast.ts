@@ -163,20 +163,49 @@ export function inferCosts(transaction: Transaction): void {
     }
   }
 
-  // Infer total cost: the negation of the sum of other commodity
-  // This makes the transaction balance when cost is used for balance calculation
-  const costAmount: Amount = {
-    quantity: -otherSum,
-    commodity: otherCommodity,
-    format: otherCommodityFormat,
-  };
+  const sourcePostings = transaction.postings.filter(
+    p => (p.amount!.commodity || '') === firstCommodity
+  );
+  const sourceSum = sourcePostings.reduce((sum, p) => sum + p.amount!.quantity, 0);
 
-  // Add inferred total cost to first posting
-  transaction.postings[0].cost = {
-    type: 'total',
-    amount: costAmount,
-    inferred: true
-  };
+  // A cost records an exchange of one commodity for another, so both sides must
+  // have something to exchange. If either already sums to zero there is no rate to
+  // infer and the transaction is simply unbalanced — inferring anyway would
+  // produce a rate of zero and silently erase the other commodity's residue.
+  if (sourceSum === 0 || otherSum === 0) return;
+
+  if (sourcePostings.length === 1) {
+    // One posting carries the whole source commodity, so the conversion can be
+    // stated as a total cost on it — matching hledger, which prints `€100 @@ $135`.
+    transaction.postings[0].cost = {
+      type: 'total',
+      amount: {
+        quantity: -otherSum,
+        commodity: otherCommodity,
+        format: otherCommodityFormat,
+      },
+      inferred: true
+    };
+    return;
+  }
+
+  // Several postings share the source commodity. A total cost on the first would
+  // leave the rest unconverted and show up as a residue in that commodity, so the
+  // conversion is spread as a unit rate over all of them — hledger prints
+  // `€99 @ $1.35` and `€1 @ $1.35` for a 135/100 exchange.
+  const unitRate = -otherSum / sourceSum;
+
+  for (const posting of sourcePostings) {
+    posting.cost = {
+      type: 'unit',
+      amount: {
+        quantity: unitRate,
+        commodity: otherCommodity,
+        format: otherCommodityFormat,
+      },
+      inferred: true
+    };
+  }
 }
 
 /**
