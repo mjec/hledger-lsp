@@ -474,6 +474,59 @@ describeConformance('hledger conformance', () => {
     });
   });
 
+  // ─── Conversion postings and cost inference ───────────────────────
+
+  describe('conversion postings', () => {
+    test('hledger and LSP agree: conversion pairs balance with or without a cost', () => {
+      const filePath = path.join(validDir, 'conversion-postings.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(true);
+
+      const result = validator.validate(doc, parsed, {
+        settings: { validation: { ...disableAll(), balance: true } },
+      });
+      expect(result.diagnostics).toEqual([]);
+    });
+  });
+
+  describe('cost inference', () => {
+    test('hledger and LSP agree: both inferred-cost shapes balance', () => {
+      const filePath = path.join(validDir, 'cost-inference-shapes.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(true);
+
+      const result = validator.validate(doc, parsed, {
+        settings: { validation: { ...disableAll(), balance: true } },
+      });
+      expect(result.diagnostics).toEqual([]);
+
+      // One source posting → total cost; several → a unit rate on each.
+      expect(parsed.transactions[0].postings[0].cost).toMatchObject({ type: 'total' });
+      const second = parsed.transactions[1].postings;
+      expect(second[0].cost).toMatchObject({ type: 'unit' });
+      expect(second[2].cost).toMatchObject({ type: 'unit' });
+    });
+
+    test('hledger and LSP agree: nothing to infer when one commodity already balances', () => {
+      const filePath = path.join(errorsDir, 'no-exchange-to-infer.j');
+      const { doc } = createDoc(filePath);
+      const parsed = parser.parse(doc);
+
+      expect(runHledgerCheck(filePath).success).toBe(false);
+
+      const result = validator.validate(doc, parsed, {
+        settings: { validation: { ...disableAll(), balance: true } },
+      });
+      expect(result.diagnostics.map(d => d.message)).toContainEqual(
+        expect.stringContaining('does not balance')
+      );
+    });
+  });
+
   // ─── Balance assignments ──────────────────────────────────────────
 
   describe('balance assignments', () => {

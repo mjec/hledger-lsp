@@ -1,6 +1,7 @@
 import { URI } from 'vscode-uri';
 import { Transaction, Posting, Amount, Account, Payee, Commodity, Tag, Directive, DecimalMark, ThousandsSeparator, Format, PeriodicTransaction, AutoPosting, AutoPostingEntry, MultiplierAmount, PriceDirective } from '../types';
 import { isPosting, extractAccountFromPosting, extractTags, isTransactionHeader, isComment, stripQuotes } from '../utils/index';
+import { balanceTolerance, commodityPrecisions } from '../utils/balanceCalculator';
 
 function splitComment(line: string): { content: string; comment: string } | null {
   // Use [^\r\n]* instead of .* to handle both LF and CRLF line endings.
@@ -80,6 +81,30 @@ export function parseTransaction(lines: string[], startLine: number, commodities
 }
 
 /**
+ * Whether every commodity in these postings already sums to zero, ignoring costs.
+ *
+ * Used to decide whether a cost needs inferring at all. Callers guarantee that no
+ * posting carries an explicit cost, so the written amounts are the whole story.
+ */
+function balancesInEveryCommodity(postings: Posting[]): boolean {
+  const sums = new Map<string, number>();
+
+  for (const posting of postings) {
+    if (!posting.amount) return false;
+    const commodity = posting.amount.commodity || '';
+    sums.set(commodity, (sums.get(commodity) ?? 0) + posting.amount.quantity);
+  }
+
+  const precisions = commodityPrecisions(postings);
+
+  for (const [commodity, sum] of sums.entries()) {
+    if (Math.abs(sum) > balanceTolerance(precisions.get(commodity) ?? 0)) return false;
+  }
+
+  return true;
+}
+
+/**
  * Infer costs for two-commodity transactions without explicit cost notation.
  *
  * According to hledger docs, when a transaction has:
@@ -112,6 +137,15 @@ export function inferCosts(transaction: Transaction): void {
   // Must have exactly 2 commodities
   if (commodities.size !== 2) return;
 
+  // A cost is only inferred to make an otherwise unbalanced transaction balance.
+  // When every commodity already sums to zero there is nothing to infer, and
+  // hledger prints such a transaction with no `@` at all. This matters for
+  // conversion postings (`equity:conversion` pairs), which balance each commodity
+  // on their own: inferring here produced a cost of zero, and applying it removed
+  // the first posting's amount from the balance and reported the remainder of its
+  // commodity as an imbalance.
+  if (balancesInEveryCommodity(transaction.postings)) return;
+
   // Get first posting's commodity
   const firstCommodity = transaction.postings[0].amount!.commodity || '';
 
@@ -129,20 +163,49 @@ export function inferCosts(transaction: Transaction): void {
     }
   }
 
-  // Infer total cost: the negation of the sum of other commodity
-  // This makes the transaction balance when cost is used for balance calculation
-  const costAmount: Amount = {
-    quantity: -otherSum,
-    commodity: otherCommodity,
-    format: otherCommodityFormat,
-  };
+  const sourcePostings = transaction.postings.filter(
+    p => (p.amount!.commodity || '') === firstCommodity
+  );
+  const sourceSum = sourcePostings.reduce((sum, p) => sum + p.amount!.quantity, 0);
 
-  // Add inferred total cost to first posting
-  transaction.postings[0].cost = {
-    type: 'total',
-    amount: costAmount,
-    inferred: true
-  };
+  // A cost records an exchange of one commodity for another, so both sides must
+  // have something to exchange. If either already sums to zero there is no rate to
+  // infer and the transaction is simply unbalanced — inferring anyway would
+  // produce a rate of zero and silently erase the other commodity's residue.
+  if (sourceSum === 0 || otherSum === 0) return;
+
+  if (sourcePostings.length === 1) {
+    // One posting carries the whole source commodity, so the conversion can be
+    // stated as a total cost on it — matching hledger, which prints `€100 @@ $135`.
+    transaction.postings[0].cost = {
+      type: 'total',
+      amount: {
+        quantity: -otherSum,
+        commodity: otherCommodity,
+        format: otherCommodityFormat,
+      },
+      inferred: true
+    };
+    return;
+  }
+
+  // Several postings share the source commodity. A total cost on the first would
+  // leave the rest unconverted and show up as a residue in that commodity, so the
+  // conversion is spread as a unit rate over all of them — hledger prints
+  // `€99 @ $1.35` and `€1 @ $1.35` for a 135/100 exchange.
+  const unitRate = -otherSum / sourceSum;
+
+  for (const posting of sourcePostings) {
+    posting.cost = {
+      type: 'unit',
+      amount: {
+        quantity: unitRate,
+        commodity: otherCommodity,
+        format: otherCommodityFormat,
+      },
+      inferred: true
+    };
+  }
 }
 
 /**

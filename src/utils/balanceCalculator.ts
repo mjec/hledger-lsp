@@ -57,17 +57,41 @@ export function commodityPrecisions(postings: Posting[]): Map<string, number> {
   return precisions;
 }
 
+// hledger's default conversion (equity) account names. A posting to one of these
+// accounts, or any subaccount, records one side of a currency conversion.
+const CONVERSION_ACCOUNTS = ['equity:conversion', 'equity:trade', 'equity:trading'];
+
+/**
+ * Whether an account records one side of a currency conversion.
+ *
+ * Matches hledger's built-in names case-insensitively, including subaccounts.
+ * Note that accounts declared `type:V` are also conversion accounts in hledger;
+ * the parser does not yet record account types, so those are not detected here.
+ */
+export function isConversionAccount(account: string): boolean {
+  const name = account.toLowerCase();
+  return CONVERSION_ACCOUNTS.some(base => name === base || name.startsWith(`${base}:`));
+}
+
 /**
  * Calculate transaction balance grouped by commodity, handling cost conversions
  *
  * When a posting has a cost (@ or @@), the cost commodity is used for balance
  * calculation instead of the posting's commodity.
  *
+ * A pair of conversion postings already records both sides of an exchange, so
+ * each commodity balances on its own. When such postings are present, any cost
+ * is redundant documentation of the same exchange, and applying it as well would
+ * count the conversion twice — so costs are ignored. hledger additionally rejects
+ * a cost that contradicts the conversion postings; that consistency check is not
+ * implemented here.
+ *
  * @param transaction - The transaction to calculate balance for
  * @returns Map of commodity to total amount
  */
 export function calculateTransactionBalance(transaction: Transaction): Map<string, number> {
   const balances = new Map<string, number>();
+  const hasConversionPostings = transaction.postings.some(p => isConversionAccount(p.account));
 
   for (const posting of transaction.postings) {
     // Unbalanced virtual postings () don't participate in balance checks
@@ -75,7 +99,7 @@ export function calculateTransactionBalance(transaction: Transaction): Map<strin
 
     if (posting.amount) {
       // If posting has a cost, use the cost commodity for balance calculation
-      if (posting.cost) {
+      if (posting.cost && !hasConversionPostings) {
         const costCommodity = posting.cost.amount.commodity || '';
         let costValue: number;
 
