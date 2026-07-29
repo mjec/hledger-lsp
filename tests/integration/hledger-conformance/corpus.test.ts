@@ -42,7 +42,9 @@ const describeCorpus = isHledgerAvailable() ? describe : describe.skip;
 // balance assertions. One false positive left: assertions-18.j needs
 // multi-commodity amount inference, which the one-Amount-per-posting model
 // cannot express.
-const MIN_AGREEMENT = 0.89;
+// 2026-07-29: 92.1% after requiring opposite signs to infer a cost, balancing
+// each group separately, and checking commodity directive syntax.
+const MIN_AGREEMENT = 0.92;
 
 interface CaseResult {
   file: string;
@@ -67,6 +69,7 @@ function disableAll(): typeof defaultSettings.validation {
     futureDates: false,
     emptyDescriptions: false,
     formatMismatch: false,
+    commodityDirectives: false,
     includeFiles: false,
     circularIncludes: false,
     markAllUndeclaredInstances: true,
@@ -100,6 +103,9 @@ describeCorpus('hledger corpus differential', () => {
             balanceAssertions: true,
             missingAmounts: true,
             invalidDates: true,
+            // hledger's parseable check rejects a malformed commodity directive,
+            // so its LSP equivalent belongs in this set.
+            commodityDirectives: true,
           },
         },
       });

@@ -1504,6 +1504,7 @@ function disableAll(): typeof defaultSettings.validation {
     futureDates: false,
     emptyDescriptions: false,
     formatMismatch: false,
+    commodityDirectives: false,
     includeFiles: false,
     circularIncludes: false,
     markAllUndeclaredInstances: true,
