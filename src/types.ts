@@ -38,6 +38,7 @@ export interface Posting {
   cost?: Cost;
   assertion?: Amount;
   assertionTotal?: boolean; // true for `==` (asserts all commodities, not just the named one)
+  assertionCost?: Cost; // cost attached to the asserted balance, e.g. `= €1 @ $1`
   isBalanceAssignment?: boolean; // amount was inferred from an assertion with no stated amount
   comment?: string;
   tags?: Record<string, string>;
