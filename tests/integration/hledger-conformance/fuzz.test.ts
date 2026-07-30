@@ -20,7 +20,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { generateJournal } from '../../fuzz/generator';
-import { findDivergences } from '../../fuzz/compare';
+import { findDivergences, findFormattingDivergences, formatJournal } from '../../fuzz/compare';
 import { isHledgerAvailable, runHledgerCheck, runHledgerPrint } from './hledgerRunner';
 
 const SEED = Number(process.env.FUZZ_SEED ?? 1);
@@ -67,7 +67,24 @@ describeFuzz('differential fuzzing', () => {
                     continue;
                 }
 
-                const divergences = findDivergences(journal, filePath, runHledgerPrint(filePath));
+                const printed = runHledgerPrint(filePath);
+                const divergences = findDivergences(journal, filePath, printed);
+
+                // Formatting must not change what the journal means. `--format -o` and
+                // format-on-save overwrite the file, so a formatter that rewrites
+                // content corrupts the user's data.
+                const formattedPath = path.join(workDir, `seed-${seed}-formatted.journal`);
+                fs.writeFileSync(formattedPath, formatJournal(journal, filePath));
+                const formattedVerdict = runHledgerCheck(formattedPath);
+                if (!formattedVerdict.success) {
+                    divergences.push(
+                        `formatting produced a journal hledger rejects: `
+                        + `${formattedVerdict.errors[0]?.message?.split('\n')[0] ?? 'unknown'}`
+                    );
+                } else {
+                    divergences.push(...findFormattingDivergences(printed, runHledgerPrint(formattedPath)));
+                }
+
                 if (divergences.length > 0) {
                     findings.push({ seed, journal, divergences });
                 }
