@@ -47,6 +47,48 @@ describe('formatting never rewrites the date the author wrote', () => {
     });
 });
 
+describe('formatting preserves virtual posting delimiters', () => {
+    // The parser stores the account without its delimiters, so emitting
+    // `posting.account` dropped them. That silently moves the posting into a
+    // different balancing group — `[v] 10` becoming `v 10` puts it in the real group,
+    // which then stops balancing. It is why formatted journals came back unbalanced.
+    it('keeps the brackets of a balanced virtual posting', () => {
+        const formatted = format('2024-01-01 x\n  a  1\n  b  -1\n  [v]  10\n  [w]  -10\n');
+
+        expect(formatted).toMatch(/^ {4}\[v\]/m);
+        expect(formatted).toMatch(/^ {4}\[w\]/m);
+    });
+
+    it('keeps the parentheses of an unbalanced virtual posting', () => {
+        const formatted = format('2024-01-01 x\n  a  1\n  b  -1\n  (u)  99\n');
+
+        expect(formatted).toMatch(/^ {4}\(u\)/m);
+    });
+
+    it('keeps the brackets of an amount-less virtual posting', () => {
+        const formatted = format('2024-01-01 x\n  a  1\n  b  -1\n  [v]  10\n  [w]\n');
+
+        expect(formatted).toMatch(/^ {4}\[w\]/m);
+    });
+
+    it('leaves a plain account undecorated', () => {
+        expect(format('2024-01-01 x\n  a  1\n  b  -1\n')).not.toMatch(/[[\](]/);
+    });
+
+    it('lines amounts up allowing for the delimiters', () => {
+        // The delimiters widen the account column, so the amounts of bracketed and
+        // plain postings must still end in the same column. Amounts are right-aligned,
+        // so it is the end of the line that has to match, not where the number starts.
+        const formatted = format('2024-01-01 x\n  aaa  1\n  bbb  -1\n  [aaa]  10\n  [bbb]  -10\n');
+        const lineEnds = formatted.split('\n')
+            .filter(line => /\d$/.test(line))
+            .map(line => line.length);
+
+        expect(lineEnds).toHaveLength(4);
+        expect(new Set(lineEnds).size).toBe(1);
+    });
+});
+
 describe('parseTransactionHeader reports the date as written', () => {
     // The resolved date is what validators need; the text as written is what the
     // formatter needs. Conflating them is what caused the rewrite.
