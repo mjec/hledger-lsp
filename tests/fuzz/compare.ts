@@ -2,6 +2,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 import { HledgerParser } from '../../src/parser';
 import { Validator } from '../../src/features/validator';
+import { formattingProvider } from '../../src/features/formatter';
 import { defaultSettings } from '../../src/server/settings';
 import { normalizeDate } from '../../src/utils/index';
 import { HledgerPrintTransaction } from '../integration/hledger-conformance/hledgerRunner';
@@ -142,4 +143,47 @@ export function findDivergences(
     });
 
     return divergences.filter(d => !isKnown(d));
+}
+
+/** Format a journal the way `--format` and format-on-save do. */
+export function formatJournal(journal: string, filePath: string): string {
+    const doc = TextDocument.create(URI.file(filePath).toString(), 'hledger', 1, journal);
+    const parsed = new HledgerParser().parse(doc);
+    const edits = formattingProvider.formatDocument(doc, parsed, { tabSize: 4, insertSpaces: true });
+
+    return edits.length === 0 ? journal : edits[0].newText;
+}
+
+/** A transaction reduced to what it means, for comparing before and after formatting. */
+function meaning(transactions: HledgerPrintTransaction[]): string {
+    return transactions
+        .map(t => `${t.date} ${t.description}\n` + t.postings
+            .map(p => `  ${p.account} ${describeAmounts(amountsByCommodity(p.amounts))}`)
+            .join('\n'))
+        .join('\n');
+}
+
+/**
+ * Describe any way formatting changed what the journal *means*, as hledger reads it.
+ *
+ * Formatting adjusts layout and nothing else, so hledger must read the formatted text
+ * exactly as it read the original. This property is what catches a formatter that
+ * rewrites content: it expanded a year-less date into a full one using the wrong
+ * year, silently changing every such date — and `--format -o` and format-on-save both
+ * write the result back over the user's file.
+ */
+export function findFormattingDivergences(
+    before: HledgerPrintTransaction[],
+    after: HledgerPrintTransaction[]
+): string[] {
+    const meaningBefore = meaning(before);
+    const meaningAfter = meaning(after);
+
+    if (meaningBefore === meaningAfter) return [];
+
+    return [
+        'formatting changed what the journal means:\n'
+        + `   before:\n${meaningBefore.replace(/^/gm, '     ')}\n`
+        + `   after:\n${meaningAfter.replace(/^/gm, '     ')}`,
+    ].filter(d => !isKnown(d));
 }

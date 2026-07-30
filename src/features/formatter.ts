@@ -5,7 +5,7 @@
 import { TextEdit, Range, Position, FormattingOptions as LSPFormattingOptions } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
-import { ParsedDocument, Transaction } from '../types';
+import { ParsedDocument, Posting, Transaction } from '../types';
 import { parseTransactionHeader } from '../parser/ast';
 import { isTransactionHeader, isComment, isDirective, isPeriodicTransactionHeader, isAutoPostingHeader, isFromDocument } from '../utils/index';
 import { getAmountLayout, AmountLayout, renderAmountLayout, AmountWidths } from '../utils/amountFormatter';
@@ -18,6 +18,21 @@ export interface TransactionColumnWidths {
   amount: AmountWidths;
   cost: AmountWidths;
   assertion: AmountWidths;
+}
+
+/**
+ * An account as it must be written back out, including the delimiters of its
+ * balancing group.
+ *
+ * The parser stores `posting.account` stripped of its `(...)` or `[...]`, so writing
+ * that value back drops them — which silently moves the posting into a different
+ * balancing group and changes what the transaction means. Both the emitted line and
+ * the account column width come from here, so they cannot disagree.
+ */
+function accountAsWritten(posting: Posting): string {
+  if (posting.virtual === 'unbalanced') return `(${posting.account})`;
+  if (posting.virtual === 'balanced') return `[${posting.account}]`;
+  return posting.account;
 }
 
 export class FormattingProvider {
@@ -230,7 +245,7 @@ export class FormattingProvider {
       // Safe to format - format normally
       validationResults.push(true);
       let line = ' '.repeat(widths.indent);
-      line += posting.account;
+      line += accountAsWritten(posting);
       line += ' '.repeat(2); // Minimum two spaces after account name
       const postingHasInlayHints = (inlayHintsConfig.showInferredAmounts && posting.amount?.inferred) ||
         (inlayHintsConfig.showCostConversions && posting.cost?.inferred) || (inlayHintsConfig.showRunningBalances) || false;
@@ -444,7 +459,7 @@ export class FormattingProvider {
     };
 
     for (const posting of transaction.postings) {
-      widths.account = Math.max(widths.account, posting.account.length);
+      widths.account = Math.max(widths.account, accountAsWritten(posting).length);
 
       if (posting.amount && !posting.amount.inferred) {
         const layout = getAmountLayout(posting.amount, parsed, options, '');
