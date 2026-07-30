@@ -542,10 +542,13 @@ export class FormattingProvider {
       return line.trimEnd();
     }
 
-    let result = header.date;
+    // The date as written, not the resolved one: a year-less date resolves to a full
+    // date, and echoing that back would rewrite the journal. Formatting adjusts
+    // layout only — and `--format -o` and format-on-save both overwrite the file.
+    let result = header.dateText;
 
-    if (header.effectiveDate) {
-      result += '=' + header.effectiveDate;
+    if (header.effectiveDateText) {
+      result += '=' + header.effectiveDateText;
     }
 
     if (header.status === 'cleared') {

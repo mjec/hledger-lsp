@@ -614,7 +614,7 @@ export function processPriceDirective(
 }
 
 // Parse Transaction Header and Helpers
-export function parseTransactionHeader(line: string, defaultYear?: string): { date: string; effectiveDate?: string; status?: 'cleared' | 'pending' | 'unmarked'; code?: string; description: string; payee: string; note: string; comment?: string; tags?: Record<string, string> } | null {
+export function parseTransactionHeader(line: string, defaultYear?: string): { date: string; dateText: string; effectiveDate?: string; effectiveDateText?: string; status?: 'cleared' | 'pending' | 'unmarked'; code?: string; description: string; payee: string; note: string; comment?: string; tags?: Record<string, string> } | null {
   const trimmed = line.trim();
 
   const dateRes = parseDate(trimmed, defaultYear);
@@ -635,7 +635,9 @@ export function parseTransactionHeader(line: string, defaultYear?: string): { da
 
   return {
     date: dateRes.date,
+    dateText: dateRes.text,
     effectiveDate: effDateRes.effectiveDate,
+    effectiveDateText: effDateRes.text,
     status: statusRes.status,
     code: codeRes.code,
     description: descRes.description,
@@ -646,12 +648,19 @@ export function parseTransactionHeader(line: string, defaultYear?: string): { da
   };
 }
 
-function parseDate(line: string, defaultYear?: string): { date: string, rest: string } | null {
+/**
+ * Parse a leading date.
+ *
+ * `date` is the resolved date, which validators compare and order by. `text` is the
+ * date exactly as written, which the formatter must echo — a year-less date resolves
+ * to a full one, and writing that back would change what the journal says.
+ */
+function parseDate(line: string, defaultYear?: string): { date: string, text: string, rest: string } | null {
   // Try full date first: YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD
   const fullMatch = line.match(/^(\d{4})([-/.])(\d{1,2})\2(\d{1,2})/);
   if (fullMatch) {
     const dateStr = fullMatch[0];
-    return { date: dateStr, rest: line.substring(dateStr.length).trim() };
+    return { date: dateStr, text: dateStr, rest: line.substring(dateStr.length).trim() };
   }
 
   // Try short date: M/D, M-D, M.D. The dot form is fine here because this only
@@ -665,18 +674,18 @@ function parseDate(line: string, defaultYear?: string): { date: string, rest: st
     const sep = shortMatch[2];
     const day = shortMatch[3].padStart(2, '0');
     const dateStr = `${year}${sep}${month}${sep}${day}`;
-    return { date: dateStr, rest: line.substring(shortMatch[0].length).trim() };
+    return { date: dateStr, text: shortMatch[0], rest: line.substring(shortMatch[0].length).trim() };
   }
 
   return null;
 }
 
-function parseEffectiveDate(line: string, defaultYear?: string): { effectiveDate?: string, rest: string } {
+function parseEffectiveDate(line: string, defaultYear?: string): { effectiveDate?: string, text?: string, rest: string } {
   // Full date: =YYYY-MM-DD, =YYYY/MM/DD, =YYYY.MM.DD
   const fullMatch = line.match(/^=(\d{4})([-/.])(\d{1,2})\2(\d{1,2})/);
   if (fullMatch) {
     const dateStr = fullMatch[0].substring(1);
-    return { effectiveDate: dateStr, rest: line.substring(fullMatch[0].length).trim() };
+    return { effectiveDate: dateStr, text: dateStr, rest: line.substring(fullMatch[0].length).trim() };
   }
 
   // Short date: =M/D, =M-D, =M.D
@@ -687,7 +696,7 @@ function parseEffectiveDate(line: string, defaultYear?: string): { effectiveDate
     const sep = shortMatch[2];
     const day = shortMatch[3].padStart(2, '0');
     const dateStr = `${year}${sep}${month}${sep}${day}`;
-    return { effectiveDate: dateStr, rest: line.substring(shortMatch[0].length).trim() };
+    return { effectiveDate: dateStr, text: shortMatch[0].substring(1), rest: line.substring(shortMatch[0].length).trim() };
   }
 
   return { effectiveDate: undefined, rest: line };
