@@ -89,11 +89,25 @@ cat myfile.journal | hledger-lsp --format - -o formatted.journal
 hledger-lsp --format myfile.journal -o myfile.journal
 ```
 
-The formatter applies default formatting settings:
+The formatter produces the same output the editor's format command produces for
+the same file: it resolves the workspace the file belongs to (honouring
+`.hledger-lsp.json`) so commodity styles declared in other files apply, and it
+starts from the same defaults the editor uses:
 
 - 4-space indentation for postings
 - Decimal point alignment at column 52
 - Normalized transaction header spacing
+
+Running the CLI over an already-formatted journal is therefore a no-op. Pass
+`--no-workspace` to format a file on its own instead, ignoring the rest of the
+workspace; journals read from stdin are always formatted on their own.
+
+If your editor overrides the formatting settings, pass the matching flags so the
+CLI agrees with it — `hledger-lsp --help` lists them:
+
+```bash
+hledger-lsp --format myfile.journal --decimal-align-column 60 --indentation 2
+```
 
 ### Other Options
 

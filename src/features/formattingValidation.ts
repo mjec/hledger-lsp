@@ -9,9 +9,28 @@
 
 import { Posting, ParsedDocument, Amount } from '../types';
 import { parseAmount } from '../parser/ast';
-import { formatAmount } from '../utils/amountFormatter';
+import { getAmountLayout, renderAmountLayout } from '../utils/amountFormatter';
 import { amountPrecision, balanceTolerance } from '../utils/balanceCalculator';
-import { FormattingOptions } from '../server/settings';
+import { DEFAULT_FORMATTING_OPTIONS, FormattingOptions } from '../server/settings';
+
+/**
+ * Render an amount exactly as the formatter would write it, minus the alignment
+ * padding.
+ *
+ * This must go through the full `Amount` (not just its quantity), because the
+ * amount's own precision participates in the rendered precision: a posting
+ * written with more decimals than its commodity declares keeps its decimals.
+ * Rendering from the quantity alone would truncate to the declared precision and
+ * make a faithful amount look like a value-changing one.
+ */
+function renderAsFormatter(
+  amount: Amount,
+  parsedDoc: ParsedDocument,
+  settings?: Partial<FormattingOptions>
+): string {
+  const options: FormattingOptions = { ...DEFAULT_FORMATTING_OPTIONS, ...settings };
+  return renderAmountLayout(getAmountLayout(amount, parsedDoc, options, ''));
+}
 
 /**
  * Check if a posting's amount is safe to format
@@ -66,12 +85,7 @@ export function isAmountRoundTripSafe(
   const commodity = amount.commodity || '';
 
   // Step 1: Format the parsed amount
-  const formattedText = formatAmount(
-    amount.quantity,
-    commodity,
-    parsedDoc,
-    settings
-  );
+  const formattedText = renderAsFormatter(amount, parsedDoc, settings);
 
   // Step 2: Parse the formatted text back
   const reparsedAmount = parseAmount(formattedText);
@@ -152,10 +166,8 @@ export function getFormatUnsafeReason(
   parsedDoc: ParsedDocument,
   settings?: Partial<FormattingOptions>
 ): { code: string; message: string } | null {
-  const commodity = amount.commodity || '';
-
   // Check round-trip
-  const formattedText = formatAmount(amount.quantity, commodity, parsedDoc, settings);
+  const formattedText = renderAsFormatter(amount, parsedDoc, settings);
   const reparsedAmount = parseAmount(formattedText);
 
   if (!reparsedAmount) {
