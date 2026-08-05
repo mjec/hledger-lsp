@@ -39,7 +39,7 @@ import {
   validateCommodityDirectives
 } from './validation/index';
 
-export { ValidationResult, ValidatorOptions };
+export type { ValidationResult, ValidatorOptions };
 
 export class Validator {
   /**

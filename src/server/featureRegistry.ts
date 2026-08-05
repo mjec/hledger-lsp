@@ -355,7 +355,7 @@ export function registerLanguageFeatures(context: ServiceRegistryContext): void 
                 end: { line, character: Number.MAX_SAFE_INTEGER }
             });
 
-            const { getAmountLayout, formatAmount } = await import('../utils/amountFormatter');
+            const { getAmountLayout, formatAmount } = await import('../utils/amountFormatter.js');
 
             const options = {
                 ...settings?.formatting
