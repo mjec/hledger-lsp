@@ -12,7 +12,7 @@ import { ParsedDocument } from '../../src/types';
 import { toFileUri } from '../../src/utils/uri';
 
 // Re-export IncludePathResolver for tests that need to create custom resolvers
-export { IncludePathResolver } from '../../src/server/workspace';
+export type { IncludePathResolver } from '../../src/server/workspace';
 
 /**
  * Creates a mock connection object for WorkspaceManager.

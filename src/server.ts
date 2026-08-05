@@ -18,7 +18,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  await import('./lspMain');
+  await import('./lspMain.js');
 }
 
 void main();
