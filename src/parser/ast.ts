@@ -713,7 +713,7 @@ export function parsePosting(line: string, transactionDate?: string, commodities
   const { withoutLot, lot } = parseLot(beforeAssertion);
   if (lot) posting.lot = lot;
 
-  // Now parse amount and cost from afterLot
+  // Now parse amount and cost from withoutLot
   const { amountPart, cost } = parseCost(withoutLot, commodities);
   if (cost) posting.cost = cost;
 
@@ -750,10 +750,10 @@ function parseLot(text: string, commodities?: Map<string, Commodity>): { without
 
   let position = 0; // where we currently are in `text`
   let beginningOfState = 0; // the beginning of the current stateful section (e.g., unit cost, date, label, v2 lot)
-  let parsedLot: Lot = {'version': 1}; // the lot we will return (if valid)
+  let parsedLot: Lot = {}; // the lot we will return (if valid)
   // the current parser state, which determines how we interpret the next characters. We start in 'start' state, and
   // switch to other states when we encounter relevant delimiters.
-  let state: 'start' | 'in braces' | 'in v1 total cost' | 'in date' | 'in label' = 'start';
+  let state: 'start' | 'in braces' | 'in braces after first comma' | 'in quotes in braces' | 'in quotes in braces after first comma'| 'in v1 total cost' | 'in date' | 'in label' = 'start';
   let withoutLot = ""; // text with lot information removed (what's left after we extract lot info)
 
   // we loop through each character in the text, using the current state to determine how to interpret it
@@ -802,28 +802,83 @@ function parseLot(text: string, commodities?: Map<string, Commodity>): { without
         }
         break; // state == 'start'
       case 'in braces':
-        if (char === '}') {
-          const textInBraces = text.substring(beginningOfState, position).trim();
-
-          // try parsing this as a unit cost first; if that fails, it'll be a v2 lot
-          parsedLot.unitCost = parseAmount(textInBraces, undefined, commodities) ?? undefined;
-
-          if (parsedLot.unitCost === undefined) {
-            // v2 lot syntax: {date, "label", cost}
-            const parts = textInBraces.split(',').map(p => p.trim());
-            if (parts.length !== 3) {
-              // invalid: a v2 lot must have exactly three parts: date, label and cost
-              return { withoutLot: text.trim() };
-            } else {
-              parsedLot.version = 2;
-              parsedLot.date = parts[0];
-              parsedLot.label = parts[1].replace(/^"(.*)"$/, '$1');
-              parsedLot.unitCost = parseAmount(parts[2], undefined, commodities) || undefined;
-            }
+        if (char === ',') {
+          // we _could_ be in the middle of an amount, or in a v2 lot. Let's check!
+          const closingBracePosition = text.indexOf('}', position);
+          if (closingBracePosition === -1) {
+            // invalid: unclosed '{'
+            return { withoutLot: text.trim() };
           }
-          state = 'start';
+          const textInBraces = text.substring(beginningOfState, closingBracePosition).trim();
+          const asAmount = parseAmount(textInBraces, undefined, commodities);
+          if (asAmount !== null) {
+            // valid amount, so this is a v1 unit cost
+            parsedLot.unitCost = asAmount;
+            state = 'start'; // we've now parsed everything in these braces
+            position = closingBracePosition + 1; // move position past the closing brace (i.e. include position += 1)
+            beginningOfState = position; // per line above, this is the true beginning of the state
+            continue;
+          } else {
+            // this set of braces isn't an amount, so this comma must be meaningful; continue parsing
+            state = 'in braces after first comma';
+          }
         }
+        // deliberate fallthrough
+      case 'in braces after first comma':
+        if (char === ',' || char === '}') {
+          const textInBraces = text.substring(beginningOfState, position).trim();
+          const asAmount = parseAmount(textInBraces, undefined, commodities);
+          const asDate = parseDate(textInBraces);
+          
+          if (asAmount !== null && (parsedLot.unitCost !== undefined || parsedLot.totalCost !== undefined)) {
+            // invalid: only one unit cost allowed
+            return { withoutLot: text.trim() };
+          }
+
+          if (asDate !== null && parsedLot.date !== undefined) {
+            // invalid: only one date allowed
+            return { withoutLot: text.trim() };
+          }
+
+          if (asAmount === null && asDate === null) {
+            if (parsedLot.label === undefined && textInBraces.startsWith('"') && textInBraces.endsWith('"')) {
+              // a valid label
+              parsedLot.label = textInBraces;
+            } else {
+              // invalid: if it can't be parsed as unit cost or date, it must be a label.
+              // labels must be quoted and only one label is permitted.
+              return { withoutLot: text.trim() };
+            }
+          } else {
+            parsedLot.unitCost = asAmount ?? parsedLot.unitCost;
+            parsedLot.date = asDate?.date;
+          }
+          
+          if (char === '}') {
+            state = 'start';
+          }
+
+          beginningOfState = position + 1;
+        } else if (char === '"') {
+          if (state === 'in braces after first comma') {
+            state = 'in quotes in braces after first comma';
+          } else {
+            state = 'in quotes in braces';
+          }
+        } // if (char === ',' || char === '}')
         break; // state == 'in braces'
+      case 'in quotes in braces after first comma':
+        // ignore everything until we get to a closing quote
+        if (char === '"') {
+          state = 'in braces after first comma';
+        }
+        break; // state == 'in quotes in braces after first comma'
+      case 'in quotes in braces':
+        // ignore everything until we get to a closing quote
+        if (char === '"') {
+          state = 'in braces';
+        }
+        break; // state == 'in quotes in braces'
       case 'in v1 total cost':
         if (char === '}' && text[position + 1] === '}') {
           state = 'start';  

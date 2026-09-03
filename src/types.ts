@@ -57,7 +57,6 @@ export interface Lot {
   label?: string;
   unitCost?: Amount;
   totalCost?: Amount;
-  version: 1 | 2; // 1 = hledger 1.x syntax, 2 = hledger 2.x syntax
 }
 
 export interface Cost {
