@@ -98,7 +98,7 @@ export class SemanticTokensProvider {
     document: TextDocument,
   ): number[] {
     const builder = new SemanticTokensBuilder();
-    const lines = document.getText().split('\n');
+    const lines = document.getText().split(/\r?\n/);
 
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
       const line = lines[lineIndex];
