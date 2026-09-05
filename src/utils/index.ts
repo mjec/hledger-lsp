@@ -85,9 +85,10 @@ export function isDirective(line: string): boolean {
  */
 export function extractAccountFromPosting(line: string): string | null {
   const trimmed = line.trim();
-  // Account name is the first token after indentation
-  // Must be followed by 2+ spaces, a tab, or end of line (possibly with currency/amount)
-  const match = trimmed.match(/^([^;\s]+(?:\s+[^;\s]+)*?)(?:\s{2,}|\t|\s+\$|\s+[0-9-]|$)/);
+  // Account names may contain single spaces, so the name ends only at 2+ spaces, a
+  // tab, or end of line. A single space before a digit or currency symbol does NOT
+  // end it: `Income:Salary:Employer 401k Match` is one account name.
+  const match = trimmed.match(/^([^;\s]+(?:\s+[^;\s]+)*?)(?:\s{2,}|\t|$)/);
   return match ? match[1].trim() : null;
 }
 
